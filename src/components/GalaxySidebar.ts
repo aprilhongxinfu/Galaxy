@@ -3,8 +3,7 @@ import { colorMap } from './colorMap';
 
 import hljs from 'highlight.js/lib/core';
 import python from 'highlight.js/lib/languages/python';
-import 'highlight.js/styles/atom-one-light.css'; // 更接近 Jupyter 样式
-
+import 'highlight.js/styles/atom-one-light.css';
 hljs.registerLanguage('python', python);
 
 export interface Cell {

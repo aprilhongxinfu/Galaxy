@@ -198,7 +198,7 @@ export class SankeyWidget extends Widget {
         .attr('y', 20)
         .attr('text-anchor', 'middle')
         .style('cursor', 'pointer')
-        .text((d) => `Notebook ${d + 1}`);
+        .text((d) => `nb ${d + 1}`);
 
       const drag = d3.drag<SVGTextElement, number>()
         .on('start', function (event) {

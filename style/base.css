@@ -23,3 +23,12 @@
   max-width: 200px;
   white-space: nowrap;
 }
+
+.matrix-cell.matrix-highlight {
+  opacity: 1 !important;
+  stroke: #000;
+}
+
+.matrix-cell.matrix-dim {
+  opacity: 0.2;
+}

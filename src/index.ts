@@ -6,20 +6,18 @@ import {
 
 import {
   ICommandPalette,
-  MainAreaWidget,
-  WidgetTracker,
   ToolbarButton
 } from '@jupyterlab/apputils';
 
 import { IFileBrowserFactory, FileBrowser } from '@jupyterlab/filebrowser';
-import { SankeyWidget } from './components/SankeyWidget';
-import type { SankeyClickPayload } from './components/SankeyWidget';
-import { GalaxySidebar } from './components/GalaxySidebar';
+import { LeftSidebar } from './components/LeftSidebar';
 
 import { PageConfig } from '@jupyterlab/coreutils';
 import { runIcon } from '@jupyterlab/ui-components';
-
-let sidebar: GalaxySidebar | null = null;
+import { colorMap, initColorMap } from './components/colorMap';
+import { MatrixWidget } from './components/MatrixWidget';
+import { DetailSidebar } from './components/DetailSidebar';
+import { NotebookDetailWidget } from './components/NotebookDetailWidget';
 
 function getXsrfTokenFromCookie(): string | null {
   const match = document.cookie.match(/\b_xsrf=([^;]*)/);
@@ -32,25 +30,9 @@ function activate(
   browserFactory: IFileBrowserFactory,
   restorer: ILayoutRestorer | null
 ) {
-  console.log('✅ JupyterLab extension galaxy is activated!');
+  console.log('✅ JupyterLab extension galaxy is here!');
 
   const command = 'galaxy:analyze';
-
-  function handleCellClick(payload: SankeyClickPayload) {
-    console.log("📘 Notebook Cells:", payload.notebookCells);
-    console.log("📗 Stage Cells:", payload.stageCells);
-
-    if (sidebar) {
-      sidebar.updateContent(payload);
-    } else {
-      sidebar = new GalaxySidebar(payload);
-      sidebar.id = "galaxy-sidebar"
-      sidebar.title.label = "Inspection"
-      sidebar.title.closable = true
-      app.shell.add(sidebar, 'right')
-    }
-    app.shell.activateById('galaxy-sidebar')
-  }
 
   app.commands.addCommand(command, {
     label: 'Analyze Selected Notebooks',
@@ -62,7 +44,7 @@ function activate(
       }
 
       const selectedPaths = Array.from(fileBrowserWidget.selectedItems())
-        .filter(item => item.type === 'notebook')
+        .filter(item => item.type === 'notebook' || item.type === 'directory')
         .map(item => item.path);
 
       console.log("📁 Selected paths to send:", selectedPaths);
@@ -73,10 +55,24 @@ function activate(
       }
 
       try {
+        // 关闭之前的插件窗口
+        const oldLeft = app.shell.widgets('left');
+        for (const w of oldLeft) {
+          if (w.id === 'flow-chart-widget') w.close();
+        }
+        const oldMain = app.shell.widgets('main');
+        for (const w of oldMain) {
+          if (w.id === 'matrix-widget') w.close();
+        }
+        // 关闭右侧 detail sidebar
+        const oldRight = app.shell.widgets('right');
+        for (const w of oldRight) {
+          if (w.id === 'galaxy-detail-sidebar') w.close();
+        }
+
         const xsrfToken = getXsrfTokenFromCookie();
-        const url = PageConfig.getBaseUrl() + 'galaxy/analyze';
-        console.log("XSRF TOKEN", xsrfToken);
-        const res = await fetch(url, {
+        const url1 = PageConfig.getBaseUrl() + 'galaxy/analyzeNew';
+        const res1 = await fetch(url1, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -86,16 +82,109 @@ function activate(
           body: JSON.stringify({ paths: selectedPaths })
         });
 
-        if (!res.ok) throw new Error(`❌ ${res.statusText}`);
-        const result = await res.json();
+        if (!res1.ok) throw new Error(`❌ ${res1.statusText}`);
+        const result1 = await res1.json();
 
-        const content = new SankeyWidget(result, (payload) => handleCellClick(payload));
-        const widget = new MainAreaWidget({ content });
-        widget.title.label = 'Sankey Diagram';
-        widget.title.closable = true;
+        console.log(result1)
 
-        app.shell.add(widget, 'main');
-        tracker.add(widget);
+        // 统一颜色映射
+        const allStages = new Set<string>();
+        result1.forEach((nb: any) => {
+          nb.cells.forEach((cell: any) => {
+            const stage = String(cell["1st-level label"] ?? "None");
+            allStages.add(stage);
+          });
+        });
+        initColorMap(allStages);
+        const flowChartWidget = new LeftSidebar(result1, colorMap);
+        app.shell.add(flowChartWidget, 'left');
+        app.shell.activateById(flowChartWidget.id);
+        // 保存原始 sidebar 和数据，便于 notebook 详情切换回来
+        let originalLeftSidebar = flowChartWidget;
+
+        // 添加 MatrixWidget 到主区域
+        const colorScale = (label: string) => colorMap.get(label) || '#ccc';
+        const matrixWidget = new MatrixWidget(result1, colorScale);
+        app.shell.add(matrixWidget, 'main');
+        const notebookOrder = matrixWidget.getNotebookOrder();
+        const detailSidebar = new DetailSidebar(colorMap, notebookOrder);
+        const { mostFreqStage, mostFreqFlow } = flowChartWidget.getMostFrequentStageAndFlow();
+        detailSidebar.setSummary(result1, mostFreqStage, mostFreqFlow, matrixWidget.getNotebookOrder());
+        app.shell.add(detailSidebar, 'right');
+        app.shell.activateById(detailSidebar.id);
+        // 监听 notebook 排序变化，实时同步 sidebar
+        window.addEventListener('galaxy-notebook-order-changed', (e: any) => {
+          detailSidebar.setSummary(result1, mostFreqStage, mostFreqFlow, matrixWidget.getNotebookOrder());
+        });
+
+        // 统一管理 flowchart/matrix/detail 的筛选联动
+        let currentSelection: any = null;
+        window.addEventListener('galaxy-stage-selected', (e: any) => {
+          currentSelection = { type: 'stage', stage: e.detail.stage };
+          matrixWidget.setFilter(currentSelection);
+          detailSidebar.setFilter(currentSelection);
+        });
+        window.addEventListener('galaxy-flow-selected', (e: any) => {
+          currentSelection = { type: 'flow', from: e.detail.from, to: e.detail.to };
+          matrixWidget.setFilter(currentSelection);
+          detailSidebar.setFilter(currentSelection);
+        });
+        window.addEventListener('galaxy-selection-cleared', () => {
+          currentSelection = null;
+          matrixWidget.setFilter(null);
+          detailSidebar.setFilter(null);
+        });
+
+        // 监听 notebook 详情切换
+        window.addEventListener('galaxy-notebook-selected', (e: any) => {
+          // 关闭 matrix widget
+          const oldMain = app.shell.widgets('main');
+          for (const w of oldMain) {
+            if (w.id === 'matrix-widget') w.close();
+          }
+          // 关闭左侧 flow-chart-widget
+          const oldLeft = app.shell.widgets('left');
+          for (const w of oldLeft) {
+            if (w.id === 'flow-chart-widget') w.close();
+          }
+          // 新建并显示 notebook 详情
+          const nb = e.detail.notebook;
+          const nbDetailWidget = new NotebookDetailWidget(nb);
+          app.shell.add(nbDetailWidget, 'main');
+          app.shell.activateById(nbDetailWidget.id);
+
+          // 新建只显示该 notebook 的 flowchart
+          const singleLeftSidebar = new LeftSidebar([nb], colorMap);
+          app.shell.add(singleLeftSidebar, 'left');
+          app.shell.activateById(singleLeftSidebar.id);
+
+          // 右侧 sidebar 只显示该 notebook 信息
+          detailSidebar.setNotebookDetail(nb);
+
+          // 返回事件
+          const handleBack = () => {
+            // 关闭 notebook 详情
+            const mainWidgets = app.shell.widgets('main');
+            for (const w of mainWidgets) {
+              if (w.id === 'notebook-detail-widget') w.close();
+            }
+            // 关闭当前 flow-chart-widget
+            const leftWidgets = app.shell.widgets('left');
+            for (const w of leftWidgets) {
+              if (w.id === 'flow-chart-widget') w.close();
+            }
+            // 恢复原始 LeftSidebar
+            app.shell.add(originalLeftSidebar, 'left');
+            app.shell.activateById(originalLeftSidebar.id);
+            // 重新显示 matrix widget
+            app.shell.add(matrixWidget, 'main');
+            app.shell.activateById(matrixWidget.id);
+            // 恢复 summary 视图
+            detailSidebar.setSummary(result1, mostFreqStage, mostFreqFlow, matrixWidget.getNotebookOrder());
+            window.removeEventListener('galaxy-notebook-detail-back', handleBack);
+          };
+          window.addEventListener('galaxy-notebook-detail-back', handleBack);
+        });
       } catch (err) {
         console.error('❌ Failed to analyze notebooks:', err);
       }
@@ -104,17 +193,8 @@ function activate(
 
   palette.addItem({ command: command, category: 'Galaxy Tools' });
 
-
-  // Tracker + restore
-  const tracker = new WidgetTracker<MainAreaWidget<SankeyWidget>>({
-    namespace: 'galaxy'
-  });
-
   if (restorer) {
-    restorer.restore(tracker, {
-      command,
-      name: () => 'galaxy'
-    });
+    // 已无 tracker，直接不 restore
   }
 
   app.restored.then(() => {
