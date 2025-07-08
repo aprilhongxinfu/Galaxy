@@ -37,3 +37,11 @@
 .matrix-cell.matrix-dim {
   opacity: 0.2;
 }
+
+.minimap-highlight {
+  transform: scale(1.2);
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  transition: transform 0.15s cubic-bezier(.4,2,.6,1);
+  pointer-events: auto;
+}

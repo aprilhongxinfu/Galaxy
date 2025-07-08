@@ -252,12 +252,9 @@ export class MatrixWidget extends Widget {
                     .on('mouseover', function (event, d) {
                         d3.select(this)
                             .classed('matrix-highlight', true)
-                            .classed('matrix-dim', false);
-                        if (d.cellType !== 'code') {
-                            d3.select(this).attr('stroke', '#888');
-                        } else {
-                            d3.select(this).attr('stroke', '#000');
-                        }
+                            .classed('matrix-dim', false)
+                            .attr('stroke', color(String(d["1st-level label"] ?? '#bbb')))
+                            .attr('filter', 'drop-shadow(0px 0px 6px rgba(0,0,0,0.18))');
                         let tooltip = document.getElementById('galaxy-tooltip');
                         if (!tooltip) {
                             tooltip = document.createElement('div');
@@ -285,7 +282,8 @@ export class MatrixWidget extends Widget {
                         tooltip!.style.top = event.clientY + 12 + 'px';
                     })
                     .on('mouseout', function () {
-                        d3.select(this).classed('matrix-highlight', false);
+                        d3.select(this).classed('matrix-highlight', false)
+                            .attr('filter', null);
                         const datum = d3.select(this).datum() as Cell;
                         if (datum.cellType !== 'code') {
                             d3.select(this).attr('stroke', '#bbb');
@@ -315,7 +313,7 @@ export class MatrixWidget extends Widget {
                 .style('cursor', 'pointer')
                 .text(notebookOrder[col] + 1)
                 .on('click', () => {
-                    window.dispatchEvent(new CustomEvent('galaxy-notebook-selected', { detail: { notebook: notebooks[notebookOrder[col]] } }));
+                    window.dispatchEvent(new CustomEvent('galaxy-notebook-selected', { detail: { notebook: { ...notebooks[notebookOrder[col]], index: col } } }));
                 });
         }
     }

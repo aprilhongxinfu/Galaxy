@@ -42,6 +42,7 @@ export class NotebookDetailWidget extends Widget {
   private selectedCellIdx: number | null = null;
   private stageHoverHandler: (event: Event) => void;
   private transitionHoverHandler: (event: Event) => void;
+  private clearCellSelectionHandler: () => void;
 
   constructor(notebook: any) {
     super();
@@ -50,11 +51,12 @@ export class NotebookDetailWidget extends Widget {
     this.title.label = 'Notebook Detail';
     this.title.closable = true;
     this.addClass('notebook-detail-widget');
-    
+
     // 绑定事件处理器
     this.stageHoverHandler = this.handleStageHover.bind(this);
     this.transitionHoverHandler = this.handleTransitionHover.bind(this);
-    
+    this.clearCellSelectionHandler = this.handleClearCellSelection.bind(this);
+
     this.render();
   }
 
@@ -62,67 +64,93 @@ export class NotebookDetailWidget extends Widget {
     // 监听全局悬浮事件
     window.addEventListener('galaxy-stage-hover', this.stageHoverHandler);
     window.addEventListener('galaxy-transition-hover', this.transitionHoverHandler);
+    window.addEventListener('galaxy-clear-cell-selection', this.clearCellSelectionHandler);
   }
 
   onBeforeDetach(): void {
     // 移除事件监听器
     window.removeEventListener('galaxy-stage-hover', this.stageHoverHandler);
     window.removeEventListener('galaxy-transition-hover', this.transitionHoverHandler);
+    window.removeEventListener('galaxy-clear-cell-selection', this.clearCellSelectionHandler);
   }
 
   private handleStageHover(event: Event): void {
     const stage = (event as CustomEvent).detail.stage;
+    // 记录当前 flow chart 悬浮 stage
+    (window as any)._galaxyFlowHoverStage = stage;
     const minimapSvg = this.node.querySelector('svg');
     if (!minimapSvg) return;
 
     // 检查是否来自 minimap 内部的 hover
     const isFromMinimap = (event as any).detail?.source === 'minimap';
-    
+
     minimapSvg.querySelectorAll('rect').forEach((r) => {
       const rectStage = r.getAttribute('data-stage');
       const idx = parseInt(r.getAttribute('data-idx') || '0');
-      
+      const cells = this.notebook.cells ?? [];
+      const cell = cells[idx];
+      const stageColor = cell && cell.cellType === 'code' ? (colorMap.get(String(cell["1st-level label"] ?? 'None')) || '#bbb') : '#ccc';
       if (isFromMinimap) {
         // 来自 minimap 内部，只高亮当前 cell
         const hoveredIdx = (event as any).detail?.cellIdx;
         if (hoveredIdx === idx) {
-          r.setAttribute('stroke', '#000');
-          r.setAttribute('stroke-width', '2');
+          r.setAttribute('stroke', stageColor);
+          r.setAttribute('stroke-width', '1');
+          r.classList.add('minimap-highlight');
         } else if (this.selectedCellIdx === idx) {
           // 保持选中状态
-          r.setAttribute('stroke', '#1976d2');
-          r.setAttribute('stroke-width', '2');
+          // r.setAttribute('stroke', '#1976d2');
+          r.setAttribute('stroke-width', '1');
+          r.classList.remove('minimap-highlight');
         } else {
           // 还原为默认状态
-          const cells = this.notebook.cells ?? [];
-          if (cells[idx]?.cellType === 'markdown') {
+          if (cell?.cellType === 'markdown') {
             r.setAttribute('stroke', '#ccc');
             r.setAttribute('stroke-width', '1');
           } else {
-            r.setAttribute('stroke', 'none');
-            r.setAttribute('stroke-width', '0');
+            // r.setAttribute('stroke', 'none');
+            r.setAttribute('stroke-width', '1');
           }
+          r.classList.remove('minimap-highlight');
         }
       } else {
         // 来自外部（flowchart），高亮所有相同 stage 的 cell
         if (stage && rectStage === stage) {
-          r.setAttribute('stroke', '#000');
-          r.setAttribute('stroke-width', '2');
+          r.setAttribute('stroke', stageColor);
+          r.setAttribute('stroke-width', '1');
+          r.classList.add('minimap-highlight');
+          if (r.parentNode) r.parentNode.appendChild(r);
         } else {
           // 还原为选中或默认状态
           if (this.selectedCellIdx === idx) {
-            r.setAttribute('stroke', '#000');
-            r.setAttribute('stroke-width', '2');
+            // r.setAttribute('stroke', '#1976d2');
+            r.setAttribute('stroke-width', '1');
+            r.classList.remove('minimap-highlight');
           } else {
-            const cells = this.notebook.cells ?? [];
-            if (cells[idx]?.cellType === 'markdown') {
+            if (cell?.cellType === 'markdown') {
               r.setAttribute('stroke', '#ccc');
               r.setAttribute('stroke-width', '1');
             } else {
-              r.setAttribute('stroke', 'none');
-              r.setAttribute('stroke-width', '0');
+              // r.setAttribute('stroke', 'none');
+              r.setAttribute('stroke-width', '1');
             }
+            r.classList.remove('minimap-highlight');
           }
+        }
+      }
+      // flow chart 悬浮时，只给被高亮的 cell 加 minimap-highlight，selected cell 没被高亮则移除
+      if (stage) {
+        if (rectStage === stage) {
+          r.classList.add('minimap-highlight');
+        } else {
+          r.classList.remove('minimap-highlight');
+        }
+      } else {
+        // 没有 flow chart 悬浮时，只给 selected cell 加 minimap-highlight
+        if (this.selectedCellIdx === idx) {
+          r.classList.add('minimap-highlight');
+        } else {
+          r.classList.remove('minimap-highlight');
         }
       }
     });
@@ -130,6 +158,8 @@ export class NotebookDetailWidget extends Widget {
 
   private handleTransitionHover(event: Event): void {
     const { from, to } = (event as CustomEvent).detail;
+    // 记录 flow chart 悬浮
+    (window as any)._galaxyFlowHoverStage = from && to ? '__flow_transition__' : null;
     const minimapSvg = this.node.querySelector('svg');
     if (!minimapSvg) return;
 
@@ -138,16 +168,16 @@ export class NotebookDetailWidget extends Widget {
       minimapSvg.querySelectorAll('rect').forEach((r) => {
         const idx = parseInt(r.getAttribute('data-idx') || '0');
         if (this.selectedCellIdx === idx) {
-          r.setAttribute('stroke', '#1976d2');
-          r.setAttribute('stroke-width', '2');
+          // r.setAttribute('stroke', '#1976d2');
+          r.setAttribute('stroke-width', '1');
         } else {
           const cells = this.notebook.cells ?? [];
           if (cells[idx]?.cellType === 'markdown') {
             r.setAttribute('stroke', '#ccc');
             r.setAttribute('stroke-width', '1');
           } else {
-            r.setAttribute('stroke', 'none');
-            r.setAttribute('stroke-width', '0');
+            // r.setAttribute('stroke', 'none');
+            r.setAttribute('stroke-width', '1');
           }
         }
       });
@@ -157,31 +187,39 @@ export class NotebookDetailWidget extends Widget {
       for (let i = 0; i < cells.length - 1; i++) {
         const currStage = String(cells[i]["1st-level label"] ?? 'None');
         const nextStage = String(cells[i + 1]["1st-level label"] ?? 'None');
-        
+
         if (currStage === from && nextStage === to) {
           // 向前找连续的 from
           let i0 = i;
           while (i0 > 0 && String(cells[i0 - 1]["1st-level label"] ?? 'None') === from) i0--;
-          
+
           // 向后找连续的 to
           let i1 = i + 1;
           while (i1 + 1 < cells.length && String(cells[i1 + 1]["1st-level label"] ?? 'None') === to) i1++;
-          
+
           // 高亮 from 段
           for (let j = i0; j <= i; j++) {
             const rect = minimapSvg.querySelector(`rect[data-idx="${j}"]`) as SVGElement;
             if (rect) {
-              rect.setAttribute('stroke', '#000');
-              rect.setAttribute('stroke-width', '2');
+              const cell = cells[j];
+              const stageColor = cell && cell.cellType === 'code' ? (colorMap.get(String(cell["1st-level label"] ?? 'None')) || '#bbb') : '#ccc';
+              rect.setAttribute('stroke', stageColor);
+              rect.setAttribute('stroke-width', '1');
+              rect.classList.add('minimap-highlight');
+              if (rect.parentNode) rect.parentNode.appendChild(rect);
             }
           }
-          
+
           // 高亮 to 段
           for (let j = i + 1; j <= i1; j++) {
             const rect = minimapSvg.querySelector(`rect[data-idx="${j}"]`) as SVGElement;
             if (rect) {
-              rect.setAttribute('stroke', '#000');
-              rect.setAttribute('stroke-width', '2');
+              const cell = cells[j];
+              const stageColor = cell && cell.cellType === 'code' ? (colorMap.get(String(cell["1st-level label"] ?? 'None')) || '#bbb') : '#ccc';
+              rect.setAttribute('stroke', stageColor);
+              rect.setAttribute('stroke-width', '1');
+              rect.classList.add('minimap-highlight');
+              if (rect.parentNode) rect.parentNode.appendChild(rect);
             }
           }
         }
@@ -190,6 +228,18 @@ export class NotebookDetailWidget extends Widget {
       // 取消高亮，还原所有状态
       this.handleStageHover({ detail: { stage: null } } as CustomEvent);
     }
+    // flow chart 悬浮时，移除 selected cell 的 minimap-highlight
+    minimapSvg.querySelectorAll('rect').forEach((r) => {
+      const idx = parseInt(r.getAttribute('data-idx') || '0');
+      if (this.selectedCellIdx === idx) {
+        r.classList.remove('minimap-highlight');
+      }
+    });
+  }
+
+  private handleClearCellSelection() {
+    this.selectedCellIdx = null;
+    this.render();
   }
 
   private render() {
@@ -200,7 +250,12 @@ export class NotebookDetailWidget extends Widget {
       prevScrollTop = prevCellList.scrollTop;
     }
     const nb = this.notebook;
-    const nbIdx = (nb.path && /\d+/.test(nb.path)) ? nb.path.match(/\d+/)![0] : '';
+    let nbIdx = '';
+    if (nb.path && /\d+/.test(nb.path)) {
+      nbIdx = nb.path.match(/\d+/)![0];
+    } else if (nb.index !== undefined) {
+      nbIdx = String(nb.index + 1);
+    }
     this.node.innerHTML = `
       <div style="padding:24px; max-width:900px; margin:0 auto; height:100%; box-sizing:border-box; display:flex; flex-direction:column;">
         <div style="display:flex; align-items:center; font-size:15px; font-weight:500; margin-bottom:18px; margin-top:8px;">
@@ -212,45 +267,63 @@ export class NotebookDetailWidget extends Widget {
           <!-- Mini map -->
           <div style="width:20px; margin-right:14px; display:flex; flex-direction:column; justify-content:center; align-self:center;">
             ${(() => {
-              const cells = nb.cells ?? [];
-              const minimapHeight = cells.length * 4;
-              const rects = cells.map((cell: any, i: number) => {
-                const stage = String(cell["1st-level label"] ?? 'None');
-                const color = colorMap.get(stage) || '#ccc';
-                const isSelected = this.selectedCellIdx === i;
-                if (cell.cellType === 'markdown') {
-                  return `<rect x="0" y="${i * 4}" width="20" height="4" fill="transparent" stroke="${isSelected ? '#1976d2' : '#ccc'}" stroke-width="${isSelected ? 2 : 1}" data-stage="${stage}" data-idx="${i}" style="cursor:pointer;" />`;
-                } else {
-                  return `<rect x="0" y="${i * 4}" width="20" height="4" fill="${color}" stroke="${isSelected ? '#1976d2' : 'none'}" stroke-width="${isSelected ? 2 : 0}" data-stage="${stage}" data-idx="${i}" style="cursor:pointer;" />`;
-                }
-              }).join('');
-              return `<svg width="20" height="${minimapHeight}" style="display:block; margin:0 auto;">${rects}</svg>`;
-            })()}
+        const cells = nb.cells ?? [];
+        const cellHeight = 4;
+        const gap = 1;
+        const rectHeight = 3;
+        const minimapHeight = cells.length * (cellHeight + gap);
+        const minimapSvgWidth = 32;
+        const rectX = (minimapSvgWidth - 20) / 2;
+        const rects = cells.map((cell: any, i: number) => {
+          const stage = String(cell["1st-level label"] ?? 'None');
+          const color = colorMap.get(stage) || '#ccc';
+          // const isSelected = this.selectedCellIdx === i;
+          const rectY = i * (cellHeight + gap);
+          if (cell.cellType === 'markdown') {
+            // markdown cell: 灰色边，选中/高亮时只放大边框，不变色
+            const stroke = '#bbb';
+            const strokeWidth = 1;
+            // 高亮时rect高度减小，y加0.5，避免边框被覆盖
+            // const adjHeight = isSelected ? rectHeight - 1 : rectHeight;
+            // const adjY = isSelected ? rectY + 0.5 : rectY;
+            return `<rect x="${rectX}" y="${rectY}" width="20" height="${rectHeight}" fill="transparent" stroke="${stroke}" stroke-width="${strokeWidth}" data-stage="${stage}" data-idx="${i}" data-orig-width="20" data-orig-x="${rectX}" style="cursor:pointer;" />`;
+          } else {
+            // code cell: stage color边，选中时蓝色
+            const stageColor = colorMap.get(stage) || '#bbb';
+            const stroke = stageColor;
+            const strokeWidth = 1;
+            return `<rect x="${rectX}" y="${rectY}" width="20" height="${rectHeight}" fill="${color}" stroke="${stroke}" stroke-width="${strokeWidth}" data-stage="${stage}" data-idx="${i}" data-orig-width="20" data-orig-x="${rectX}" style="cursor:pointer;" />`;
+          }
+        }).join('');
+        return `<svg width="${minimapSvgWidth}" height="${minimapHeight}" style="display:block; margin:0 auto;">${rects}</svg>`;
+      })()}
           </div>
           <!-- Cell 列表 -->
           <div style="flex:1 1 auto; min-height:0; display:flex; flex-direction:column; gap:18px; overflow-y:auto; height:100%;" id="nbd-cell-list-scroll">
             ${(nb.cells ?? []).map((cell: any, i: number) => {
-              const stage = String(cell["1st-level label"] ?? 'None');
-              const stageColor = colorMap.get(stage) || '#ccc';
-              const content = cell.source ?? cell.code ?? '';
-              const isSelected = this.selectedCellIdx === i;
-              if (cell.cellType === 'code') {
-                const codeLines = content.split(/\r?\n/);
-                return `
+        const stage = String(cell["1st-level label"] ?? 'None');
+        const stageColor = colorMap.get(stage) || '#ccc';
+        const content = cell.source ?? cell.code ?? '';
+        const isSelected = this.selectedCellIdx === i;
+        if (cell.cellType === 'code') {
+          const codeLines = content.split(/\r?\n/);
+          return `
                   <div style="display:flex; flex-direction:row; align-items:stretch;">
                     <div style="position:relative; min-width:36px; margin-right:8px; height:100%;">
                       ${isSelected ? `<div style="position:absolute;left:0;top:0;width:3px;height:100%;background:#1976d2;border-radius:2px;"></div>` : ''}
-                      <div style="color:#888; font-size:15px; text-align:right; user-select:none; line-height:1.6; margin-left:8px;">[${i+1}]</div>
+                      <div style="color:#888; font-size:15px; text-align:right; user-select:none; line-height:1.6; margin-left:8px; display:flex; flex-direction:column; align-items:flex-end;">
+                        [${i + 1}]
+                      </div>
                     </div>
                     <div class="nbd-cell" style="flex:1 1 0; min-width:0; display:flex; border-radius:6px; box-shadow:0 1px 4px #0001; background:#fff;">
                       <div style="width:6px; border-radius:6px 0 0 6px; background:${stageColor}; margin-right:0;"></div>
                       <div style="flex:1; padding:14px 18px 10px 14px; min-width:0;">
                         <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;"></div>
-                        <div class="nbd-code-area" style="background:#f7f7fa; border-radius:4px; padding:8px 0 0 0; font-size:13px; overflow-x:auto; word-break:break-all; min-width:0;">
+                        <div class="nbd-code-area" style="background:#f7f7fa; border-radius:4px; padding:8px 0 0 0; font-size:13px; word-break:break-word; min-width:0; white-space:pre-wrap;">
                           <table style="border-spacing:0;"><tbody>
                             ${codeLines.map((line, idx) => `
                               <tr>
-                                <td style="text-align:right; color:#bbb; font-size:12px; padding:0 10px 0 8px; user-select:none; white-space:nowrap; vertical-align:top;">${idx+1}</td>
+                                <td style="text-align:right; color:#bbb; font-size:12px; padding:0 10px 0 8px; user-select:none; white-space:nowrap; vertical-align:top;">${idx + 1}</td>
                                 <td style="padding:0; font-family:var(--jp-code-font-family,monospace); text-align:left; vertical-align:top;"><code style="background:none; padding:0; display:block;">${highlightPython(line)}</code></td>
                               </tr>
                             `).join('')}
@@ -260,50 +333,60 @@ export class NotebookDetailWidget extends Widget {
                     </div>
                   </div>
                 `;
-              } else if (cell.cellType === 'markdown') {
-                const isHtml = /^\s*<.+?>/.test(content.trim());
-                return `
+        } else if (cell.cellType === 'markdown') {
+          const isHtml = /^\s*<.+?>/.test(content.trim());
+          return `
                   <div style="display:flex; flex-direction:row; align-items:stretch;">
                     <div style="position:relative; min-width:36px; margin-right:8px; height:100%;">
                       ${isSelected ? `<div style="position:absolute;left:0;top:0;width:3px;height:100%;background:#1976d2;border-radius:2px;"></div>` : ''}
-                      <div style="color:#888; font-size:15px; text-align:right; user-select:none; line-height:1.6; margin-left:8px;">[${i+1}]</div>
+                      <div style="color:#888; font-size:15px; text-align:right; user-select:none; line-height:1.6; margin-left:8px; display:flex; flex-direction:column; align-items:flex-end;">
+                        [${i + 1}]
+                        <!--<span class="nbd-magnifier" data-cell-idx="${i}" style="cursor:pointer; margin-top:2px;">
+                          <svg width="16" height="16" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="9" cy="9" r="7" stroke="#888" stroke-width="2"/><line x1="14.2" y1="14.2" x2="18" y2="18" stroke="#888" stroke-width="2" stroke-linecap="round"/></svg>
+                        </span>-->
+                      </div>
                     </div>
                     <div class="nbd-cell" style="flex:1 1 0; min-width:0; display:flex; border-radius:6px; box-shadow:0 1px 4px #0001; background:#fff;">
                       <div style="width:6px; border-radius:6px 0 0 6px; background:#ccc; margin-right:0;"></div>
                       <div style="flex:1; padding:14px 18px 10px 14px; min-width:0;">
                         <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;"></div>
-                        <div class="nbd-md-area" style="background:#fff; border-radius:4px; padding:10px 12px 10px 12px; font-size:14px; color:#222; overflow-x:auto; word-break:break-all; min-width:0;">
+                        <div class="nbd-md-area" style="background:#fff; border-radius:4px; padding:10px 12px 10px 12px; font-size:14px; color:#222; word-break:break-word; min-width:0; white-space:pre-wrap;">
                           ${isHtml ? content : simpleMarkdown(content)}
                         </div>
                       </div>
                     </div>
                   </div>
                 `;
-              } else {
-                // 其它类型直接显示内容
-                return `
+        } else {
+          // 其它类型直接显示内容
+          return `
                   <div style="display:flex; flex-direction:row; align-items:stretch;">
                     <div style="position:relative; min-width:36px; margin-right:8px; height:100%;">
                       ${isSelected ? `<div style="position:absolute;left:0;top:0;width:3px;height:100%;background:#1976d2;border-radius:2px;"></div>` : ''}
-                      <div style="color:#888; font-size:15px; text-align:right; user-select:none; line-height:1.6; margin-left:8px;">[${i+1}]</div>
+                      <div style="color:#888; font-size:15px; text-align:right; user-select:none; line-height:1.6; margin-left:8px; display:flex; flex-direction:column; align-items:flex-end;">
+                        [${i + 1}]
+                        <span class="nbd-magnifier" data-cell-idx="${i}" style="cursor:pointer; margin-top:2px;">
+                          <svg width="16" height="16" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="9" cy="9" r="7" stroke="#888" stroke-width="2"/><line x1="14.2" y1="14.2" x2="18" y2="18" stroke="#888" stroke-width="2" stroke-linecap="round"/></svg>
+                        </span>
+                      </div>
                     </div>
                     <div class="nbd-cell" style="flex:1 1 0; min-width:0; display:flex; border-radius:6px; box-shadow:0 1px 4px #0001; background:#fff;">
                       <div style="width:6px; border-radius:6px 0 0 6px; background:${stageColor}; margin-right:0;"></div>
                       <div style="flex:1; padding:14px 18px 10px 14px; min-width:0;">
                         <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
-                          <span style="color:#888; font-size:13px;">[${i+1}]</span>
+                          <span style="color:#888; font-size:13px;">[${i + 1}]</span>
                           <span class="nbd-tag" style="background:#eee; color:#888;">${cell.cellType}</span>
                           <span class="nbd-tag" style="background:${stageColor}22; color:${stageColor};">${LABEL_MAP[stage] ?? stage}</span>
                         </div>
-                        <div class="nbd-md-area" style="background:#fcfcf7; border-radius:4px; padding:10px 12px 10px 12px; font-size:14px; color:#222; overflow-x:auto; word-break:break-all; min-width:0;">
+                        <div class="nbd-md-area" style="background:#fcfcf7; border-radius:4px; padding:10px 12px 10px 12px; font-size:14px; color:#222; word-break:break-word; min-width:0; white-space:pre-wrap;">
                           ${content}
                         </div>
                       </div>
                     </div>
                   </div>
                 `;
-              }
-            }).join('')}
+        }
+      }).join('')}
           </div>
         </div>
       </div>
@@ -320,7 +403,15 @@ export class NotebookDetailWidget extends Widget {
       const minimapSvg = this.node.querySelector('svg');
       if (!minimapSvg) return;
       // minimap 点击跳转和高亮 + hover 高亮
+      // 记录当前是否有 flow chart 悬浮
+      const flowHoverStage = (window as any)._galaxyFlowHoverStage ?? null;
       minimapSvg.querySelectorAll('rect').forEach((r, i) => {
+        // 只有在没有 flow chart 悬浮时才给 selected cell 加 minimap-highlight
+        if (!flowHoverStage && this.selectedCellIdx === i) {
+          r.classList.add('minimap-highlight');
+        } else if (!flowHoverStage) {
+          r.classList.remove('minimap-highlight');
+        }
         r.addEventListener('click', () => {
           this.selectedCellIdx = i;
           this.render();
@@ -343,43 +434,66 @@ export class NotebookDetailWidget extends Widget {
           }, 0);
         });
         r.addEventListener('mouseenter', () => {
-          r.setAttribute('stroke', '#000');
-          r.setAttribute('stroke-width', '1');
-          
+          // minimap高亮：只用 transform: scale 放大，不再手动改 width/x
+          r.classList.add('minimap-highlight');
+          // 只对 code cell 设置 stroke:none，markdown cell 保持灰色边框
+          const cells = this.notebook.cells ?? [];
+          if (cells[i]?.cellType === 'markdown') {
+            r.setAttribute('stroke', '#bbb');
+            r.setAttribute('stroke-width', this.selectedCellIdx === i ? '2' : '1');
+            r.setAttribute('fill', 'transparent');
+          } else {
+            // r.setAttribute('stroke', 'none');
+            r.setAttribute('fill', colorMap.get(String(cells[i]["1st-level label"] ?? 'None')) || '#ccc');
+          }
+          // 提到最上层，避免被后面的cell遮挡
+          if (r.parentNode) r.parentNode.appendChild(r);
+
           // 派发全局事件，联动 flowchart 和 matrix
           const stage = r.getAttribute('data-stage');
           if (stage && stage !== 'None') {
-            window.dispatchEvent(new CustomEvent('galaxy-stage-hover', { 
-              detail: { 
+            window.dispatchEvent(new CustomEvent('galaxy-stage-hover', {
+              detail: {
                 stage,
                 source: 'minimap',
                 cellIdx: i
-              } 
+              }
             }));
           }
         });
         r.addEventListener('mouseleave', () => {
           // 还原为选中或默认
+          r.classList.remove('minimap-highlight');
+          const cells = this.notebook.cells ?? [];
           if (this.selectedCellIdx === i) {
-            r.setAttribute('stroke', '#1976d2');
-            r.setAttribute('stroke-width', '2');
+            // 选中cell
+            if (cells[i]?.cellType === 'markdown') {
+              r.setAttribute('stroke', '#bbb');
+              r.setAttribute('stroke-width', '1');
+              r.setAttribute('fill', 'transparent');
+            } else {
+              // r.setAttribute('stroke', '#1976d2');
+              r.setAttribute('stroke-width', '1');
+              r.setAttribute('fill', colorMap.get(String(cells[i]["1st-level label"] ?? 'None')) || '#ccc');
+            }
           } else {
-            const cells = this.notebook.cells ?? [];
             if (cells[i]?.cellType === 'markdown') {
               r.setAttribute('stroke', '#ccc');
               r.setAttribute('stroke-width', '1');
+              r.setAttribute('fill', 'transparent');
             } else {
-              r.setAttribute('stroke', 'none');
-              r.setAttribute('stroke-width', '0');
+              // r.setAttribute('stroke', 'none');
+              r.setAttribute('stroke-width', '1');
+              r.setAttribute('fill', colorMap.get(String(cells[i]["1st-level label"] ?? 'None')) || '#ccc');
             }
           }
-          
+
           // 取消全局高亮
-          window.dispatchEvent(new CustomEvent('galaxy-stage-hover', { 
-            detail: { 
+          window.dispatchEvent(new CustomEvent('galaxy-stage-hover', {
+            detail: {
               stage: null,
               source: 'minimap'
-            } 
+            }
           }));
         });
       });
@@ -393,6 +507,8 @@ export class NotebookDetailWidget extends Widget {
             if (this.selectedCellIdx !== idx) {
               this.selectedCellIdx = idx;
               this.render();
+              const cell = this.notebook.cells[idx];
+              window.dispatchEvent(new CustomEvent('galaxy-cell-detail', { detail: { cell: { ...cell, notebookIndex: this.notebook.index, cellIndex: idx, _notebookDetail: this.notebook } } }));
             }
             e.stopPropagation();
           };

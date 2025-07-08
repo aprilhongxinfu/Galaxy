@@ -17,7 +17,19 @@ export class DetailSidebar extends Widget {
     this.addClass('galaxy-detail-sidebar');
     this.setDefault();
     this.node.style.overflowY = 'auto';
+    // 移除事件监听到 onAfterAttach
   }
+
+  onAfterAttach() {
+    window.addEventListener('galaxy-cell-detail', this._cellDetailHandler);
+  }
+  onBeforeDetach() {
+    window.removeEventListener('galaxy-cell-detail', this._cellDetailHandler);
+  }
+  private _cellDetailHandler = (e: Event) => {
+    const cell = (e as CustomEvent).detail.cell;
+    this.setCellDetail(cell);
+  };
 
   setDefault() {
     this.node.innerHTML = `<div style="padding:16px; color:#888;">请选择一个 notebook 或 cell 查看详情。</div>`;
@@ -160,15 +172,39 @@ export class DetailSidebar extends Widget {
   }
 
   setCellDetail(cell: any) {
-    // 你可以根据 cell 的结构自定义内容
+    // Show cell details in English, including stage name
+    const code = cell.source ?? cell.code ?? '';
+    const codeLines = code.split(/\r?\n/);
+    const stage = cell["1st-level label"] ?? '';
+    const stageLabel = stage ? (LABEL_MAP[stage] ?? stage) : '';
+    // 尝试获取 notebook index 和 cell index
+    const nbIdx = cell.notebookIndex !== undefined ? cell.notebookIndex + 1 : '';
+    const cellIdx = cell.cellIndex !== undefined ? cell.cellIndex + 1 : '';
     this.node.innerHTML = `<div style="padding:16px;">
-      <h3>Cell 详情</h3>
+      <div style="font-size:16px; font-weight:600; margin-bottom:10px;">
+        <span class="dsb-nb-link" style="color:#3182bd; cursor:pointer; text-decoration:underline;">Notebook${nbIdx ? ' #' + nbIdx : ''}</span>
+        ${cellIdx ? ` / Cell #${cellIdx}` : ''}
+      </div>
       <div><b>cellId:</b> ${cell.cellId ?? ''}</div>
       <div><b>cellType:</b> ${cell.cellType ?? ''}</div>
-      <div><b>Stage:</b> ${cell["1st-level label"] ?? ''}</div>
-      <pre style="background:#f6f6f6; padding:8px; border-radius:4px;">${cell.source ?? ''}</pre>
-      <!-- 你可以添加更多 cell 相关信息 -->
+      <div><b>Stage:</b> ${stageLabel}</div>
+      <div><b>Code lines:</b> ${codeLines.length}</div>
+      <!-- You can add more cell info here -->
     </div>`;
+    // 绑定 notebook 返回事件
+    setTimeout(() => {
+      const nbLink = this.node.querySelector('.dsb-nb-link');
+      if (nbLink) {
+        nbLink.addEventListener('click', () => {
+          if (cell._notebookDetail) {
+            this.setNotebookDetail(cell._notebookDetail);
+          } else if ((window as any).galaxyCurrentNotebookDetail) {
+            this.setNotebookDetail((window as any).galaxyCurrentNotebookDetail);
+          }
+          window.dispatchEvent(new CustomEvent('galaxy-clear-cell-selection'));
+        });
+      }
+    }, 0);
   }
 
   setFilter(selection: any) {
