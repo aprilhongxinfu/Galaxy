@@ -33,6 +33,8 @@ export class LeftSidebar extends Widget {
     private stageFreq: Record<string, number> = {};
     private selection: any = null;
     private initialStageOrder: string[] = [];
+    private _resizeObserver: ResizeObserver | null = null;
+    private _resizeInterval: any = null;
 
     constructor(data: Notebook[], colorMap: Map<string, string>) {
         super();
@@ -102,24 +104,33 @@ export class LeftSidebar extends Widget {
         // 中间 flowchart 区域
         const chartContainer = document.createElement('div');
         chartContainer.className = 'galaxy-flowchart-container';
-        chartContainer.style.flex = '1';
-        chartContainer.style.overflow = 'auto';
+        chartContainer.style.flex = '1 1 auto';
+        chartContainer.style.overflow = 'hidden';  // 不滚动
+        chartContainer.style.display = 'flex';
+        chartContainer.style.flexDirection = 'column';
         this.node.appendChild(chartContainer);
 
         // 底部 legend
         this.legendDiv = document.createElement('div');
         this.legendDiv.className = 'galaxy-legend';
-        this.legendDiv.style.display = 'flex';
-        this.legendDiv.style.alignItems = 'center';
-        this.legendDiv.style.justifyContent = 'flex-start';
+        this.legendDiv.style.display = 'block';
+        this.legendDiv.style.overflow = 'visible';
+        this.legendDiv.style.flex = 'none';
+        this.legendDiv.style.margin = '0';
+        this.legendDiv.style.padding = '0';
+        this.legendDiv.style.height = '100px';
         this.node.appendChild(this.legendDiv);
 
         // SVG 渲染到中间
         const svgElement = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-        svgElement.setAttribute('viewBox', '0 0 400 800');
+        svgElement.setAttribute('viewBox', '0 0 400 600');
         svgElement.setAttribute('preserveAspectRatio', 'xMidYMin meet');
         svgElement.style.width = '100%';
-        svgElement.style.height = '100%';
+        svgElement.style.overflow = 'visible';
+        svgElement.style.flex = '1 1 auto';
+        svgElement.style.height = '85%';  // 关键：撑满 chartContainer
+        svgElement.style.marginBottom = '0';  // 去掉底部冗余间距
+        svgElement.style.maxHeight = '85%';
         chartContainer.appendChild(svgElement);
         this.svg = d3.select(svgElement);
 
@@ -186,15 +197,31 @@ export class LeftSidebar extends Widget {
         }
 
         this.svg.selectAll('*').remove();
+        // const svgNode = this.svg.node()!;
+        const chartPadding = 30;  // 保证底部 legend 有空间
+
+        // 根据 stageData 中最后一个 stage 的 y 值和 block size 估算需要的逻辑高度
+        const lastStage = this.stageData[this.stageData.length - 1];
+        const lastY = (lastStage?.norm_pos ?? 1) * 1.0;  // 如果没有 norm_pos 则用 1
+        const estimatedVirtualHeight = d3.scaleLinear().domain([0, 1]).range([10, 800])(lastY) + 80;
+        
+        // 最终逻辑高度
+        const virtualHeight = Math.max(estimatedVirtualHeight, 1000); // 设置下限，防止过小
+        
+        // 设置 viewBox
+        this.svg.attr("viewBox", `0 0 400 ${virtualHeight + chartPadding}`);
+
+
+
         // 保证 stageData 里的 stage 都是 string
         this.stageData.forEach(d => {
             d.stage = String(d.stage);
         });
         // 调试输出
-        const stageList = this.stageData.map(d => d.stage);
-        const colorMapKeys = Array.from(this.colorMap.keys());
-        console.log('LeftSidebar stageData:', stageList);
-        console.log('LeftSidebar colorMap keys:', colorMapKeys);
+        // const stageList = this.stageData.map(d => d.stage);
+        // const colorMapKeys = Array.from(this.colorMap.keys());
+        // console.log('LeftSidebar stageData:', stageList);
+        // console.log('LeftSidebar colorMap keys:', colorMapKeys);
         this.stageData.forEach(d => {
             if (!this.colorMap.has(d.stage)) {
                 console.warn('colorMap 缺少 stage:', d.stage);
@@ -273,7 +300,8 @@ export class LeftSidebar extends Widget {
             d.norm_pos = i / (this.stageData.length - 1);
         });
 
-        const yScale = d3.scaleLinear().domain([0, 1]).range([10, 700]);
+        // const yScale = d3.scaleLinear().domain([0, 1]).range([10, 850]);
+        const yScale = d3.scaleLinear().domain([0, 1]).range([10, virtualHeight]);
         const maxCount = d3.max(this.stageData, (d) => d.count) || 1;
         const sizeScale = d3.scaleLinear().domain([0, maxCount]).range([10, 60]);
         const colorMap = this.colorMap;
@@ -287,16 +315,29 @@ export class LeftSidebar extends Widget {
         const minWidth = 2;
         const maxWidth = 26;
 
+        // const strokeScale = (count: number) => {
+        //     if (maxFlowCount === minFlowCount) return (minWidth + maxWidth) / 2;
+        //     // 幂次缩放，主干线更粗
+        //     const t = (count - minFlowCount) / (maxFlowCount - minFlowCount);
+        //     return minWidth + Math.pow(t, 0.4) * (maxWidth - minWidth);
+        // };
         const strokeScale = (count: number) => {
-            if (maxFlowCount === minFlowCount) return (minWidth + maxWidth) / 2;
-            // 幂次缩放，主干线更粗
+            if (count <= 0) return 0;
+            if (maxFlowCount <= 5) {
+                // 离散情况直接写死
+                return [0, 2, 4][count] || 5;
+            }
+            // const logCount = Math.log1p(count);
+            // const maxLog = Math.log1p(maxFlowCount);
+            // const norm = logCount / maxLog;
             const t = (count - minFlowCount) / (maxFlowCount - minFlowCount);
-            return minWidth + Math.pow(t, 0.6) * (maxWidth - minWidth);
+            return minWidth + Math.pow(t, 0.4) * (maxWidth - minWidth);
         };
 
         const svg = this.svg;
         const defs = svg.append("defs");
         const g = svg.append("g").attr("transform", "translate(200, 20)");
+        // const legendG = svg.append("g").attr("transform", "translate(0, 740)");
 
         const stageMap = new Map<string, { x: number; y: number; width: number; height: number; centerX: number; centerY: number }>();
         this.stageData.forEach((d) => {
@@ -314,6 +355,18 @@ export class LeftSidebar extends Widget {
             });
         });
 
+        // 统一收集所有实际渲染的 flow，并计算线宽比例尺
+        const renderedFlows: { from: string, to: string, count: number }[] = [];
+        transitions.forEach((count, key) => {
+            const [from, to] = key.split("->");
+            if (from === 'None' || to === 'None' || from === to) return;
+            const fromPos = stageMap.get(from);
+            const toPos = stageMap.get(to);
+            if (!fromPos || !toPos) return;
+            renderedFlows.push({ from, to, count });
+        });
+        const renderedFlowCounts = renderedFlows.map(f => f.count);
+
         transitions.forEach((count, key) => {
             const [from, to] = key.split("->");
             const fromPos = stageMap.get(from);
@@ -327,7 +380,7 @@ export class LeftSidebar extends Widget {
             const side = y2 > y1 ? 1 : -1;
 
             const dy = Math.abs(y2 - y1);
-            const offset = Math.min(dy * 0.5, 200);
+            const offset = Math.min(dy * 0.5, 300);
             const ctrlX1 = x1 + side * offset;
             const ctrlX2 = x2 + side * offset;
 
@@ -484,34 +537,190 @@ export class LeftSidebar extends Widget {
 
         // --- legend 渲染到底部 div ---
         this.legendDiv.innerHTML = '';
-        const itemsPerRow = 2;
+        const itemsPerCol = Math.ceil(this.stageData.length / 2);
+        const leftCol = this.stageData.slice(0, itemsPerCol);
+        const rightCol = this.stageData.slice(itemsPerCol);
         const legendFlex = document.createElement('div');
         legendFlex.style.display = 'flex';
-        legendFlex.style.flexWrap = 'wrap';
+        legendFlex.style.flexDirection = 'row';
         legendFlex.style.width = '100%';
-        this.stageData.forEach((d, i) => {
-            const item = document.createElement('div');
-            item.style.display = 'flex';
-            item.style.alignItems = 'center';
-            item.style.width = `${100 / itemsPerRow}%`;
-            item.style.marginBottom = '4px';
 
-            const colorBox = document.createElement('span');
-            colorBox.style.display = 'inline-block';
-            colorBox.style.width = '10px';
-            colorBox.style.height = '12px';
-            colorBox.style.background = this.colorMap.get(d.stage) || '#ccc';
-            colorBox.style.marginRight = '8px';
+        const makeCol = (colData: typeof this.stageData) => {
+            const col = document.createElement('div');
+            col.style.display = 'flex';
+            col.style.flexDirection = 'column';
+            col.style.flex = '1';
+            colData.forEach((d) => {
+                const item = document.createElement('div');
+                item.style.display = 'flex';
+                item.style.alignItems = 'center';
+                item.style.marginBottom = '4px';
 
-            const label = document.createElement('span');
-            label.style.fontSize = '10px';
-            label.textContent = LABEL_MAP[d.stage] ?? d.stage;
+                const colorBox = document.createElement('span');
+                colorBox.style.display = 'inline-block';
+                colorBox.style.width = '10px';
+                colorBox.style.height = '12px';
+                colorBox.style.background = this.colorMap.get(d.stage) || '#ccc';
+                colorBox.style.marginRight = '8px';
 
-            item.appendChild(colorBox);
-            item.appendChild(label);
-            legendFlex.appendChild(item);
-        });
+                const label = document.createElement('span');
+                label.style.fontSize = '10px';
+                label.textContent = LABEL_MAP[d.stage] ?? d.stage;
+
+                item.appendChild(colorBox);
+                item.appendChild(label);
+                col.appendChild(item);
+            });
+            return col;
+        };
+        legendFlex.appendChild(makeCol(leftCol));
+        legendFlex.appendChild(makeCol(rightCol));
         this.legendDiv.appendChild(legendFlex);
+        this.legendDiv.style.border = '';
+
+        // 添加flow宽度scale说明和legend（SVG）
+        // legend 采样直接用 renderedFlowCounts（和 flowchart 渲染用的是同一个数组）
+        if (renderedFlowCounts.length > 0) {
+            const min = Math.min(...renderedFlowCounts);
+            const max = Math.max(...renderedFlowCounts);
+            // 只采样三条线：min, (min+max)/2, max
+            const samples = [min, Math.round((min + max) / 2), max];
+            const uniqSamples = Array.from(new Set(samples));
+            const svgW = 220;
+            // const svgH = 90;
+            const barY = 40;
+            // const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            // svg.setAttribute('width', svgW.toString());
+            // svg.setAttribute('height', svgH.toString());
+            // svg.style.display = 'block';
+            // svg.style.border = '';
+            // svg.style.margin = '0 0 0 0';
+
+            // const legendG = svg.append("g").attr("transform", "translate(0, 850)");
+            // 计算底部 legend 的起始 y 位置（加上一些 padding）
+            const bottomY = Math.max(...this.stageData.map(d => d.y! + d.size!)) + 30;
+
+            // width legend
+            const legendG = svg.append("g").attr("transform", `translate(0, ${bottomY})`);
+
+            // size legend
+            const sizeLegendG = svg.append("g").attr("transform", `translate(260, ${bottomY})`);
+            uniqSamples.forEach((count, i) => {
+                const x = 28 + i * ((svgW - 56) / (uniqSamples.length - 1));
+                const w = strokeScale(count);
+                // console.log('legend sample', count, 'width', w);
+
+                // 创建竖直的 flow 线条：固定 from 和 to 的 x 位置，改变宽度
+                const fromX = x;         // from x 位置（固定）
+                const toX = x;           // to x 位置（固定，与 from 相同）
+                const fromY = barY - 10;  // from y 位置
+                const toY = barY + 55;   // to y 位置
+
+                // 绘制竖直的 flow 线条
+                // const line = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                // const side = toY > fromY ? 1 : -1;
+                // const dy = Math.abs(toY - fromY);
+                // const offset = Math.min(dy * 0.5, 15);
+                // const ctrlX1 = fromX + side * offset;
+                // const ctrlX2 = toX + side * offset;
+
+                // legendG.append("path")
+                //     .attr("d", `M${fromX},${fromY} C${ctrlX1},${fromY} ${ctrlX2},${toY} ${toX},${toY}`)
+                //     .attr("stroke", "#666")
+                //     .attr("stroke-width", w)
+                //     .attr("fill", "none")
+                //     .attr("opacity", 0.8);
+
+                legendG.append("line")
+                    .attr("x1", fromX)
+                    .attr("y1", fromY)
+                    .attr("x2", toX)
+                    .attr("y2", toY)
+                    .attr("stroke", "#666")
+                    .attr("stroke-width", w)
+                    .attr("opacity", 0.8);
+
+                legendG.append("text")
+                    .attr("x", x)
+                    .attr("y", toY + 20)
+                    .attr("text-anchor", "middle")
+                    .attr("font-size", 20)
+                    .attr("fill", "#666")
+                    .text(count.toLocaleString());
+            });
+
+            // === 添加 stage rect size 的 legend（同心矩形） ===
+            // const sizeLegendG = svg.append("g").attr("transform", "translate(260, 850)");
+            const stageCounts = this.stageData.map(d => d.count);
+            const minCount = Math.min(...stageCounts);
+            const maxCount = Math.max(...stageCounts);
+            const sizeSamples = [minCount, Math.round((minCount + maxCount) / 2), maxCount];
+            const cx = 30;  // 同心矩形中心点 x
+            const cy = 60;  // 同心矩形中心点 y
+
+            // 绘制同心矩形（由大到小）
+            sizeSamples.sort((a, b) => b - a).forEach((count, i) => {
+                const size = sizeScale(count);
+                const r = size / 2;
+
+                // 绘制矩形
+                sizeLegendG.append("rect")
+                    .attr("x", cx - r)
+                    .attr("y", cy - r)
+                    .attr("width", size)
+                    .attr("height", size)
+                    .attr("fill", "none")
+                    .attr("stroke", "#444")
+                    .attr("stroke-width", 1)
+                    .attr("opacity", 0.9);
+
+                const isMiddle = i === 1; // 中间那个
+                const needsLeaderLine = isMiddle && count >= 0;
+
+                if (needsLeaderLine) {
+                    // 从中间矩形右上角斜出去
+                    const fromX = cx + r;
+                    const fromY = cy - r;
+                    const dx = 16, dy = -12;
+                    const toX = fromX + dx;
+                    const toY = fromY + dy;
+
+                    // 斜线
+                    sizeLegendG.append("line")
+                        .attr("x1", fromX)
+                        .attr("y1", fromY)
+                        .attr("x2", toX)
+                        .attr("y2", toY)
+                        .attr("stroke", "#444")
+                        .attr("stroke-width", 1);
+
+                    // 水平文字
+                    sizeLegendG.append("text")
+                        .attr("x", toX + 4)
+                        .attr("y", toY + 4)
+                        .attr("font-size", 20)
+                        .attr("fill", "#444")
+                        .text(count.toLocaleString());
+                } else {
+                    // 正常右边标注
+                    sizeLegendG.append("text")
+                        .attr("x", cx + r + 1)
+                        .attr("y", cy + 4)
+                        .attr("font-size", 20)
+                        .attr("fill", "#444")
+                        .text(count.toLocaleString());
+                }
+            });
+
+            // 添加标题文字
+            // sizeLegendG.append("text")
+            //     .attr("x", cx - 8)
+            //     .attr("y", cy - Math.max(...sizeSamples.map(c => sizeScale(c))) / 2 - 12)
+            //     .attr("text-anchor", "start")
+            //     .attr("font-size", 12)
+            //     .attr("fill", "#222")
+            //     .text("Stage count");
+        }
 
         // 保证 colorMap 有所有 stage 的颜色
         const palette = d3.schemeSet3;
@@ -529,14 +738,77 @@ export class LeftSidebar extends Widget {
 
     getMostFrequentStageAndFlow() {
         const mostFreqStage = Object.entries(this.stageFreq).sort((a, b) => b[1] - a[1])[0]?.[0] ?? '';
-        const mostFreqFlow = Array.from(this.transitions.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] ?? '';
-        console.log('Most frequent stage:', mostFreqStage);
-        console.log('Most frequent flow:', mostFreqFlow);
+        // 过滤掉 None/None、from==to、from或to为None
+        const validFlows = Array.from(this.transitions.entries()).filter(([key, count]) => {
+            const [from, to] = key.split('->');
+            return from !== 'None' && to !== 'None' && from !== to;
+        });
+        const mostFreqFlow = validFlows.sort((a, b) => b[1] - a[1])[0]?.[0] ?? '';
         return { mostFreqStage, mostFreqFlow };
     }
 
     setSelection(selection: any) {
         this.selection = selection;
         this.render();
+    }
+
+    dispose(): void {
+        if (this._resizeObserver) {
+            this._resizeObserver.disconnect();
+            this._resizeObserver = null;
+        }
+        if (this._resizeInterval) {
+            clearInterval(this._resizeInterval);
+            this._resizeInterval = null;
+        }
+        super.dispose();
+    }
+
+    onAfterAttach(msg: any): void {
+        // 先断开旧的 observer 和定时器
+        if (this._resizeObserver) {
+            this._resizeObserver.disconnect();
+            this._resizeObserver = null;
+        }
+        if (this._resizeInterval) {
+            clearInterval(this._resizeInterval);
+            this._resizeInterval = null;
+        }
+        const svgElement = this.svg?.node();
+        if (svgElement) {
+            const sidebarElem = this._findSidebarContainer(this.node);
+            let lastWidth = sidebarElem.offsetWidth;
+            const setSvgMarginBottom = () => {
+                const sidebarWidth = sidebarElem.offsetWidth;
+                if (sidebarWidth !== lastWidth) {
+                    svgElement.style.marginBottom = Math.round(sidebarWidth) + 'px';
+                    lastWidth = sidebarWidth;
+                }
+            };
+            setSvgMarginBottom();
+            this._resizeObserver = new ResizeObserver(setSvgMarginBottom);
+            this._resizeObserver.observe(sidebarElem);
+            // 兜底：定时检查
+            this._resizeInterval = setInterval(setSvgMarginBottom, 300);
+        }
+        super.onAfterAttach?.(msg);
+    }
+
+    // 工具函数：向上查找带有特定 class 的父元素
+    private _findSidebarContainer(node: HTMLElement): HTMLElement {
+        let el: HTMLElement | null = node;
+        while (el) {
+            if (
+                el.classList.contains('jp-SidePanel') ||
+                el.classList.contains('p-SidePanel') ||
+                el.classList.contains('jp-LeftArea') ||
+                el.classList.contains('jp-RightArea')
+            ) {
+                return el;
+            }
+            el = el.parentElement;
+        }
+        // fallback
+        return node.parentElement || node;
     }
 }

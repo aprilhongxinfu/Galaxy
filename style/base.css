@@ -26,7 +26,12 @@
 
 .matrix-cell.matrix-highlight {
   opacity: 1 !important;
-  stroke: #000;
+  /* stroke: none; */
+  transform: scale(1.2);
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  transition: transform 0.15s cubic-bezier(.4,2,.6,1);
+  pointer-events: auto;
 }
 
 .matrix-cell.matrix-dim {

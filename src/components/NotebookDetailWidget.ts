@@ -40,7 +40,9 @@ function simpleMarkdown(md: string): string {
 export class NotebookDetailWidget extends Widget {
   private notebook: any;
   private selectedCellIdx: number | null = null;
-  private ignoreNextScroll: boolean = false;
+  private stageHoverHandler: (event: Event) => void;
+  private transitionHoverHandler: (event: Event) => void;
+
   constructor(notebook: any) {
     super();
     this.notebook = notebook;
@@ -48,10 +50,155 @@ export class NotebookDetailWidget extends Widget {
     this.title.label = 'Notebook Detail';
     this.title.closable = true;
     this.addClass('notebook-detail-widget');
+    
+    // 绑定事件处理器
+    this.stageHoverHandler = this.handleStageHover.bind(this);
+    this.transitionHoverHandler = this.handleTransitionHover.bind(this);
+    
     this.render();
   }
 
+  onAfterAttach(): void {
+    // 监听全局悬浮事件
+    window.addEventListener('galaxy-stage-hover', this.stageHoverHandler);
+    window.addEventListener('galaxy-transition-hover', this.transitionHoverHandler);
+  }
+
+  onBeforeDetach(): void {
+    // 移除事件监听器
+    window.removeEventListener('galaxy-stage-hover', this.stageHoverHandler);
+    window.removeEventListener('galaxy-transition-hover', this.transitionHoverHandler);
+  }
+
+  private handleStageHover(event: Event): void {
+    const stage = (event as CustomEvent).detail.stage;
+    const minimapSvg = this.node.querySelector('svg');
+    if (!minimapSvg) return;
+
+    // 检查是否来自 minimap 内部的 hover
+    const isFromMinimap = (event as any).detail?.source === 'minimap';
+    
+    minimapSvg.querySelectorAll('rect').forEach((r) => {
+      const rectStage = r.getAttribute('data-stage');
+      const idx = parseInt(r.getAttribute('data-idx') || '0');
+      
+      if (isFromMinimap) {
+        // 来自 minimap 内部，只高亮当前 cell
+        const hoveredIdx = (event as any).detail?.cellIdx;
+        if (hoveredIdx === idx) {
+          r.setAttribute('stroke', '#000');
+          r.setAttribute('stroke-width', '2');
+        } else if (this.selectedCellIdx === idx) {
+          // 保持选中状态
+          r.setAttribute('stroke', '#1976d2');
+          r.setAttribute('stroke-width', '2');
+        } else {
+          // 还原为默认状态
+          const cells = this.notebook.cells ?? [];
+          if (cells[idx]?.cellType === 'markdown') {
+            r.setAttribute('stroke', '#ccc');
+            r.setAttribute('stroke-width', '1');
+          } else {
+            r.setAttribute('stroke', 'none');
+            r.setAttribute('stroke-width', '0');
+          }
+        }
+      } else {
+        // 来自外部（flowchart），高亮所有相同 stage 的 cell
+        if (stage && rectStage === stage) {
+          r.setAttribute('stroke', '#000');
+          r.setAttribute('stroke-width', '2');
+        } else {
+          // 还原为选中或默认状态
+          if (this.selectedCellIdx === idx) {
+            r.setAttribute('stroke', '#000');
+            r.setAttribute('stroke-width', '2');
+          } else {
+            const cells = this.notebook.cells ?? [];
+            if (cells[idx]?.cellType === 'markdown') {
+              r.setAttribute('stroke', '#ccc');
+              r.setAttribute('stroke-width', '1');
+            } else {
+              r.setAttribute('stroke', 'none');
+              r.setAttribute('stroke-width', '0');
+            }
+          }
+        }
+      }
+    });
+  }
+
+  private handleTransitionHover(event: Event): void {
+    const { from, to } = (event as CustomEvent).detail;
+    const minimapSvg = this.node.querySelector('svg');
+    if (!minimapSvg) return;
+
+    if (from && to) {
+      // 先重置所有高亮
+      minimapSvg.querySelectorAll('rect').forEach((r) => {
+        const idx = parseInt(r.getAttribute('data-idx') || '0');
+        if (this.selectedCellIdx === idx) {
+          r.setAttribute('stroke', '#1976d2');
+          r.setAttribute('stroke-width', '2');
+        } else {
+          const cells = this.notebook.cells ?? [];
+          if (cells[idx]?.cellType === 'markdown') {
+            r.setAttribute('stroke', '#ccc');
+            r.setAttribute('stroke-width', '1');
+          } else {
+            r.setAttribute('stroke', 'none');
+            r.setAttribute('stroke-width', '0');
+          }
+        }
+      });
+
+      // 找到所有 from→to 的相邻转换并高亮
+      const cells = this.notebook.cells ?? [];
+      for (let i = 0; i < cells.length - 1; i++) {
+        const currStage = String(cells[i]["1st-level label"] ?? 'None');
+        const nextStage = String(cells[i + 1]["1st-level label"] ?? 'None');
+        
+        if (currStage === from && nextStage === to) {
+          // 向前找连续的 from
+          let i0 = i;
+          while (i0 > 0 && String(cells[i0 - 1]["1st-level label"] ?? 'None') === from) i0--;
+          
+          // 向后找连续的 to
+          let i1 = i + 1;
+          while (i1 + 1 < cells.length && String(cells[i1 + 1]["1st-level label"] ?? 'None') === to) i1++;
+          
+          // 高亮 from 段
+          for (let j = i0; j <= i; j++) {
+            const rect = minimapSvg.querySelector(`rect[data-idx="${j}"]`) as SVGElement;
+            if (rect) {
+              rect.setAttribute('stroke', '#000');
+              rect.setAttribute('stroke-width', '2');
+            }
+          }
+          
+          // 高亮 to 段
+          for (let j = i + 1; j <= i1; j++) {
+            const rect = minimapSvg.querySelector(`rect[data-idx="${j}"]`) as SVGElement;
+            if (rect) {
+              rect.setAttribute('stroke', '#000');
+              rect.setAttribute('stroke-width', '2');
+            }
+          }
+        }
+      }
+    } else {
+      // 取消高亮，还原所有状态
+      this.handleStageHover({ detail: { stage: null } } as CustomEvent);
+    }
+  }
+
   private render() {
+    // 记录滚动位置
+    let prevScrollTop = 0;
+    const prevCellList = this.node.querySelector('#nbd-cell-list-scroll');
+    if (prevCellList) {
+      prevScrollTop = prevCellList.scrollTop;
+    }
     const nb = this.notebook;
     const nbIdx = (nb.path && /\d+/.test(nb.path)) ? nb.path.match(/\d+/)![0] : '';
     this.node.innerHTML = `
@@ -72,9 +219,9 @@ export class NotebookDetailWidget extends Widget {
                 const color = colorMap.get(stage) || '#ccc';
                 const isSelected = this.selectedCellIdx === i;
                 if (cell.cellType === 'markdown') {
-                  return `<rect x="0" y="${i * 4}" width="20" height="4" fill="transparent" stroke="${isSelected ? '#000' : '#ccc'}" stroke-width="${isSelected ? 2 : 1}" data-stage="${stage}" data-idx="${i}" style="cursor:pointer;" />`;
+                  return `<rect x="0" y="${i * 4}" width="20" height="4" fill="transparent" stroke="${isSelected ? '#1976d2' : '#ccc'}" stroke-width="${isSelected ? 2 : 1}" data-stage="${stage}" data-idx="${i}" style="cursor:pointer;" />`;
                 } else {
-                  return `<rect x="0" y="${i * 4}" width="20" height="4" fill="${color}" stroke="${isSelected ? '#000' : 'none'}" stroke-width="${isSelected ? 2 : 0}" data-stage="${stage}" data-idx="${i}" style="cursor:pointer;" />`;
+                  return `<rect x="0" y="${i * 4}" width="20" height="4" fill="${color}" stroke="${isSelected ? '#1976d2' : 'none'}" stroke-width="${isSelected ? 2 : 0}" data-stage="${stage}" data-idx="${i}" style="cursor:pointer;" />`;
                 }
               }).join('');
               return `<svg width="20" height="${minimapHeight}" style="display:block; margin:0 auto;">${rects}</svg>`;
@@ -93,18 +240,18 @@ export class NotebookDetailWidget extends Widget {
                   <div style="display:flex; flex-direction:row; align-items:stretch;">
                     <div style="position:relative; min-width:36px; margin-right:8px; height:100%;">
                       ${isSelected ? `<div style="position:absolute;left:0;top:0;width:3px;height:100%;background:#1976d2;border-radius:2px;"></div>` : ''}
-                      <div style="color:#888; font-size:15px; text-align:right; user-select:none; line-height:1.6; margin-left:8px; height:100%; display:flex; align-items:center;">[${i+1}]</div>
+                      <div style="color:#888; font-size:15px; text-align:right; user-select:none; line-height:1.6; margin-left:8px;">[${i+1}]</div>
                     </div>
-                    <div class="nbd-cell" style="flex:1; display:flex; border-radius:6px; box-shadow:0 1px 4px #0001; background:#fff;">
+                    <div class="nbd-cell" style="flex:1 1 0; min-width:0; display:flex; border-radius:6px; box-shadow:0 1px 4px #0001; background:#fff;">
                       <div style="width:6px; border-radius:6px 0 0 6px; background:${stageColor}; margin-right:0;"></div>
-                      <div style="flex:1; padding:14px 18px 10px 14px;">
+                      <div style="flex:1; padding:14px 18px 10px 14px; min-width:0;">
                         <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;"></div>
-                        <div class="nbd-code-area" style="background:#f7f7fa; border-radius:4px; padding:8px 0 0 0; font-size:13px; overflow-x:auto;">
+                        <div class="nbd-code-area" style="background:#f7f7fa; border-radius:4px; padding:8px 0 0 0; font-size:13px; overflow-x:auto; word-break:break-all; min-width:0;">
                           <table style="border-spacing:0;"><tbody>
                             ${codeLines.map((line, idx) => `
                               <tr>
-                                <td style="text-align:right; color:#bbb; font-size:12px; padding:0 10px 0 8px; user-select:none;">${idx+1}</td>
-                                <td style="padding:0; font-family:var(--jp-code-font-family,monospace); text-align:left;"><code style="background:none; padding:0; display:block;">${highlightPython(line)}</code></td>
+                                <td style="text-align:right; color:#bbb; font-size:12px; padding:0 10px 0 8px; user-select:none; white-space:nowrap; vertical-align:top;">${idx+1}</td>
+                                <td style="padding:0; font-family:var(--jp-code-font-family,monospace); text-align:left; vertical-align:top;"><code style="background:none; padding:0; display:block;">${highlightPython(line)}</code></td>
                               </tr>
                             `).join('')}
                           </tbody></table>
@@ -119,13 +266,13 @@ export class NotebookDetailWidget extends Widget {
                   <div style="display:flex; flex-direction:row; align-items:stretch;">
                     <div style="position:relative; min-width:36px; margin-right:8px; height:100%;">
                       ${isSelected ? `<div style="position:absolute;left:0;top:0;width:3px;height:100%;background:#1976d2;border-radius:2px;"></div>` : ''}
-                      <div style="color:#888; font-size:15px; text-align:right; user-select:none; line-height:1.6; margin-left:8px; height:100%; display:flex; align-items:center;">[${i+1}]</div>
+                      <div style="color:#888; font-size:15px; text-align:right; user-select:none; line-height:1.6; margin-left:8px;">[${i+1}]</div>
                     </div>
-                    <div class="nbd-cell" style="flex:1; display:flex; border-radius:6px; box-shadow:0 1px 4px #0001; background:#fff;">
+                    <div class="nbd-cell" style="flex:1 1 0; min-width:0; display:flex; border-radius:6px; box-shadow:0 1px 4px #0001; background:#fff;">
                       <div style="width:6px; border-radius:6px 0 0 6px; background:#ccc; margin-right:0;"></div>
-                      <div style="flex:1; padding:14px 18px 10px 14px;">
+                      <div style="flex:1; padding:14px 18px 10px 14px; min-width:0;">
                         <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;"></div>
-                        <div class="nbd-md-area" style="background:#fff; border-radius:4px; padding:10px 12px 10px 12px; font-size:14px; color:#222; overflow-x:auto; word-break:break-word;">
+                        <div class="nbd-md-area" style="background:#fff; border-radius:4px; padding:10px 12px 10px 12px; font-size:14px; color:#222; overflow-x:auto; word-break:break-all; min-width:0;">
                           ${isHtml ? content : simpleMarkdown(content)}
                         </div>
                       </div>
@@ -138,17 +285,17 @@ export class NotebookDetailWidget extends Widget {
                   <div style="display:flex; flex-direction:row; align-items:stretch;">
                     <div style="position:relative; min-width:36px; margin-right:8px; height:100%;">
                       ${isSelected ? `<div style="position:absolute;left:0;top:0;width:3px;height:100%;background:#1976d2;border-radius:2px;"></div>` : ''}
-                      <div style="color:#888; font-size:15px; text-align:right; user-select:none; line-height:1.6; margin-left:8px; height:100%; display:flex; align-items:center;">[${i+1}]</div>
+                      <div style="color:#888; font-size:15px; text-align:right; user-select:none; line-height:1.6; margin-left:8px;">[${i+1}]</div>
                     </div>
-                    <div class="nbd-cell" style="flex:1; display:flex; border-radius:6px; box-shadow:0 1px 4px #0001; background:#fff;">
+                    <div class="nbd-cell" style="flex:1 1 0; min-width:0; display:flex; border-radius:6px; box-shadow:0 1px 4px #0001; background:#fff;">
                       <div style="width:6px; border-radius:6px 0 0 6px; background:${stageColor}; margin-right:0;"></div>
-                      <div style="flex:1; padding:14px 18px 10px 14px;">
+                      <div style="flex:1; padding:14px 18px 10px 14px; min-width:0;">
                         <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
                           <span style="color:#888; font-size:13px;">[${i+1}]</span>
                           <span class="nbd-tag" style="background:#eee; color:#888;">${cell.cellType}</span>
                           <span class="nbd-tag" style="background:${stageColor}22; color:${stageColor};">${LABEL_MAP[stage] ?? stage}</span>
                         </div>
-                        <div class="nbd-md-area" style="background:#fcfcf7; border-radius:4px; padding:10px 12px 10px 12px; font-size:14px; color:#222; overflow-x:auto;">
+                        <div class="nbd-md-area" style="background:#fcfcf7; border-radius:4px; padding:10px 12px 10px 12px; font-size:14px; color:#222; overflow-x:auto; word-break:break-all; min-width:0;">
                           ${content}
                         </div>
                       </div>
@@ -176,7 +323,6 @@ export class NotebookDetailWidget extends Widget {
       minimapSvg.querySelectorAll('rect').forEach((r, i) => {
         r.addEventListener('click', () => {
           this.selectedCellIdx = i;
-          this.ignoreNextScroll = true;
           this.render();
           setTimeout(() => {
             const cellList = this.node.querySelector('#nbd-cell-list-scroll');
@@ -184,24 +330,39 @@ export class NotebookDetailWidget extends Widget {
             const cellDivs = cellList.querySelectorAll('.nbd-cell');
             const target = cellDivs[i]?.parentElement as HTMLElement;
             if (target) {
-              target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            //   target.style.transition = 'box-shadow 0.3s, border 0.3s';
-            //   target.style.boxShadow = '0 0 0 3px #1976d2aa';
+              // 滚动到目标 cell 的序号区域
+              target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              // 添加高亮效果 - 使用淡蓝色背景渐变
+              target.style.background = 'linear-gradient(90deg, #f0f8ff 0%, #e6f3ff 100%)';
+              target.style.transition = 'background 0.4s ease';
               setTimeout(() => {
-                target.style.boxShadow = '';
-              }, 600);
+                target.style.background = '';
+                target.style.transition = '';
+              }, 1000);
             }
           }, 0);
         });
         r.addEventListener('mouseenter', () => {
           r.setAttribute('stroke', '#000');
           r.setAttribute('stroke-width', '1');
+          
+          // 派发全局事件，联动 flowchart 和 matrix
+          const stage = r.getAttribute('data-stage');
+          if (stage && stage !== 'None') {
+            window.dispatchEvent(new CustomEvent('galaxy-stage-hover', { 
+              detail: { 
+                stage,
+                source: 'minimap',
+                cellIdx: i
+              } 
+            }));
+          }
         });
         r.addEventListener('mouseleave', () => {
           // 还原为选中或默认
           if (this.selectedCellIdx === i) {
-            r.setAttribute('stroke', '#000');
-            r.setAttribute('stroke-width', '1');
+            r.setAttribute('stroke', '#1976d2');
+            r.setAttribute('stroke-width', '2');
           } else {
             const cells = this.notebook.cells ?? [];
             if (cells[i]?.cellType === 'markdown') {
@@ -212,71 +373,34 @@ export class NotebookDetailWidget extends Widget {
               r.setAttribute('stroke-width', '0');
             }
           }
+          
+          // 取消全局高亮
+          window.dispatchEvent(new CustomEvent('galaxy-stage-hover', { 
+            detail: { 
+              stage: null,
+              source: 'minimap'
+            } 
+          }));
         });
       });
-      // cell 列表滚动时自动高亮可视 cell，防抖
+      // cell 列表点击选中
       const cellList = this.node.querySelector('#nbd-cell-list-scroll');
-      let scrollTimeout: any = null;
       if (cellList) {
-        cellList.addEventListener('scroll', () => {
-          if (this.ignoreNextScroll) {
-            this.ignoreNextScroll = false;
-            return;
-          }
-          if (scrollTimeout) clearTimeout(scrollTimeout);
-          scrollTimeout = setTimeout(() => {
-            const cellDivs = cellList.querySelectorAll('.nbd-cell');
-            let minDist = Infinity, minIdx = 0;
-            const listRect = cellList.getBoundingClientRect();
-            cellDivs.forEach((div, i) => {
-              const rect = div.getBoundingClientRect();
-              const dist = Math.abs(rect.top + rect.height / 2 - (listRect.top + listRect.height / 2));
-              if (dist < minDist) {
-                minDist = dist;
-                minIdx = i;
-              }
-            });
-            if (this.selectedCellIdx !== minIdx) {
-              this.selectedCellIdx = minIdx;
-              // 只更新 minimap rect 的高亮
-              const minimapSvg = this.node.querySelector('svg');
-              if (minimapSvg) {
-                minimapSvg.querySelectorAll('rect').forEach((r, i) => {
-                  if (i === minIdx) {
-                    r.setAttribute('stroke', '#000');
-                    r.setAttribute('stroke-width', '1');
-                  } else {
-                    const cells = this.notebook.cells ?? [];
-                    if (cells[i]?.cellType === 'markdown') {
-                      r.setAttribute('stroke', '#ccc');
-                      r.setAttribute('stroke-width', '1');
-                    } else {
-                      r.setAttribute('stroke', 'none');
-                      r.setAttribute('stroke-width', '0');
-                    }
-                  }
-                });
-              }
-              // 只更新 cell 列表左侧蓝线
-              cellDivs.forEach((div, i) => {
-                const bar = div.parentElement?.querySelector('div[style*="background:#1976d2"]');
-                if (bar) bar.remove();
-                if (i === minIdx) {
-                  const blueBar = document.createElement('div');
-                  blueBar.style.position = 'absolute';
-                  blueBar.style.left = '0';
-                  blueBar.style.top = '0';
-                  blueBar.style.transform = 'none';
-                  blueBar.style.width = '3px';
-                  blueBar.style.height = '100%';
-                  blueBar.style.background = '#1976d2';
-                  blueBar.style.borderRadius = '2px';
-                  div.parentElement?.insertBefore(blueBar, div.parentElement.firstChild);
-                }
-              });
+        // 选中cell的外层div（display:flex; flex-direction:row; align-items:stretch;）
+        const cellWrappers = Array.from(cellList.children) as HTMLElement[];
+        cellWrappers.forEach((wrapper, idx) => {
+          wrapper.onclick = (e) => {
+            if (this.selectedCellIdx !== idx) {
+              this.selectedCellIdx = idx;
+              this.render();
             }
-          }, 100);
+            e.stopPropagation();
+          };
         });
+      }
+      // 恢复滚动位置
+      if (cellList && typeof prevScrollTop === 'number') {
+        cellList.scrollTop = prevScrollTop;
       }
     }, 0);
     // 顶部 Overview 点击返回

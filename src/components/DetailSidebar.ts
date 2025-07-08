@@ -29,6 +29,32 @@ export class DetailSidebar extends Widget {
     const codeCount = cells.filter((c: any) => c.cellType === 'code').length;
     const mdCount = cells.filter((c: any) => c.cellType === 'markdown').length;
 
+    // 统计最常见stage和flow（与flowchart一致）
+    const stageFreq: Record<string, number> = {};
+    const transitions: Record<string, number> = {};
+    for (let i = 0; i < cells.length; i++) {
+      const stage = String(cells[i]["1st-level label"] ?? 'None');
+      if (stage !== 'None') {
+        stageFreq[stage] = (stageFreq[stage] || 0) + 1;
+      }
+      if (i < cells.length - 1) {
+        const from = String(cells[i]["1st-level label"] ?? 'None');
+        const to = String(cells[i + 1]["1st-level label"] ?? 'None');
+        if (from !== 'None' && to !== 'None' && from !== to) {
+          const key = `${from}->${to}`;
+          transitions[key] = (transitions[key] || 0) + 1;
+        }
+      }
+    }
+    const mostFreqStage = Object.entries(stageFreq).sort((a, b) => b[1] - a[1])[0]?.[0] ?? '';
+    const mostFreqFlow = Object.entries(transitions).sort((a, b) => b[1] - a[1])[0]?.[0] ?? '';
+    const mostFreqStageLabel = mostFreqStage ? (LABEL_MAP[mostFreqStage] ?? mostFreqStage) : '';
+    let mostFreqStageFlowLabel = '';
+    if (mostFreqFlow) {
+      const [from, to] = mostFreqFlow.split('->');
+      mostFreqStageFlowLabel = `${LABEL_MAP[from] ?? from} → ${LABEL_MAP[to] ?? to}`;
+    }
+
     const stageCounts: Record<string, number> = {};
     cells.forEach((c: any) => {
       const stage = String(c["1st-level label"] ?? "None");
@@ -46,8 +72,8 @@ export class DetailSidebar extends Widget {
     const barChart = `<svg width="100%" height="${svgH}" viewBox="0 0 ${svgW} ${svgH}" style="overflow:visible;">
       <g>
         ${sortedStages
-          .filter(([stage]) => stage !== "None")
-          .map(([stage, n], i) => `
+        .filter(([stage]) => stage !== "None")
+        .map(([stage, n], i) => `
             <rect x="${i * (barW + gap)}"
                   y="${barH - (n / maxBar) * barH}"
                   width="${barW}"
@@ -65,7 +91,7 @@ export class DetailSidebar extends Widget {
       </g>
     </svg>`;
 
-    // 插入内容（无 tooltip div，这里保持干净）
+    // 插入内容
     this.node.innerHTML = `
       <div style="padding:28px 18px 18px 18px; font-size:15px; color:#222; max-width:420px; margin:0 auto;">
         <div style="font-size:20px; font-weight:700; margin-bottom:18px; line-height:1.2; word-break:break-all;">${nb.kernelVersionId ?? ''}</div>
@@ -83,6 +109,12 @@ export class DetailSidebar extends Widget {
             <div style="font-size:20px; font-weight:600;">${mdCount}</div>
           </div>
         </div>
+        
+        <div style="font-size:16px; font-weight:600; margin-bottom:10px;">Stage Analysis</div>
+        <table style="width:100%; border-collapse:collapse;">
+          <tr><td style="font-weight:500;">Most Common Stage</td><td style="text-align:right;">${mostFreqStageLabel}</td></tr>
+          <tr><td style="font-weight:500;">Most Common Stage Transition</td><td style="text-align:right;">${mostFreqStageFlowLabel}</td></tr>
+        </table>
         <div style="margin:18px 0 8px 0; font-weight:600; font-size:15px;">Stage Frequency Distribution</div>
         <div style="height:16px;"></div>
         <div style="margin: 8px 0 12px 0; width:100%; max-width:600px; margin-left:auto; margin-right:auto;">${barChart}</div>
@@ -205,14 +237,21 @@ export class DetailSidebar extends Widget {
         if (idx === 0 && stage !== 'None') {
           firstStageFreq[stage] = (firstStageFreq[stage] || 0) + 1;
         }
-        if (prevStage && prevStage !== 'None' && stage !== 'None') {
+        if (
+          prevStage !== null &&
+          prevStage !== undefined &&
+          prevStage !== 'None' &&
+          stage !== 'None' &&
+          !(prevStage === 'None' && stage === 'None') &&
+          prevStage !== stage
+        ) {
           const flow = prevStage + '→' + stage;
           stageFlowFreq[flow] = (stageFlowFreq[flow] || 0) + 1;
         }
         prevStage = stage;
       });
     });
-    // 最常见 stage
+    // 只用传入的 mostFreqStage/mostFreqFlow
     const mostFreqStageLabel = mostFreqStage ? (LABEL_MAP[mostFreqStage] ?? mostFreqStage) : '';
     let mostFreqStageFlowLabel = '';
     if (mostFreqFlow) {
@@ -222,7 +261,11 @@ export class DetailSidebar extends Widget {
 
     // 统计每个 notebook 的 unique stage 数
     const uniqueStageCounts = filteredData.map(nb => {
-      const stages = new Set((nb.cells ?? []).map((cell: any) => String(cell["1st-level label"] ?? 'None')));
+      // 只统计非None的stage
+      const stages = new Set((nb.cells ?? []).map((cell: any) => {
+        const stage = String(cell["1st-level label"] ?? 'None');
+        return stage !== 'None' ? stage : undefined;
+      }).filter((stage) => stage !== undefined));
       return stages.size;
     });
     // 统计 unique stage 数的分布
