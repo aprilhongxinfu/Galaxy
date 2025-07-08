@@ -298,7 +298,7 @@ export class MatrixWidget extends Widget {
                         // 先隐藏 tooltip
                         const tooltip = document.getElementById('galaxy-tooltip');
                         if (tooltip) tooltip.style.display = 'none';
-                        const notebookObj = nb;
+                        const notebookObj = { ...nb, index: row };
                         window.dispatchEvent(new CustomEvent('galaxy-notebook-selected', {
                             detail: { notebook: notebookObj }
                         }));
@@ -311,7 +311,7 @@ export class MatrixWidget extends Widget {
                           }));
                           window.dispatchEvent(new CustomEvent('galaxy-cell-detail', {
                               detail: {
-                                  cell: { ...d, notebookIndex: row, cellIndex: i, _notebookDetail: nb }
+                                  cell: { ...d, notebookIndex: row, cellIndex: i, _notebookDetail: notebookObj }
                               }
                           }));
                         }, 0);
