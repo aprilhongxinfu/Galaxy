@@ -1,6 +1,19 @@
 import { Widget } from '@lumino/widgets';
 import { LABEL_MAP } from './labelMap';
 
+function highlightPython(code: string): string {
+  const keywords = [
+    'import', 'from', 'as', 'def', 'class', 'return', 'for', 'if', 'else', 'elif', 'with', 'try', 'except', 'while', 'print', 'in', 'is', 'not', 'and', 'or', 'True', 'False', 'None'
+  ];
+  let html = code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  for (const kw of keywords) {
+    html = html.replace(new RegExp('(?<=^|\\W)(' + kw + ')(?=\\W|$)', 'g'), '<span class="nbd-kw">$1</span>');
+  }
+  html = html.replace(/('[^']*'|"[^"]*")/g, '<span class="nbd-str">$1</span>');
+  html = html.replace(/(#.*)/g, '<span class="nbd-cmt">$1</span>');
+  return html;
+}
+
 export class DetailSidebar extends Widget {
   private colorMap: Map<string, string>;
   // private notebookOrder: number[];
@@ -287,21 +300,13 @@ export class DetailSidebar extends Widget {
     const renderStageCellCards = (nb: any, stage: string) => {
       const cells = (nb.cells ?? [])
         .map((c: any, i: number) => ({ ...c, cellIndex: i }))
-        .filter((c: any) => c["1st-level label"] === stage);
+        .filter((c: any) => c["1st-level label"] === stage && c.cellIndex !== cell.cellIndex);
       if (!cells.length) return '<div style="color:#aaa; font-size:13px; margin-bottom:12px;">No cell in this stage.</div>';
       return `<div style="display:flex; flex-direction:column; gap:14px; margin-bottom:12px;">${cells.map((c: any) => {
         const content = c.source ?? c.code ?? '';
         const cellIdx = c.cellIndex !== undefined ? c.cellIndex + 1 : '';
         if (c.cellType === 'code') {
           // 简单高亮
-          const highlightPython = (code) => {
-            const keywords = ['import','from','as','def','class','return','for','if','else','elif','with','try','except','while','print','in','is','not','and','or','True','False','None'];
-            let html = code.replace(/(&)/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-            for (const kw of keywords) html = html.replace(new RegExp('(?<=^|\\W)(' + kw + ')(?=\\W|$)', 'g'), '<span class="nbd-kw">$1</span>');
-            html = html.replace(/('[^']*'|"[^"]*")/g, '<span class="nbd-str">$1</span>');
-            html = html.replace(/(#.*)/g, '<span class="nbd-cmt">$1</span>');
-            return html;
-          };
           const codeLines = content.split(/\r?\n/);
           return `<div style="display:flex; flex-direction:row; align-items:stretch;">
             <div style="position:relative; min-width:36px; margin-right:8px; height:100%;">
@@ -310,13 +315,9 @@ export class DetailSidebar extends Widget {
             <div class="nbd-cell" style="flex:1 1 0; min-width:0; display:flex; border-radius:6px; box-shadow:0 1px 4px #0001; background:#fff;">
               <div style="width:6px; border-radius:6px 0 0 6px; background:${stageColor}; margin-right:0;"></div>
               <div style="flex:1; padding:14px 18px 10px 14px; min-width:0;">
-                <!-- <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
-                  <span class="nbd-tag" style="background:#eee; color:#888;">${c.cellType}</span>
-                  <span class="nbd-tag" style="background:${stageColor}22; color:${stageColor};">${stageLabel}</span>
-                </div> -->
                 <div class="nbd-code-area" style="background:#f7f7fa; border-radius:4px; padding:8px 0 0 0; font-size:13px; word-break:break-word; min-width:0; white-space:pre-wrap;">
                   <table style="border-spacing:0;"><tbody>
-                    ${codeLines.map((line, i) => `<tr><td style=\"text-align:right; color:#bbb; font-size:12px; padding:0 10px 0 8px; user-select:none; white-space:nowrap; vertical-align:top;\">${i + 1}</td><td style=\"padding:0; font-family:var(--jp-code-font-family,monospace); text-align:left; vertical-align:top;\"><code style=\"background:none; padding:0; display:block;\">${highlightPython(line)}</code></td></tr>`).join('')}
+                    ${codeLines.map((line, i) => `<tr><td style=\"text-align:right; color:#bbb; font-size:12px; padding:0 10px 0 8px; user-select:none; white-space:nowrap; vertical-align:top;\">${i + 1}</td><td style=\"padding:0; font-family:var(--jp-code-font-family,monospace); text-align:left; vertical-align:top;\"><code class=\"nbd-code-line\" data-idx=\"${i}\">${highlightPython(line)}</code></td></tr>`).join('')}
                   </tbody></table>
                 </div>
               </div>
@@ -669,7 +670,8 @@ export class DetailSidebar extends Widget {
       const nb = filteredData[idx];
       if (!nb) return '';
       const origIdx = this._allData.findIndex(item => item === nb);
-      return `<tr><td style="color:#888;">${origIdx + 1}</td><td>${nb.kernelVersionId ?? ''}</td></tr>`;
+      // kernelVersionId 可点击
+      return `<tr><td style="color:#888;">${origIdx + 1}</td><td><a href="#" class="dsb-nb-kernel-link" data-idx="${origIdx}" style="color:#1976d2; text-decoration:underline; cursor:pointer; font-weight:600; font-size:14px; padding:2px 8px; border-radius:4px; transition:background 0.15s;">${nb.kernelVersionId ?? ''}</a></td></tr>`;
     }).join('');
 
     // 渲染
@@ -690,8 +692,12 @@ export class DetailSidebar extends Widget {
         <hr style="margin:16px 0 10px 0; border:none; border-top:1px solid #eee;">
         <div style="font-size:16px; font-weight:600; margin-bottom:10px;">Stage Analysis</div>
         <table style="width:100%; border-collapse:collapse;">
-          <tr><td style="font-weight:500;">Most Common Stage</td><td style="text-align:right;">${mostFreqStageLabel}</td></tr>
-          <tr><td style="font-weight:500;">Most Common Stage Transition</td><td style="text-align:right;">${mostFreqStageFlowLabel}</td></tr>
+          <tr><td style="font-weight:500;">Most Common Stage</td><td style="text-align:right;">
+            ${mostFreqStageLabel ? `<button style="background:${mostFreqStage ? this.colorMap.get(mostFreqStage) || '#1976d2' : '#1976d2'}; color:#fff; border:none; border-radius:16px; padding:3px 18px; font-size:15px; font-weight:700; cursor:pointer;">${mostFreqStageLabel}</button>` : ''}
+          </td></tr>
+          <tr><td style="font-weight:500;">Most Common Stage Transition</td><td style="text-align:right;">
+            ${mostFreqStageFlowLabel ? `<button style="background:#e3eaf3; color:#1976d2; border:none; border-radius:16px; padding:3px 18px; font-size:15px; font-weight:700; cursor:pointer;">${mostFreqStageFlowLabel}</button>` : ''}
+          </td></tr>
         </table>
         <div style="font-weight:500; margin:10px 0 10px 0;">Stage Occurrence</div>
         <div style="margin: 8px 0 12px 0; width:100%; max-width:600px; margin-left:auto; margin-right:auto;">${stageBarChart}</div>
@@ -703,6 +709,28 @@ export class DetailSidebar extends Widget {
         </table>
       </div>
     `;
+    // 绑定 kernelVersionId 跳转事件
+    setTimeout(() => {
+      const links = this.node.querySelectorAll('.dsb-nb-kernel-link');
+      links.forEach(link => {
+        link.addEventListener('mouseenter', () => {
+          (link as HTMLElement).style.background = '#e3eaf3';
+        });
+        link.addEventListener('mouseleave', () => {
+          (link as HTMLElement).style.background = '';
+        });
+        link.addEventListener('click', (e) => {
+          e.preventDefault();
+          const idx = parseInt((link as HTMLElement).getAttribute('data-idx') || '0', 10);
+          if (this._allData && this._allData[idx]) {
+            window.dispatchEvent(new CustomEvent('galaxy-notebook-selected', {
+              detail: { notebook: { ...this._allData[idx], index: idx } }
+            }));
+            this.setNotebookDetail(this._allData[idx]);
+          }
+        });
+      });
+    }, 0);
     // 在渲染后绑定 tooltip 事件
     setTimeout(() => {
       const chartDiv = this.node.querySelector('svg');
