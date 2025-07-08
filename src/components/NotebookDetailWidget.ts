@@ -58,6 +58,37 @@ export class NotebookDetailWidget extends Widget {
     this.clearCellSelectionHandler = this.handleClearCellSelection.bind(this);
 
     this.render();
+
+    // 监听 matrix 跳转事件
+    window.addEventListener('galaxy-notebook-detail-jump', (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail && detail.notebookIndex !== undefined && detail.cellIndex !== undefined) {
+        // 切换 notebook
+        if (this.notebook.index !== undefined && this.notebook.index !== detail.notebookIndex) {
+          // 这里可以根据你的 notebook 切换逻辑来实现
+          // 例如 window.dispatchEvent(new CustomEvent('galaxy-notebook-selected', { detail: { notebookIndex: detail.notebookIndex } }));
+          // 这里只处理当前 notebook
+          return;
+        }
+        this.selectedCellIdx = detail.cellIndex;
+        this.render();
+        setTimeout(() => {
+          const cellList = this.node.querySelector('#nbd-cell-list-scroll');
+          if (!cellList) return;
+          const cellDivs = cellList.querySelectorAll('.nbd-cell');
+          const target = cellDivs[detail.cellIndex]?.parentElement as HTMLElement;
+          if (target) {
+            target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            target.style.background = 'linear-gradient(90deg, #f0f8ff 0%, #e6f3ff 100%)';
+            target.style.transition = 'background 0.4s ease';
+            setTimeout(() => {
+              target.style.background = '';
+              target.style.transition = '';
+            }, 1000);
+          }
+        }, 0);
+      }
+    });
   }
 
   onAfterAttach(): void {

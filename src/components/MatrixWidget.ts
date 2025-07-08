@@ -292,6 +292,29 @@ export class MatrixWidget extends Widget {
                         }
                         const tooltip = document.getElementById('galaxy-tooltip');
                         tooltip!.style.display = 'none';
+                    })
+                    .on('click', function (event, d) {
+                        // 派发 notebook 跳转和 cell 详情事件
+                        // 先隐藏 tooltip
+                        const tooltip = document.getElementById('galaxy-tooltip');
+                        if (tooltip) tooltip.style.display = 'none';
+                        const notebookObj = nb;
+                        window.dispatchEvent(new CustomEvent('galaxy-notebook-selected', {
+                            detail: { notebook: notebookObj }
+                        }));
+                        setTimeout(() => {
+                          window.dispatchEvent(new CustomEvent('galaxy-notebook-detail-jump', {
+                              detail: {
+                                  notebookIndex: row,
+                                  cellIndex: i
+                              }
+                          }));
+                          window.dispatchEvent(new CustomEvent('galaxy-cell-detail', {
+                              detail: {
+                                  cell: { ...d, notebookIndex: row, cellIndex: i, _notebookDetail: nb }
+                              }
+                          }));
+                        }, 0);
                     });
 
                 if (prevStage) {

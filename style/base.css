@@ -45,3 +45,7 @@
   transition: transform 0.15s cubic-bezier(.4,2,.6,1);
   pointer-events: auto;
 }
+
+.matrix-cell:hover {
+  cursor: pointer;
+}
