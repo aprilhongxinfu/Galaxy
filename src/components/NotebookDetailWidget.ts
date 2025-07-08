@@ -89,6 +89,15 @@ export class NotebookDetailWidget extends Widget {
         }, 0);
       }
     });
+    // 监听 notebook 切换时的 cell 跳转请求
+    window.addEventListener('galaxy-notebook-selected', (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail && detail.jumpCellIndex !== undefined && this.notebook.index === detail.notebook.index) {
+        window.dispatchEvent(new CustomEvent('galaxy-notebook-detail-jump', {
+          detail: { notebookIndex: detail.notebook.index, cellIndex: detail.jumpCellIndex }
+        }));
+      }
+    });
   }
 
   onAfterAttach(): void {

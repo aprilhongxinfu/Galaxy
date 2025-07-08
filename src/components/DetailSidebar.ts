@@ -14,6 +14,11 @@ function highlightPython(code: string): string {
   return html;
 }
 
+// 新增：去除高亮 span 的工具函数
+function removeHighlightSpans(html: string): string {
+  return html.replace(/<span class="nbd-\w+">([^<]*)<\/span>/g, '$1');
+}
+
 export class DetailSidebar extends Widget {
   private colorMap: Map<string, string>;
   // private notebookOrder: number[];
@@ -49,6 +54,10 @@ export class DetailSidebar extends Widget {
   }
 
   setNotebookDetail(nb: any) {
+    // 确保 nb 有 index 字段
+    if (nb && nb.index === undefined) {
+      nb.index = 0;
+    }
     const cells = nb.cells ?? [];
     const total = cells.length;
     const codeCount = cells.filter((c: any) => c.cellType === 'code').length;
@@ -198,9 +207,9 @@ export class DetailSidebar extends Widget {
     let currentCellPosition: number | null = null;
     let allNotebooks: any[] = [];
     if (this._allData && Array.isArray(this._allData) && this._allData.length > 0) {
-      allNotebooks = this._allData;
+      allNotebooks = this._allData.map((nb, i) => ({ ...nb, index: nb.index !== undefined ? nb.index : i }));
     } else if (cell && cell._notebookDetail) {
-      allNotebooks = [cell._notebookDetail];
+      allNotebooks = [{ ...cell._notebookDetail, index: cell._notebookDetail.index !== undefined ? cell._notebookDetail.index : 0 }];
     }
     if (cell && cell["1st-level label"]) {
       const stage = cell["1st-level label"];
@@ -287,7 +296,7 @@ export class DetailSidebar extends Widget {
       <button class="galaxy-tab-btn" data-tab="second" style="padding:6px 28px 6px 28px; border:none; border-bottom:2px solid transparent; border-radius:6px 6px 0 0; background:#f7f9fb; color:#888; font-weight:600; font-size:15px; cursor:pointer; transition:color 0.15s;">second stage</button>
     </div>`;
     // 获取所有notebook和当前notebook索引
-    const allNotebooksArr = Array.isArray(this._allData) && this._allData.length > 0 ? this._allData : (cell && cell._notebookDetail ? [cell._notebookDetail] : []);
+    const allNotebooksArr = Array.isArray(this._allData) && this._allData.length > 0 ? this._allData.map((nb, i) => ({ ...nb, index: nb.index !== undefined ? nb.index : i })) : (cell && cell._notebookDetail ? [{ ...cell._notebookDetail, index: cell._notebookDetail.index !== undefined ? cell._notebookDetail.index : 0 }] : []);
     const currentNbIdx = cell.notebookIndex !== undefined ? cell.notebookIndex : 0;
     // 下拉框HTML
     const notebookSelectHtml = `<div style="margin:18px 0 8px 0;">
@@ -305,19 +314,23 @@ export class DetailSidebar extends Widget {
       return `<div style="display:flex; flex-direction:column; gap:14px; margin-bottom:12px;">${cells.map((c: any) => {
         const content = c.source ?? c.code ?? '';
         const cellIdx = c.cellIndex !== undefined ? c.cellIndex + 1 : '';
+        const nbIdx = c.notebookIndex !== undefined ? c.notebookIndex : (nb.index !== undefined ? nb.index : 0);
         if (c.cellType === 'code') {
           // 简单高亮
           const codeLines = content.split(/\r?\n/);
           return `<div style="display:flex; flex-direction:row; align-items:stretch;">
-            <div style="position:relative; min-width:36px; margin-right:8px; height:100%;">
-              <div style="color:#888; font-size:15px; text-align:right; user-select:none; line-height:1.6; margin-left:8px; display:flex; flex-direction:column; align-items:flex-end;">[${cellIdx}]</div>
+            <div style="position:relative; min-width:36px; margin-right:8px; height:100%; display:flex; flex-direction:column; align-items:flex-end;">
+              <div style="color:#888; font-size:15px; text-align:right; user-select:none; line-height:1.6; margin-left:8px;">[${cellIdx}]</div>
+              <span class="nbd-jump-icon" data-nb-idx="${nbIdx}" data-cell-idx="${c.cellIndex}" style="cursor:pointer; margin-top:2px; display:inline-flex; align-items:center; justify-content:center;">
+                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="10" cy="10" r="7" stroke="#1976d2" stroke-width="2"/><path d="M10 7v6M7 10h6" stroke="#1976d2" stroke-width="2" stroke-linecap="round"/></svg>
+              </span>
             </div>
             <div class="nbd-cell" style="flex:1 1 0; min-width:0; display:flex; border-radius:6px; box-shadow:0 1px 4px #0001; background:#fff;">
               <div style="width:6px; border-radius:6px 0 0 6px; background:${stageColor}; margin-right:0;"></div>
               <div style="flex:1; padding:14px 18px 10px 14px; min-width:0;">
                 <div class="nbd-code-area" style="background:#f7f7fa; border-radius:4px; padding:8px 0 0 0; font-size:13px; word-break:break-word; min-width:0; white-space:pre-wrap;">
                   <table style="border-spacing:0;"><tbody>
-                    ${codeLines.map((line, i) => `<tr><td style=\"text-align:right; color:#bbb; font-size:12px; padding:0 10px 0 8px; user-select:none; white-space:nowrap; vertical-align:top;\">${i + 1}</td><td style=\"padding:0; font-family:var(--jp-code-font-family,monospace); text-align:left; vertical-align:top;\"><code class=\"nbd-code-line\" data-idx=\"${i}\">${highlightPython(line)}</code></td></tr>`).join('')}
+                    ${codeLines.map((line, i) => `<tr><td style=\"text-align:right; color:#bbb; font-size:12px; padding:0 10px 0 8px; user-select:none; white-space:nowrap; vertical-align:top;\">${i + 1}</td><td style=\"padding:0; font-family:var(--jp-code-font-family,monospace); text-align:left; vertical-align:top;\"><code class=\"nbd-code-line\" data-idx=\"${i}\">${removeHighlightSpans(highlightPython(line))}</code></td></tr>`).join('')}
                   </tbody></table>
                 </div>
               </div>
@@ -338,8 +351,11 @@ export class DetailSidebar extends Widget {
             return html;
           };
           return `<div style="display:flex; flex-direction:row; align-items:stretch;">
-            <div style="position:relative; min-width:36px; margin-right:8px; height:100%;">
-              <div style="color:#888; font-size:15px; text-align:right; user-select:none; line-height:1.6; margin-left:8px; display:flex; flex-direction:column; align-items:flex-end;">[${cellIdx}]</div>
+            <div style="position:relative; min-width:36px; margin-right:8px; height:100%; display:flex; flex-direction:column; align-items:flex-end;">
+              <div style="color:#888; font-size:15px; text-align:right; user-select:none; line-height:1.6; margin-left:8px;">[${cellIdx}]</div>
+              <span class="nbd-jump-icon" data-nb-idx="${nbIdx}" data-cell-idx="${c.cellIndex}" style="cursor:pointer; margin-top:2px; display:inline-flex; align-items:center; justify-content:center;">
+                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="10" cy="10" r="7" stroke="#1976d2" stroke-width="2"/><path d="M10 7v6M7 10h6" stroke="#1976d2" stroke-width="2" stroke-linecap="round"/></svg>
+              </span>
             </div>
             <div class="nbd-cell" style="flex:1 1 0; min-width:0; display:flex; border-radius:6px; box-shadow:0 1px 4px #0001; background:#fff;">
               <div style="width:6px; border-radius:6px 0 0 6px; background:${stageColor}; margin-right:0;"></div>
@@ -418,6 +434,49 @@ export class DetailSidebar extends Widget {
       });
       // 默认激活 first stage
       (btns[0] as HTMLElement).click();
+      // 新增：为跳转icon绑定事件
+      function bindJumpIconEvents(cellListDiv: HTMLElement | null) {
+        if (!cellListDiv) return;
+        const jumpIcons = cellListDiv.querySelectorAll('.nbd-jump-icon');
+        if (!jumpIcons) return;
+        jumpIcons.forEach(icon => {
+          icon.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const nbIdx = parseInt((icon as HTMLElement).getAttribute('data-nb-idx') || '0', 10);
+            const cellIdx = parseInt((icon as HTMLElement).getAttribute('data-cell-idx') || '0', 10);
+            // 智能 notebook 跳转/高亮
+            if (allNotebooksArr[nbIdx]) {
+              const currentNotebookIndex = (window as any).galaxyCurrentNotebookDetail?.index;
+              if (currentNotebookIndex === nbIdx) {
+                // 当前 notebook，直接 jump
+                window.dispatchEvent(new CustomEvent('galaxy-notebook-detail-jump', {
+                  detail: { notebookIndex: nbIdx, cellIndex: cellIdx }
+                }));
+                // 右侧 detail 区域也要显示 cell 信息
+                const targetCell = allNotebooksArr[nbIdx].cells[cellIdx];
+                if (targetCell) {
+                  window.dispatchEvent(new CustomEvent('galaxy-cell-detail', {
+                    detail: { cell: { ...targetCell, notebookIndex: nbIdx, cellIndex: cellIdx, _notebookDetail: allNotebooksArr[nbIdx] } }
+                  }));
+                }
+              } else {
+                // 不是当前 notebook，切换 notebook
+                window.dispatchEvent(new CustomEvent('galaxy-notebook-selected', {
+                  detail: { notebook: allNotebooksArr[nbIdx], jumpCellIndex: cellIdx }
+                }));
+                setTimeout(() => {
+                  const targetCell = allNotebooksArr[nbIdx].cells[cellIdx];
+                  if (targetCell) {
+                    window.dispatchEvent(new CustomEvent('galaxy-cell-detail', {
+                      detail: { cell: { ...targetCell, notebookIndex: nbIdx, cellIndex: cellIdx, _notebookDetail: allNotebooksArr[nbIdx] } }
+                    }));
+                  }
+                }, 0);
+              }
+            }
+          });
+        });
+      }
       // notebook下拉框切换事件
       const nbSelect = this.node.querySelector('#galaxy-stage-nb-select') as HTMLSelectElement;
       const cellListDiv = this.node.querySelector('#galaxy-stage-cell-list');
@@ -425,8 +484,12 @@ export class DetailSidebar extends Widget {
         nbSelect.addEventListener('change', () => {
           const nbIdx = parseInt(nbSelect.value, 10);
           cellListDiv.innerHTML = renderStageCellCards(allNotebooksArr[nbIdx], cell["1st-level label"] ?? "");
+          // 重新绑定 jump icon 事件
+          bindJumpIconEvents(cellListDiv as HTMLElement);
         });
       }
+      // 初始绑定
+      bindJumpIconEvents(cellListDiv as HTMLElement);
     }, 0);
     // 绑定 notebook 返回事件
     setTimeout(() => {
@@ -518,7 +581,7 @@ export class DetailSidebar extends Widget {
   }
 
   setSummary(data: any[], mostFreqStage?: string, mostFreqFlow?: string, notebookOrder?: number[]) {
-    this._allData = data;
+    this._allData = data.map((nb, i) => ({ ...nb, index: nb.index !== undefined ? nb.index : i }));
     this._mostFreqStage = mostFreqStage;
     this._mostFreqFlow = mostFreqFlow;
     let filteredData = data;

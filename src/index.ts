@@ -190,6 +190,15 @@ function activate(
             if (w.id === 'flow-chart-widget' && w !== singleLeftSidebar) w.close();
           }
 
+          // 新增：如果有 jumpCellIndex，自动 jump 到 cell
+          if (e.detail.jumpCellIndex !== undefined) {
+            setTimeout(() => {
+              window.dispatchEvent(new CustomEvent('galaxy-notebook-detail-jump', {
+                detail: { notebookIndex: nb.index, cellIndex: e.detail.jumpCellIndex }
+              }));
+            }, 0);
+          }
+
           // 返回事件
           const handleBack = () => {
             // 关闭 notebook 详情
