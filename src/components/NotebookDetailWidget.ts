@@ -251,7 +251,7 @@ export class NotebookDetailWidget extends Widget {
         </div>
         <div style="flex:1 1 auto; min-height:0; display:flex; flex-direction:row; align-items:flex-start; gap:0;">
           <!-- Mini map -->
-          <div style="width:20px; margin-right:14px; display:flex; flex-direction:column; justify-content:center; align-self:center;">
+          <div style="width:20px; margin-right:14px; display:flex; flex-direction:column; justify-content:center; align-self:center; max-height:600px;">
             ${(() => {
         const cells = nb.cells ?? [];
         const cellHeight = 4;
@@ -260,28 +260,33 @@ export class NotebookDetailWidget extends Widget {
         const minimapHeight = cells.length * (cellHeight + gap);
         const minimapSvgWidth = 32;
         const rectX = (minimapSvgWidth - 20) / 2;
+        const maxMinimapHeight = 800; // 最大高度
+        let svgHeight = minimapHeight;
+        let viewBox = `0 0 ${minimapSvgWidth} ${minimapHeight}`;
+        let style = 'display:block; margin:0 auto;';
+        if (minimapHeight > maxMinimapHeight) {
+          svgHeight = maxMinimapHeight;
+          // viewBox 保持原始比例，SVG 高度缩小
+          style += ` height:${maxMinimapHeight}px; width:${minimapSvgWidth}px;`;
+        } else {
+          style += ` height:${minimapHeight}px; width:${minimapSvgWidth}px;`;
+        }
         const rects = cells.map((cell: any, i: number) => {
           const stage = String(cell["1st-level label"] ?? 'None');
           const color = colorMap.get(stage) || '#ccc';
-          // const isSelected = this.selectedCellIdx === i;
           const rectY = i * (cellHeight + gap);
           if (cell.cellType === 'markdown') {
-            // markdown cell: 灰色边，选中/高亮时只放大边框，不变色
             const stroke = '#bbb';
             const strokeWidth = 1;
-            // 高亮时rect高度减小，y加0.5，避免边框被覆盖
-            // const adjHeight = isSelected ? rectHeight - 1 : rectHeight;
-            // const adjY = isSelected ? rectY + 0.5 : rectY;
             return `<rect x="${rectX}" y="${rectY}" width="20" height="${rectHeight}" fill="transparent" stroke="${stroke}" stroke-width="${strokeWidth}" data-stage="${stage}" data-idx="${i}" data-orig-width="20" data-orig-x="${rectX}" style="cursor:pointer;" />`;
           } else {
-            // code cell: stage color边，选中时蓝色
             const stageColor = colorMap.get(stage) || '#bbb';
             const stroke = stageColor;
             const strokeWidth = 1;
             return `<rect x="${rectX}" y="${rectY}" width="20" height="${rectHeight}" fill="${color}" stroke="${stroke}" stroke-width="${strokeWidth}" data-stage="${stage}" data-idx="${i}" data-orig-width="20" data-orig-x="${rectX}" style="cursor:pointer;" />`;
           }
         }).join('');
-        return `<svg width="${minimapSvgWidth}" height="${minimapHeight}" style="display:block; margin:0 auto;">${rects}</svg>`;
+        return `<svg width="${minimapSvgWidth}" height="${svgHeight}" viewBox="${viewBox}" style="${style}" preserveAspectRatio="none">${rects}</svg>`;
       })()}
           </div>
           <!-- Cell 列表 -->
@@ -382,22 +387,48 @@ export class NotebookDetailWidget extends Widget {
         .nbd-kw { color:#1976d2; font-weight:bold; }
         .nbd-str { color:#c41a16; }
         .nbd-cmt { color:#888; font-style:italic; }
+        .nbd-md-area {
+          all: initial;
+          font-family: var(--jp-ui-font-family, 'SF Pro', 'Segoe UI', 'Arial', sans-serif);
+          font-size: 14px;
+          color: #222;
+          background: #fff;
+          border-radius: 4px;
+          padding: 10px 12px;
+          word-break: break-word;
+          min-width: 0;
+          white-space: pre-wrap;
+          box-sizing: border-box;
+          display: block;
+        }
+        .nbd-md-area * {
+          all: unset;
+          font-family: inherit;
+          font-size: inherit;
+          color: inherit;
+          box-sizing: border-box;
+        }
+        .nbd-md-area a { color: #1976d2; text-decoration: underline; cursor: pointer; }
+        .nbd-md-area h1 { font-size: 1.5em; font-weight: bold; margin: 0.5em 0; }
+        .nbd-md-area h2 { font-size: 1.2em; font-weight: bold; margin: 0.4em 0; }
+        .nbd-md-area h3 { font-size: 1em; font-weight: bold; margin: 0.3em 0; }
+        .nbd-md-area b { font-weight: bold; }
+        .nbd-md-area i { font-style: italic; }
+        .nbd-md-area code { font-family: var(--jp-code-font-family, monospace); background: #f7f7fa; padding: 0 2px; border-radius: 2px; }
       </style>
     `;
     // Mini map 色条动态着色
     setTimeout(() => {
       const minimapSvg = this.node.querySelector('svg');
       if (!minimapSvg) return;
-      // minimap 点击跳转和高亮 + hover 高亮
-      // 记录当前是否有 flow chart 悬浮
-      const flowHoverStage = (window as any)._galaxyFlowHoverStage ?? null;
       minimapSvg.querySelectorAll('rect').forEach((r, i) => {
-        // 只有在没有 flow chart 悬浮时才给 selected cell 加 minimap-highlight
-        if (!flowHoverStage && this.selectedCellIdx === i) {
+        // 选中 cell 永远高亮
+        if (this.selectedCellIdx === i) {
           r.classList.add('minimap-highlight');
-        } else if (!flowHoverStage) {
+        } else {
           r.classList.remove('minimap-highlight');
         }
+        // 点击选中
         r.addEventListener('click', () => {
           this.selectedCellIdx = i;
           this.render();
@@ -407,9 +438,7 @@ export class NotebookDetailWidget extends Widget {
             const cellDivs = cellList.querySelectorAll('.nbd-cell');
             const target = cellDivs[i]?.parentElement as HTMLElement;
             if (target) {
-              // 滚动到目标 cell 的序号区域
               target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-              // 添加高亮效果 - 使用淡蓝色背景渐变
               target.style.background = 'linear-gradient(90deg, #f0f8ff 0%, #e6f3ff 100%)';
               target.style.transition = 'background 0.4s ease';
               setTimeout(() => {
@@ -419,68 +448,15 @@ export class NotebookDetailWidget extends Widget {
             }
           }, 0);
         });
+        // hover 临时高亮
         r.addEventListener('mouseenter', () => {
-          // minimap高亮：只用 transform: scale 放大，不再手动改 width/x
           r.classList.add('minimap-highlight');
-          // 只对 code cell 设置 stroke:none，markdown cell 保持灰色边框
-          const cells = this.notebook.cells ?? [];
-          if (cells[i]?.cellType === 'markdown') {
-            r.setAttribute('stroke', '#bbb');
-            r.setAttribute('stroke-width', this.selectedCellIdx === i ? '2' : '1');
-            r.setAttribute('fill', 'transparent');
-          } else {
-            // r.setAttribute('stroke', 'none');
-            r.setAttribute('fill', colorMap.get(String(cells[i]["1st-level label"] ?? 'None')) || '#ccc');
-          }
-          // 提到最上层，避免被后面的cell遮挡
-          if (r.parentNode) r.parentNode.appendChild(r);
-
-          // 派发全局事件，联动 flowchart 和 matrix
-          const stage = r.getAttribute('data-stage');
-          if (stage && stage !== 'None') {
-            window.dispatchEvent(new CustomEvent('galaxy-stage-hover', {
-              detail: {
-                stage,
-                source: 'minimap',
-                cellIdx: i
-              }
-            }));
-          }
         });
         r.addEventListener('mouseleave', () => {
-          // 还原为选中或默认
-          r.classList.remove('minimap-highlight');
-          const cells = this.notebook.cells ?? [];
-          if (this.selectedCellIdx === i) {
-            // 选中cell
-            if (cells[i]?.cellType === 'markdown') {
-              r.setAttribute('stroke', '#bbb');
-              r.setAttribute('stroke-width', '1');
-              r.setAttribute('fill', 'transparent');
-            } else {
-              // r.setAttribute('stroke', '#1976d2');
-              r.setAttribute('stroke-width', '1');
-              r.setAttribute('fill', colorMap.get(String(cells[i]["1st-level label"] ?? 'None')) || '#ccc');
-            }
-          } else {
-            if (cells[i]?.cellType === 'markdown') {
-              r.setAttribute('stroke', '#ccc');
-              r.setAttribute('stroke-width', '1');
-              r.setAttribute('fill', 'transparent');
-            } else {
-              // r.setAttribute('stroke', 'none');
-              r.setAttribute('stroke-width', '1');
-              r.setAttribute('fill', colorMap.get(String(cells[i]["1st-level label"] ?? 'None')) || '#ccc');
-            }
+          // 只要不是选中 cell，移除高亮
+          if (this.selectedCellIdx !== i) {
+            r.classList.remove('minimap-highlight');
           }
-
-          // 取消全局高亮
-          window.dispatchEvent(new CustomEvent('galaxy-stage-hover', {
-            detail: {
-              stage: null,
-              source: 'minimap'
-            }
-          }));
         });
       });
       // cell 列表点击选中
