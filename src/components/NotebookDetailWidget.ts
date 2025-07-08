@@ -80,66 +80,21 @@ export class NotebookDetailWidget extends Widget {
     (window as any)._galaxyFlowHoverStage = stage;
     const minimapSvg = this.node.querySelector('svg');
     if (!minimapSvg) return;
-
     // 检查是否来自 minimap 内部的 hover
     const isFromMinimap = (event as any).detail?.source === 'minimap';
-
+    const hoveredIdx = (event as any).detail?.cellIdx;
     minimapSvg.querySelectorAll('rect').forEach((r) => {
       const rectStage = r.getAttribute('data-stage');
-      const idx = parseInt(r.getAttribute('data-idx') || '0');
-      const cells = this.notebook.cells ?? [];
-      const cell = cells[idx];
-      const stageColor = cell && cell.cellType === 'code' ? (colorMap.get(String(cell["1st-level label"] ?? 'None')) || '#bbb') : '#ccc';
+      const rectIdx = parseInt(r.getAttribute('data-idx') || '0');
+      // minimap 悬浮时只高亮当前 cell
       if (isFromMinimap) {
-        // 来自 minimap 内部，只高亮当前 cell
-        const hoveredIdx = (event as any).detail?.cellIdx;
-        if (hoveredIdx === idx) {
-          r.setAttribute('stroke', stageColor);
-          r.setAttribute('stroke-width', '1');
+        if (hoveredIdx === rectIdx) {
           r.classList.add('minimap-highlight');
-        } else if (this.selectedCellIdx === idx) {
-          // 保持选中状态
-          // r.setAttribute('stroke', '#1976d2');
-          r.setAttribute('stroke-width', '1');
-          r.classList.remove('minimap-highlight');
         } else {
-          // 还原为默认状态
-          if (cell?.cellType === 'markdown') {
-            r.setAttribute('stroke', '#ccc');
-            r.setAttribute('stroke-width', '1');
-          } else {
-            // r.setAttribute('stroke', 'none');
-            r.setAttribute('stroke-width', '1');
-          }
           r.classList.remove('minimap-highlight');
         }
-      } else {
-        // 来自外部（flowchart），高亮所有相同 stage 的 cell
-        if (stage && rectStage === stage) {
-          r.setAttribute('stroke', stageColor);
-          r.setAttribute('stroke-width', '1');
-          r.classList.add('minimap-highlight');
-          if (r.parentNode) r.parentNode.appendChild(r);
-        } else {
-          // 还原为选中或默认状态
-          if (this.selectedCellIdx === idx) {
-            // r.setAttribute('stroke', '#1976d2');
-            r.setAttribute('stroke-width', '1');
-            r.classList.remove('minimap-highlight');
-          } else {
-            if (cell?.cellType === 'markdown') {
-              r.setAttribute('stroke', '#ccc');
-              r.setAttribute('stroke-width', '1');
-            } else {
-              // r.setAttribute('stroke', 'none');
-              r.setAttribute('stroke-width', '1');
-            }
-            r.classList.remove('minimap-highlight');
-          }
-        }
-      }
-      // flow chart 悬浮时，只给被高亮的 cell 加 minimap-highlight，selected cell 没被高亮则移除
-      if (stage) {
+      } else if (stage) {
+        // flow chart 悬浮时高亮所有同 stage 的 cell
         if (rectStage === stage) {
           r.classList.add('minimap-highlight');
         } else {
@@ -147,7 +102,7 @@ export class NotebookDetailWidget extends Widget {
         }
       } else {
         // 没有 flow chart 悬浮时，只给 selected cell 加 minimap-highlight
-        if (this.selectedCellIdx === idx) {
+        if (this.selectedCellIdx === rectIdx) {
           r.classList.add('minimap-highlight');
         } else {
           r.classList.remove('minimap-highlight');

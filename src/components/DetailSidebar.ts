@@ -182,8 +182,8 @@ export class DetailSidebar extends Widget {
     const cellIdx = cell.cellIndex !== undefined ? cell.cellIndex + 1 : '';
     this.node.innerHTML = `<div style="padding:16px;">
       <div style="font-size:16px; font-weight:600; margin-bottom:10px;">
-        <span class="dsb-nb-link" style="color:#3182bd; cursor:pointer; text-decoration:underline;">Notebook${nbIdx ? ' #' + nbIdx : ''}</span>
-        ${cellIdx ? ` / Cell #${cellIdx}` : ''}
+        <span class="dsb-nb-link" style="color:#3182bd; cursor:pointer; text-decoration:underline;">Notebook${nbIdx ? + nbIdx : ''}</span>
+        ${cellIdx ? ` / Cell ${cellIdx}` : ''}
       </div>
       <div><b>cellId:</b> ${cell.cellId ?? ''}</div>
       <div><b>cellType:</b> ${cell.cellType ?? ''}</div>
