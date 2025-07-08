@@ -334,9 +334,8 @@ export class NotebookDetailWidget extends Widget {
                   </div>
                 `;
         } else if (cell.cellType === 'markdown') {
-          const isHtml = /^\s*<.+?>/.test(content.trim());
           return `
-                  <div style="display:flex; flex-direction:row; align-items:stretch;">
+                  <div style="display:flex; flex-direction:row; align-items:stretch; width:100%; min-width:0;">
                     <div style="position:relative; min-width:36px; margin-right:8px; height:100%;">
                       ${isSelected ? `<div style="position:absolute;left:0;top:0;width:3px;height:100%;background:#1976d2;border-radius:2px;"></div>` : ''}
                       <div style="color:#888; font-size:15px; text-align:right; user-select:none; line-height:1.6; margin-left:8px; display:flex; flex-direction:column; align-items:flex-end;">
@@ -346,12 +345,12 @@ export class NotebookDetailWidget extends Widget {
                         </span>-->
                       </div>
                     </div>
-                    <div class="nbd-cell" style="flex:1 1 0; min-width:0; display:flex; border-radius:6px; box-shadow:0 1px 4px #0001; background:#fff;">
+                    <div class="nbd-cell" style="flex:1 1 0; min-width:0; display:flex; border-radius:6px; box-shadow:0 1px 4px #0001; background:#fff; width:100%;">
                       <div style="width:6px; border-radius:6px 0 0 6px; background:#ccc; margin-right:0;"></div>
-                      <div style="flex:1; padding:14px 18px 10px 14px; min-width:0;">
+                      <div style="flex:1; padding:14px 18px 10px 14px; min-width:0; width:100%;">
                         <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;"></div>
-                        <div class="nbd-md-area" style="background:#fff; border-radius:4px; padding:10px 12px 10px 12px; font-size:14px; color:#222; word-break:break-word; min-width:0; white-space:pre-wrap;">
-                          ${isHtml ? content : simpleMarkdown(content)}
+                        <div class="nbd-md-area" style="all: initial; display: block; width: 100%; min-width: 0; word-break: break-all; white-space: pre-wrap; box-sizing: border-box; font-size:14px; color:#222; font-family:inherit; background:#fff; border-radius:4px; padding:10px 12px 10px 12px;">
+                          ${simpleMarkdown(content)}
                         </div>
                       </div>
                     </div>
