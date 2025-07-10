@@ -77,6 +77,7 @@ export class LeftSidebar extends Widget {
         this.node.style.flexDirection = 'column';
         this.node.style.height = '100%';
         this.node.style.padding = '16px 16px 12px 16px'; // 统一内边距
+        this.node.style.minWidth = '300px'; // 保证sidebar最小宽度不小于SVG
 
         // 右上角重置排序 icon
         const resetDiv = document.createElement('div');
@@ -587,70 +588,51 @@ export class LeftSidebar extends Widget {
             const samples = [min, Math.round((min + max) / 2), max];
             const uniqSamples = Array.from(new Set(samples));
             const svgW = 220;
-            // const svgH = 90;
             const barY = 40;
-            // const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-            // svg.setAttribute('width', svgW.toString());
-            // svg.setAttribute('height', svgH.toString());
-            // svg.style.display = 'block';
-            // svg.style.border = '';
-            // svg.style.margin = '0 0 0 0';
-
-            // const legendG = svg.append("g").attr("transform", "translate(0, 850)");
+            
             // 计算底部 legend 的起始 y 位置（加上一些 padding）
-            const bottomY = Math.max(...this.stageData.map(d => d.y! + d.size!)) + 30;
+            const bottomY = Math.max(...this.stageData.map(d => d.y! + d.size!)) + 40;
 
-            // width legend
+            // width legend - 更优雅的布局
             const legendG = svg.append("g").attr("transform", `translate(0, ${bottomY})`);
+            
+            // 添加标题
+            legendG.append("text")
+                .attr("x", 110)
+                .attr("y", 15)
+                .attr("text-anchor", "middle")
+                .attr("font-size", "15")
+                .attr("font-weight", "600")
+                .attr("fill", "#555")
+                .text("Flow Frequency");
 
-            // size legend
-            const sizeLegendG = svg.append("g").attr("transform", `translate(260, ${bottomY})`);
+            // 绘制宽度示例线条
             uniqSamples.forEach((count, i) => {
                 const x = 28 + i * ((svgW - 56) / (uniqSamples.length - 1));
                 const w = strokeScale(count);
-                // console.log('legend sample', count, 'width', w);
+                const lineY = barY + 5;
+                const minHeight = 20; // 增加最小高度确保可见性
 
-                // 创建竖直的 flow 线条：固定 from 和 to 的 x 位置，改变宽度
-                const fromX = x;         // from x 位置（固定）
-                const toX = x;           // to x 位置（固定，与 from 相同）
-                const fromY = barY - 10;  // from y 位置
-                const toY = barY + 55;   // to y 位置
-
-                // 绘制竖直的 flow 线条
-                // const line = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-                // const side = toY > fromY ? 1 : -1;
-                // const dy = Math.abs(toY - fromY);
-                // const offset = Math.min(dy * 0.5, 15);
-                // const ctrlX1 = fromX + side * offset;
-                // const ctrlX2 = toX + side * offset;
-
-                // legendG.append("path")
-                //     .attr("d", `M${fromX},${fromY} C${ctrlX1},${fromY} ${ctrlX2},${toY} ${toX},${toY}`)
-                //     .attr("stroke", "#666")
-                //     .attr("stroke-width", w)
-                //     .attr("fill", "none")
-                //     .attr("opacity", 0.8);
-
-                legendG.append("line")
-                    .attr("x1", fromX)
-                    .attr("y1", fromY)
-                    .attr("x2", toX)
-                    .attr("y2", toY)
-                    .attr("stroke", "#666")
-                    .attr("stroke-width", w)
+                // 绘制方形来展示线宽
+                legendG.append("rect")
+                    .attr("x", x - w/2)
+                    .attr("y", lineY - Math.max(w, minHeight)/2)
+                    .attr("width", w)
+                    .attr("height", Math.max(w, minHeight))
+                    .attr("fill", "#666")
                     .attr("opacity", 0.8);
 
+                // 添加数值标签
                 legendG.append("text")
                     .attr("x", x)
-                    .attr("y", toY + 20)
+                    .attr("y", lineY + Math.max(w, minHeight)/2 + 20)
                     .attr("text-anchor", "middle")
-                    .attr("font-size", 20)
+                    .attr("font-size", "15")
                     .attr("fill", "#666")
                     .text(count.toLocaleString());
             });
 
-            // === 添加 stage rect size 的 legend（同心矩形） ===
-            // const sizeLegendG = svg.append("g").attr("transform", "translate(260, 850)");
+            // === 添加 stage rect size 的 legend（同心矩形）===
             const stageCounts = this.stageData.map(d => d.count);
             const minCount = Math.min(...stageCounts);
             const maxCount = Math.max(...stageCounts);
@@ -658,12 +640,41 @@ export class LeftSidebar extends Widget {
             const cx = 30;  // 同心矩形中心点 x
             const cy = 60;  // 同心矩形中心点 y
 
-            // 绘制同心矩形（由大到小）
+            // size legend - 更优雅的布局
+            const sizeLegendG = svg.append("g").attr("transform", `translate(260, ${bottomY})`);
+
+            // 先计算所有labelX和最大矩形半径
+            const labelXs: number[] = [];
+            let maxR = 0;
+            sizeSamples.sort((a, b) => b - a).forEach((count, i) => {
+                const size = sizeScale(count);
+                const r = size / 2;
+                if (i === 0) maxR = r; // 最大矩形半径
+                const extendLength = 40 + ((sizeSamples.length - 1 - i) * 30);
+                const labelX = cx + r + extendLength;
+                labelXs.push(labelX);
+            });
+            const maxLabelX = Math.max(...labelXs);
+            // 估算数字宽度为40px
+            const legendLeft = cx - maxR;
+            const legendRight = maxLabelX + 20; // 20为数字宽度一半
+            const titleX = (legendLeft + legendRight) / 2;
+
+            // 添加标题
+            sizeLegendG.append("text")
+                .attr("x", titleX)
+                .attr("y", 15)
+                .attr("text-anchor", "middle")
+                .attr("font-size", "15")
+                .attr("font-weight", "600")
+                .attr("fill", "#555")
+                .text("Stage Frequency");
+
+            // 再绘制同心矩形和标注
             sizeSamples.sort((a, b) => b - a).forEach((count, i) => {
                 const size = sizeScale(count);
                 const r = size / 2;
 
-                // 绘制矩形
                 sizeLegendG.append("rect")
                     .attr("x", cx - r)
                     .attr("y", cy - r)
@@ -671,55 +682,57 @@ export class LeftSidebar extends Widget {
                     .attr("height", size)
                     .attr("fill", "none")
                     .attr("stroke", "#444")
+                    .attr("stroke-width", 1.5)
+                    .attr("stroke-dasharray", "none")
+                    .attr("opacity", 0.8);
+
+                const extendLength = 40 + ((sizeSamples.length - 1 - i) * 30);
+                const labelX = cx + r + extendLength;
+                const labelY = cy;
+                sizeLegendG.append("line")
+                    .attr("x1", cx + r)
+                    .attr("y1", cy - r)
+                    .attr("x2", cx + r + extendLength)
+                    .attr("y2", cy - r)
+                    .attr("stroke", "#666")
                     .attr("stroke-width", 1)
-                    .attr("opacity", 0.9);
-
-                const isMiddle = i === 1; // 中间那个
-                const needsLeaderLine = isMiddle && count >= 0;
-
-                if (needsLeaderLine) {
-                    // 从中间矩形右上角斜出去
-                    const fromX = cx + r;
-                    const fromY = cy - r;
-                    const dx = 16, dy = -12;
-                    const toX = fromX + dx;
-                    const toY = fromY + dy;
-
-                    // 斜线
-                    sizeLegendG.append("line")
-                        .attr("x1", fromX)
-                        .attr("y1", fromY)
-                        .attr("x2", toX)
-                        .attr("y2", toY)
-                        .attr("stroke", "#444")
-                        .attr("stroke-width", 1);
-
-                    // 水平文字
-                    sizeLegendG.append("text")
-                        .attr("x", toX + 4)
-                        .attr("y", toY + 4)
-                        .attr("font-size", 20)
-                        .attr("fill", "#444")
-                        .text(count.toLocaleString());
-                } else {
-                    // 正常右边标注
-                    sizeLegendG.append("text")
-                        .attr("x", cx + r + 1)
-                        .attr("y", cy + 4)
-                        .attr("font-size", 20)
-                        .attr("fill", "#444")
-                        .text(count.toLocaleString());
-                }
+                    .attr("stroke-dasharray", "2,2")
+                    .attr("opacity", 0.6);
+                sizeLegendG.append("line")
+                    .attr("x1", cx + r)
+                    .attr("y1", cy + r)
+                    .attr("x2", cx + r + extendLength)
+                    .attr("y2", cy + r)
+                    .attr("stroke", "#666")
+                    .attr("stroke-width", 1)
+                    .attr("stroke-dasharray", "2,2")
+                    .attr("opacity", 0.6);
+                sizeLegendG.append("line")
+                    .attr("x1", cx + r + extendLength)
+                    .attr("y1", cy - r)
+                    .attr("x2", cx + r + extendLength)
+                    .attr("y2", labelY - 5)
+                    .attr("stroke", "#666")
+                    .attr("stroke-width", 1)
+                    .attr("stroke-dasharray", "2,2")
+                    .attr("opacity", 0.6);
+                sizeLegendG.append("line")
+                    .attr("x1", cx + r + extendLength)
+                    .attr("y1", cy + r)
+                    .attr("x2", cx + r + extendLength)
+                    .attr("y2", labelY + 5)
+                    .attr("stroke", "#666")
+                    .attr("stroke-width", 1)
+                    .attr("stroke-dasharray", "2,2")
+                    .attr("opacity", 0.6);
+                sizeLegendG.append("text")
+                    .attr("x", labelX)
+                    .attr("y", labelY + 5)
+                    .attr("font-size", "15")
+                    .attr("fill", "#666")
+                    .attr("text-anchor", "middle")
+                    .text(count.toLocaleString());
             });
-
-            // 添加标题文字
-            // sizeLegendG.append("text")
-            //     .attr("x", cx - 8)
-            //     .attr("y", cy - Math.max(...sizeSamples.map(c => sizeScale(c))) / 2 - 12)
-            //     .attr("text-anchor", "start")
-            //     .attr("font-size", 12)
-            //     .attr("fill", "#222")
-            //     .text("Stage count");
         }
 
         // 保证 colorMap 有所有 stage 的颜色

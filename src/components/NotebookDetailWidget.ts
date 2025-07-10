@@ -161,19 +161,14 @@ export class NotebookDetailWidget extends Widget {
     if (from && to) {
       // 先重置所有高亮
       minimapSvg.querySelectorAll('rect').forEach((r) => {
+        r.classList.remove('minimap-highlight');
         const idx = parseInt(r.getAttribute('data-idx') || '0');
-        if (this.selectedCellIdx === idx) {
-          // r.setAttribute('stroke', '#1976d2');
+        const cells = this.notebook.cells ?? [];
+        if (cells[idx]?.cellType === 'markdown') {
+          r.setAttribute('stroke', '#ccc');
           r.setAttribute('stroke-width', '1');
         } else {
-          const cells = this.notebook.cells ?? [];
-          if (cells[idx]?.cellType === 'markdown') {
-            r.setAttribute('stroke', '#ccc');
-            r.setAttribute('stroke-width', '1');
-          } else {
-            // r.setAttribute('stroke', 'none');
-            r.setAttribute('stroke-width', '1');
-          }
+          r.setAttribute('stroke-width', '1');
         }
       });
 
@@ -223,13 +218,6 @@ export class NotebookDetailWidget extends Widget {
       // 取消高亮，还原所有状态
       this.handleStageHover({ detail: { stage: null } } as CustomEvent);
     }
-    // flow chart 悬浮时，移除 selected cell 的 minimap-highlight
-    minimapSvg.querySelectorAll('rect').forEach((r) => {
-      const idx = parseInt(r.getAttribute('data-idx') || '0');
-      if (this.selectedCellIdx === idx) {
-        r.classList.remove('minimap-highlight');
-      }
-    });
   }
 
   private handleClearCellSelection() {
