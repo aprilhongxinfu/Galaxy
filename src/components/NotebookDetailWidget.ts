@@ -225,6 +225,22 @@ export class NotebookDetailWidget extends Widget {
     this.render();
   }
 
+  private scrollToSelectedCell() {
+    setTimeout(() => {
+      if (this.selectedCellIdx == null) return;
+      const target = document.getElementById('nbd-cell-row-' + this.selectedCellIdx) as HTMLElement;
+      if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        target.style.background = 'linear-gradient(90deg, #f0f8ff 0%, #e6f3ff 100%)';
+        target.style.transition = 'background 0.4s ease';
+        setTimeout(() => {
+          target.style.background = '';
+          target.style.transition = '';
+        }, 1000);
+      }
+    }, 40);
+  }
+
   private render() {
     // 记录滚动位置
     let prevScrollTop = 0;
@@ -296,7 +312,7 @@ export class NotebookDetailWidget extends Widget {
         if (cell.cellType === 'code') {
           const codeLines = content.split(/\r?\n/);
           return `
-                  <div style="display:flex; flex-direction:row; align-items:stretch;">
+                  <div id="nbd-cell-row-${i}" style="display:flex; flex-direction:row; align-items:stretch;">
                     <div style="position:relative; min-width:36px; margin-right:8px; height:100%;">
                       ${isSelected ? `<div style="position:absolute;left:0;top:0;width:3px;height:100%;background:#1976d2;border-radius:2px;"></div>` : ''}
                       <div style="color:#888; font-size:15px; text-align:right; user-select:none; line-height:1.6; margin-left:8px; display:flex; flex-direction:column; align-items:flex-end;">
@@ -323,7 +339,7 @@ export class NotebookDetailWidget extends Widget {
                 `;
         } else if (cell.cellType === 'markdown') {
           return `
-                  <div style="display:flex; flex-direction:row; align-items:stretch; width:100%; min-width:0;">
+                  <div id="nbd-cell-row-${i}" style="display:flex; flex-direction:row; align-items:stretch; width:100%; min-width:0;">
                     <div style="position:relative; min-width:36px; margin-right:8px; height:100%;">
                       ${isSelected ? `<div style="position:absolute;left:0;top:0;width:3px;height:100%;background:#1976d2;border-radius:2px;"></div>` : ''}
                       <div style="color:#888; font-size:15px; text-align:right; user-select:none; line-height:1.6; margin-left:8px; display:flex; flex-direction:column; align-items:flex-end;">
@@ -347,7 +363,7 @@ export class NotebookDetailWidget extends Widget {
         } else {
           // 其它类型直接显示内容
           return `
-                  <div style="display:flex; flex-direction:row; align-items:stretch;">
+                  <div id="nbd-cell-row-${i}" style="display:flex; flex-direction:row; align-items:stretch;">
                     <div style="position:relative; min-width:36px; margin-right:8px; height:100%;">
                       ${isSelected ? `<div style="position:absolute;left:0;top:0;width:3px;height:100%;background:#1976d2;border-radius:2px;"></div>` : ''}
                       <div style="color:#888; font-size:15px; text-align:right; user-select:none; line-height:1.6; margin-left:8px; display:flex; flex-direction:column; align-items:flex-end;">
@@ -484,5 +500,6 @@ export class NotebookDetailWidget extends Widget {
         window.dispatchEvent(new CustomEvent('galaxy-notebook-detail-back'));
       };
     }
+    this.scrollToSelectedCell();
   }
 } 

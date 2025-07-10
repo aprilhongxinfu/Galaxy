@@ -205,10 +205,10 @@ export class LeftSidebar extends Widget {
         const lastStage = this.stageData[this.stageData.length - 1];
         const lastY = (lastStage?.norm_pos ?? 1) * 1.0;  // 如果没有 norm_pos 则用 1
         const estimatedVirtualHeight = d3.scaleLinear().domain([0, 1]).range([10, 800])(lastY) + 80;
-        
+
         // 最终逻辑高度
         const virtualHeight = Math.max(estimatedVirtualHeight, 1000); // 设置下限，防止过小
-        
+
         // 设置 viewBox
         this.svg.attr("viewBox", `0 0 400 ${virtualHeight + chartPadding}`);
 
@@ -589,19 +589,28 @@ export class LeftSidebar extends Widget {
             const uniqSamples = Array.from(new Set(samples));
             const svgW = 220;
             const barY = 40;
-            
+
             // 计算底部 legend 的起始 y 位置（加上一些 padding）
             const bottomY = Math.max(...this.stageData.map(d => d.y! + d.size!)) + 40;
 
+            // 统一声明legend相关变量
+            const stageCounts = this.stageData.map(d => d.count);
+            const minCount = Math.min(...stageCounts);
+            const maxCount = Math.max(...stageCounts);
+            const maxSize = sizeScale(maxCount);
+            const sizeSamples = [minCount, Math.round((minCount + maxCount) / 2), maxCount];
+            const cx = 30;  // 同心矩形中心点 x
+            const cy = 60;  // 同心矩形中心点 y
+
             // width legend - 更优雅的布局
             const legendG = svg.append("g").attr("transform", `translate(0, ${bottomY})`);
-            
+
             // 添加标题
             legendG.append("text")
                 .attr("x", 110)
                 .attr("y", 15)
                 .attr("text-anchor", "middle")
-                .attr("font-size", "15")
+                .attr("font-size", "20")
                 .attr("font-weight", "600")
                 .attr("fill", "#555")
                 .text("Flow Frequency");
@@ -611,21 +620,21 @@ export class LeftSidebar extends Widget {
                 const x = 28 + i * ((svgW - 56) / (uniqSamples.length - 1));
                 const w = strokeScale(count);
                 const lineY = barY + 5;
-                const minHeight = 20; // 增加最小高度确保可见性
+                // const minHeight = 60; // 不再需要
 
                 // 绘制方形来展示线宽
                 legendG.append("rect")
-                    .attr("x", x - w/2)
-                    .attr("y", lineY - Math.max(w, minHeight)/2)
+                    .attr("x", x - w / 2)
+                    .attr("y", lineY - maxSize / 2 + 15)
                     .attr("width", w)
-                    .attr("height", Math.max(w, minHeight))
+                    .attr("height", maxSize)
                     .attr("fill", "#666")
                     .attr("opacity", 0.8);
 
                 // 添加数值标签
                 legendG.append("text")
                     .attr("x", x)
-                    .attr("y", lineY + Math.max(w, minHeight)/2 + 20)
+                    .attr("y", lineY + maxSize / 2 + 35)
                     .attr("text-anchor", "middle")
                     .attr("font-size", "15")
                     .attr("fill", "#666")
@@ -633,39 +642,29 @@ export class LeftSidebar extends Widget {
             });
 
             // === 添加 stage rect size 的 legend（同心矩形）===
-            const stageCounts = this.stageData.map(d => d.count);
-            const minCount = Math.min(...stageCounts);
-            const maxCount = Math.max(...stageCounts);
-            const sizeSamples = [minCount, Math.round((minCount + maxCount) / 2), maxCount];
-            const cx = 30;  // 同心矩形中心点 x
-            const cy = 60;  // 同心矩形中心点 y
-
             // size legend - 更优雅的布局
             const sizeLegendG = svg.append("g").attr("transform", `translate(260, ${bottomY})`);
 
             // 先计算所有labelX和最大矩形半径
             const labelXs: number[] = [];
-            let maxR = 0;
+            // let maxR;
             sizeSamples.sort((a, b) => b - a).forEach((count, i) => {
                 const size = sizeScale(count);
                 const r = size / 2;
-                if (i === 0) maxR = r; // 最大矩形半径
+                // if (i === 0) maxR = r; // 最大矩形半径
                 const extendLength = 40 + ((sizeSamples.length - 1 - i) * 30);
                 const labelX = cx + r + extendLength;
                 labelXs.push(labelX);
             });
             const maxLabelX = Math.max(...labelXs);
-            // 估算数字宽度为40px
-            const legendLeft = cx - maxR;
-            const legendRight = maxLabelX + 20; // 20为数字宽度一半
-            const titleX = (legendLeft + legendRight) / 2;
+            const titleX = (2 * cx + maxLabelX) / 3;
 
             // 添加标题
             sizeLegendG.append("text")
                 .attr("x", titleX)
                 .attr("y", 15)
                 .attr("text-anchor", "middle")
-                .attr("font-size", "15")
+                .attr("font-size", "20")
                 .attr("font-weight", "600")
                 .attr("fill", "#555")
                 .text("Stage Frequency");

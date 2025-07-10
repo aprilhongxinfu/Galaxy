@@ -367,7 +367,7 @@ export class DetailSidebar extends Widget {
             <div style="position:relative; min-width:36px; margin-right:8px; height:100%; display:flex; flex-direction:column; align-items:flex-end;">
               <div style="color:#888; font-size:15px; text-align:right; user-select:none; line-height:1.6; margin-left:8px;">[${cellIdx}]</div>
               <span class="nbd-jump-icon" data-nb-idx="${nbIdx}" data-cell-idx="${c.cellIndex}" style="cursor:pointer; margin-top:2px; display:inline-flex; align-items:center; justify-content:center;">
-                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="10" cy="10" r="7" stroke="#1976d2" stroke-width="2"/><path d="M10 7v6M7 10h6" stroke="#1976d2" stroke-width="2" stroke-linecap="round"/></svg>
+                <svg width="18" height="18" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="10" cy="10" r="7" stroke="#1976d2" stroke-width="2"/><circle cx="10" cy="10" r="2.5" fill="#1976d2"/><line x1="10" y1="3" x2="10" y2="0" stroke="#1976d2" stroke-width="1.5"/><line x1="10" y1="17" x2="10" y2="20" stroke="#1976d2" stroke-width="1.5"/><line x1="3" y1="10" x2="0" y2="10" stroke="#1976d2" stroke-width="1.5"/><line x1="17" y1="10" x2="20" y2="10" stroke="#1976d2" stroke-width="1.5"/></svg>
               </span>
             </div>
             <div class="nbd-cell" style="flex:1 1 0; min-width:0; display:flex; border-radius:6px; box-shadow:0 1px 4px #0001; background:#fff;">
@@ -489,17 +489,10 @@ export class DetailSidebar extends Widget {
             if (allNotebooksArr[nbIdx]) {
               const currentNotebookIndex = (window as any).galaxyCurrentNotebookDetail?.index;
               if (currentNotebookIndex === nbIdx) {
-                // 当前 notebook，直接 jump
                 window.dispatchEvent(new CustomEvent('galaxy-notebook-detail-jump', {
                   detail: { notebookIndex: nbIdx, cellIndex: cellIdx }
                 }));
-                // 右侧 detail 区域也要显示 cell 信息
-                const targetCell = allNotebooksArr[nbIdx].cells[cellIdx];
-                if (targetCell) {
-                  window.dispatchEvent(new CustomEvent('galaxy-cell-detail', {
-                    detail: { cell: { ...targetCell, notebookIndex: nbIdx, cellIndex: cellIdx, _notebookDetail: allNotebooksArr[nbIdx] } }
-                  }));
-                }
+                // 不再立即触发 cell-detail 事件
               } else {
                 // 不是当前 notebook，切换 notebook
                 window.dispatchEvent(new CustomEvent('galaxy-notebook-selected', {
