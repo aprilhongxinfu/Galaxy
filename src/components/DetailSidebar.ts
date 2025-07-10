@@ -310,7 +310,7 @@ export class DetailSidebar extends Widget {
       const cells = (nb.cells ?? [])
         .map((c: any, i: number) => ({ ...c, cellIndex: i }))
         .filter((c: any) => c["1st-level label"] === stage && c.cellIndex !== cell.cellIndex);
-      if (!cells.length) return '<div style="color:#aaa; font-size:13px; margin-bottom:12px;">No cell in this stage.</div>';
+      if (!cells.length) return '<div style="color:#aaa; font-size:13px; margin-bottom:12px;">No other cells in this stage in this notebook.</div>';
       return `<div style="display:flex; flex-direction:column; gap:14px; margin-bottom:12px;">${cells.map((c: any) => {
         const content = c.source ?? c.code ?? '';
         const cellIdx = c.cellIndex !== undefined ? c.cellIndex + 1 : '';
@@ -611,12 +611,12 @@ export class DetailSidebar extends Widget {
       if (c > cellCounts[longestIdx]) longestIdx = i;
       if (c < cellCounts[shortestIdx]) shortestIdx = i;
     });
-    const longestTitle = filteredData[longestIdx]?.path ?? '';
-    const shortestTitle = filteredData[shortestIdx]?.path ?? '';
-    const longestKernel = filteredData[longestIdx]?.kernelVersionId ? ` <span style='color:#888'>(kernelVersionId: ${filteredData[longestIdx].kernelVersionId})</span>` : '';
-    const shortestKernel = filteredData[shortestIdx]?.kernelVersionId ? ` <span style='color:#888'>(kernelVersionId: ${filteredData[shortestIdx].kernelVersionId})</span>` : '';
-    const longestIndex = `<span style='color:#888'>#${longestIdx + 1}</span>`;
-    const shortestIndex = `<span style='color:#888'>#${shortestIdx + 1}</span>`;
+    // const longestTitle = filteredData[longestIdx]?.path ?? '';
+    // const shortestTitle = filteredData[shortestIdx]?.path ?? '';
+    // const longestKernel = filteredData[longestIdx]?.kernelVersionId ? ` <span style='color:#888'>(kernelVersionId: ${filteredData[longestIdx].kernelVersionId})</span>` : '';
+    // const shortestKernel = filteredData[shortestIdx]?.kernelVersionId ? ` <span style='color:#888'>(kernelVersionId: ${filteredData[shortestIdx].kernelVersionId})</span>` : '';
+    // const longestIndex = `#${longestIdx + 1}`;
+    // const shortestIndex = `#${shortestIdx + 1}`;
     // 每 notebook 首 stage 种类数
     // const firstStages = data.map(nb => {
     //   const first = nb.cells?.find((cell: any) => cell["1st-level label"] != null);
@@ -689,7 +689,6 @@ export class DetailSidebar extends Widget {
             onmousemove="(function(evt){var t=document.getElementById('galaxy-tooltip');if(!t){t=document.createElement('div');t.id='galaxy-tooltip';t.style.position='fixed';t.style.display='none';t.style.pointerEvents='none';t.style.background='rgba(0,0,0,0.75)';t.style.color='#fff';t.style.padding='6px 10px';t.style.borderRadius='4px';t.style.fontSize='12px';t.style.zIndex='9999';document.body.appendChild(t);}t.innerHTML='${count} unique stages: ${n} notebooks';t.style.display='block';t.style.left=evt.clientX+12+'px';t.style.top=evt.clientY+12+'px';}) (event)"
             onmouseleave="(function(){var t=document.getElementById('galaxy-tooltip');if(t)t.style.display='none';})()"
           >
-            <title>${count} unique stages: ${n} notebooks</title>
           </rect>
           <text x="${i * (barW3 + gap3) + barW3 / 2}" y="${barH3 + 14}" font-size="11" text-anchor="middle" fill="#888">${count}</text>
           <text x="${i * (barW3 + gap3) + barW3 / 2}" y="${barH3 - (n / maxDistCount) * barH3 - 4}" font-size="11" text-anchor="middle" fill="#222">${n}</text>
@@ -714,7 +713,6 @@ export class DetailSidebar extends Widget {
             onmousemove="(function(evt){var t=document.getElementById('galaxy-tooltip');if(!t){t=document.createElement('div');t.id='galaxy-tooltip';t.style.position='fixed';t.style.display='none';t.style.pointerEvents='none';t.style.background='rgba(0,0,0,0.75)';t.style.color='#fff';t.style.padding='6px 10px';t.style.borderRadius='4px';t.style.fontSize='12px';t.style.zIndex='9999';document.body.appendChild(t);}t.innerHTML='${LABEL_MAP[stage] ?? stage}: ${count}';t.style.display='block';t.style.left=evt.clientX+12+'px';t.style.top=evt.clientY+12+'px';}) (event)"
             onmouseleave="(function(){var t=document.getElementById('galaxy-tooltip');if(t)t.style.display='none';})()"
           >
-            <title>${LABEL_MAP[stage] ?? stage}: ${count}</title>
           </rect>
           <text x="${i * (barW2 + gap2) + barW2 / 2}" y="${barH2 - (count / maxStageCount) * barH2 - 4}" font-size="11" text-anchor="middle" fill="#222">${count}</text>
         `).join('')}
@@ -728,11 +726,22 @@ export class DetailSidebar extends Widget {
     const notebookListHtml = order.map(idx => {
       const nb = filteredData[idx];
       if (!nb) return '';
-      const origIdx = this._allData.findIndex(item => item === nb);
-      // kernelVersionId 可点击
-      return `<tr><td style="color:#888;">${origIdx + 1}</td><td><a href="#" class="dsb-nb-kernel-link" data-idx="${origIdx}" style="color:#1976d2; text-decoration:underline; cursor:pointer; font-weight:600; font-size:14px; padding:2px 8px; border-radius:4px; transition:background 0.15s;">${nb.kernelVersionId ?? ''}</a></td></tr>`;
+      // 用 kernelVersionId 或 path 匹配原始数据
+      const origIdx = this._allData.findIndex(item =>
+        (item.kernelVersionId && nb.kernelVersionId && item.kernelVersionId === nb.kernelVersionId) ||
+        (item.path && nb.path && item.path === nb.path)
+      );
+      return `<tr><td style="color:#888;">${origIdx + 1}</td><td><a href="#" class="dsb-nb-kernel-link" data-idx="${idx}" style="color:#1976d2; text-decoration:underline; cursor:pointer; font-weight:600; font-size:14px; padding:2px 8px; border-radius:4px; transition:background 0.15s;">${nb.kernelVersionId ?? ''}</a></td></tr>`;
     }).join('');
 
+    // 找到所有cell数等于最大值和最小值的notebook索引
+    const maxCellCount = Math.max(...cellCounts);
+    const minCellCount = Math.min(...cellCounts);
+    const longestIdxArr = cellCounts.map((c, i) => c === maxCellCount ? i : -1).filter(i => i !== -1);
+    const shortestIdxArr = cellCounts.map((c, i) => c === minCellCount ? i : -1).filter(i => i !== -1);
+    // 多个编号拼接
+    const longestLinks = longestIdxArr.map(idx => `<a href="#" class="dsb-nb-longest-link" data-idx="${idx}" style="color:#0066cc !important; text-decoration:underline; cursor:pointer; font-weight:600; font-size:14px;">#${idx + 1}</a>`).join(', ');
+    const shortestLinks = shortestIdxArr.map(idx => `<a href="#" class="dsb-nb-shortest-link" data-idx="${idx}" style="color:#0066cc !important; text-decoration:underline; cursor:pointer; font-weight:600; font-size:14px;">#${idx + 1}</a>`).join(', ');
     // 渲染
     this.node.innerHTML = `
       <div style="padding:20px 18px 18px 18px; font-size:14px; line-height:1.7; color:#222;">
@@ -742,10 +751,10 @@ export class DetailSidebar extends Widget {
           <tr><td style="font-weight:500;">Total Cells</td><td style="text-align:right;"><b>${totalCellCount}</b></td></tr>
           <tr><td style="font-weight:500;">Average Cells per Notebook</td><td style="text-align:right;"><b>${avgCellCount.toFixed(2)}</b></td></tr>
         </table>
-        <div style="margin:10px 0 0 0; font-weight:500;">Notebook with Most Cells</div>
-        <div style="color:#555; font-size:13px; margin-bottom:4px;">${longestIndex} ${longestTitle}${longestKernel}</div>
-        <div style="font-weight:500;">Notebook with Fewest Cells</div>
-        <div style="color:#555; font-size:13px; margin-bottom:8px;">${shortestIndex} ${shortestTitle}${shortestKernel}</div>
+        <table style="width:100%; border-collapse:collapse;">
+          <tr><td style="font-weight:500;">Notebook with Most Cells</td><td style="text-align:right;">${longestLinks}</td></tr>
+          <tr><td style="font-weight:500;">Notebook with Fewest Cells</td><td style="text-align:right;">${shortestLinks}</td></tr>
+        </table>
         <div style="font-weight:500; margin-bottom:10px;">Number of Unique Stages Distribution</div>
         <div style="margin: 8px 0 12px 0; width:100%; max-width:600px; margin-left:auto; margin-right:auto;">${uniqueStageDistChart}</div>
         <hr style="margin:16px 0 10px 0; border:none; border-top:1px solid #eee;">
@@ -777,6 +786,52 @@ export class DetailSidebar extends Widget {
         });
         link.addEventListener('mouseleave', () => {
           (link as HTMLElement).style.background = '';
+        });
+        link.addEventListener('click', (e) => {
+          e.preventDefault();
+          const idx = parseInt((link as HTMLElement).getAttribute('data-idx') || '0', 10);
+          if (this._allData && this._allData[idx]) {
+            window.dispatchEvent(new CustomEvent('galaxy-notebook-selected', {
+              detail: { notebook: { ...this._allData[idx], index: idx } }
+            }));
+            this.setNotebookDetail(this._allData[idx]);
+          }
+        });
+      });
+
+      // 绑定最长和最短notebook跳转事件
+      const longestLinks = this.node.querySelectorAll('.dsb-nb-longest-link');
+      const shortestLinks = this.node.querySelectorAll('.dsb-nb-shortest-link');
+
+      longestLinks.forEach(link => {
+        link.addEventListener('mouseenter', () => {
+          (link as HTMLElement).style.background = '#e3eaf3';
+          (link as HTMLElement).style.color = '#1565c0';
+        });
+        link.addEventListener('mouseleave', () => {
+          (link as HTMLElement).style.background = '';
+          (link as HTMLElement).style.color = '#0066cc';
+        });
+        link.addEventListener('click', (e) => {
+          e.preventDefault();
+          const idx = parseInt((link as HTMLElement).getAttribute('data-idx') || '0', 10);
+          if (this._allData && this._allData[idx]) {
+            window.dispatchEvent(new CustomEvent('galaxy-notebook-selected', {
+              detail: { notebook: { ...this._allData[idx], index: idx } }
+            }));
+            this.setNotebookDetail(this._allData[idx]);
+          }
+        });
+      });
+
+      shortestLinks.forEach(link => {
+        link.addEventListener('mouseenter', () => {
+          (link as HTMLElement).style.background = '#e3eaf3';
+          (link as HTMLElement).style.color = '#1565c0';
+        });
+        link.addEventListener('mouseleave', () => {
+          (link as HTMLElement).style.background = '';
+          (link as HTMLElement).style.color = '#0066cc';
         });
         link.addEventListener('click', (e) => {
           e.preventDefault();
@@ -855,7 +910,7 @@ export class DetailSidebar extends Widget {
       if (xTicks[xTicks.length - 1] !== maxLine) xTicks.push(maxLine);
     }
     // 计算每个 xTick 的累计百分比
-    const cdf: {x: number, y: number}[] = xTicks.map(x => {
+    const cdf: { x: number, y: number }[] = xTicks.map(x => {
       const count = codeLineCounts.filter(v => v <= x).length;
       return { x, y: count / n };
     });
