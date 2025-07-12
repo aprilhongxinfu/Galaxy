@@ -44,16 +44,7 @@ function activate(
         return;
       }
 
-      const selectedPaths = Array.from(fileBrowserWidget.selectedItems())
-        .filter(item => item.type === 'notebook' || item.type === 'directory')
-        .map(item => item.path);
-
-      console.log("📁 Selected paths to send:", selectedPaths);
-
-      if (selectedPaths.length === 0) {
-        console.warn('⚠️ No notebooks selected');
-        return;
-      }
+      const selectedItems = Array.from(fileBrowserWidget.selectedItems());
 
       try {
         // 关闭之前的插件窗口
@@ -65,28 +56,51 @@ function activate(
         for (const w of oldMain) {
           if (w.id === 'matrix-widget') w.close();
         }
-        // 关闭右侧 detail sidebar
         const oldRight = app.shell.widgets('right');
         for (const w of oldRight) {
           if (w.id === 'galaxy-detail-sidebar') w.close();
         }
 
-        const xsrfToken = getXsrfTokenFromCookie();
-        const url1 = PageConfig.getBaseUrl() + 'galaxy/analyzeNew';
-        const res1 = await fetch(url1, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-XSRFToken': xsrfToken || ''
-          },
-          credentials: 'same-origin',
-          body: JSON.stringify({ paths: selectedPaths })
-        });
+        // 判断是否只选中了一个 .json 文件
+        let result1: any = null;
+        if (
+          selectedItems.length === 1 &&
+          selectedItems[0].type === 'file' &&
+          selectedItems[0].path.endsWith('.json')
+        ) {
+          // 直接用 Contents API 读取 JSON 文件内容
+          const contentsManager = app.serviceManager.contents;
+          const model = await contentsManager.get(selectedItems[0].path, { type: 'file', format: 'text', content: true });
+          // console.log('model:', model);
+          result1 = JSON.parse(model.content as string);
+          console.log('Loaded JSON:', result1);
+        } else {
+          // 原有的后端 fetch 逻辑
+          const selectedPaths = selectedItems
+            .filter(item => item.type === 'notebook' || item.type === 'directory')
+            .map(item => item.path);
 
-        if (!res1.ok) throw new Error(`❌ ${res1.statusText}`);
-        const result1 = await res1.json();
+          if (selectedPaths.length === 0) {
+            console.warn('⚠️ No notebooks selected');
+            return;
+          }
 
-        console.log(result1)
+          const xsrfToken = getXsrfTokenFromCookie();
+          const url1 = PageConfig.getBaseUrl() + 'galaxy/analyzeNew';
+          const res1 = await fetch(url1, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-XSRFToken': xsrfToken || ''
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({ paths: selectedPaths })
+          });
+
+          if (!res1.ok) throw new Error(`❌ ${res1.statusText}`);
+          result1 = await res1.json();
+          console.log(result1);
+        }
 
         // 统一颜色映射
         const allStages = new Set<string>();
@@ -224,6 +238,7 @@ function activate(
           window.addEventListener('galaxy-notebook-detail-back', handleBack);
         });
       } catch (err) {
+        alert('不是合法的 JSON 文件或分析失败');
         console.error('❌ Failed to analyze notebooks:', err);
       }
     }
