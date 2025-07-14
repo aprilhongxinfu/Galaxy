@@ -595,6 +595,10 @@ export class LeftSidebar extends Widget {
                     } else {
                         this.hiddenStages.add(d.stage);
                     }
+                    // 新增：每次变更后派发事件
+                    window.dispatchEvent(new CustomEvent('galaxy-hidden-stages-changed', {
+                        detail: { hiddenStages: Array.from(this.hiddenStages) }
+                    }));
                     this.render();
                 };
                 col.appendChild(item);
@@ -605,6 +609,14 @@ export class LeftSidebar extends Widget {
         legendFlex.appendChild(makeCol(rightCol));
         this.legendDiv.appendChild(legendFlex);
         this.legendDiv.style.border = '';
+
+        // 初始化时也派发一次隐藏列表
+        if (!this._hasDispatchedHiddenStages) {
+            window.dispatchEvent(new CustomEvent('galaxy-hidden-stages-changed', {
+                detail: { hiddenStages: Array.from(this.hiddenStages) }
+            }));
+            this._hasDispatchedHiddenStages = true;
+        }
 
         // 添加flow宽度scale说明和legend（SVG）
         // legend 采样直接用 renderedFlowCounts（和 flowchart 渲染用的是同一个数组）
@@ -850,4 +862,7 @@ export class LeftSidebar extends Widget {
         // fallback
         return node.parentElement || node;
     }
+
+    // 新增：标记是否已初始化派发
+    private _hasDispatchedHiddenStages: boolean = false;
 }

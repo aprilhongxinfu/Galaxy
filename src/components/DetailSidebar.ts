@@ -19,6 +19,15 @@ function removeHighlightSpans(html: string): string {
   return html.replace(/<span class="nbd-\w+">([^<]*)<\/span>/g, '$1');
 }
 
+// 工具函数：根据英文名或 id 找到 stage id（字符串）
+function getStageIdByName(name: string): string | undefined {
+  // 先查 labelMap 反查
+  for (const [id, label] of Object.entries(LABEL_MAP)) {
+    if (label === name || id === name) return id;
+  }
+  return undefined;
+}
+
 export class DetailSidebar extends Widget {
   private colorMap: Map<string, string>;
   // private notebookOrder: number[];
@@ -26,7 +35,9 @@ export class DetailSidebar extends Widget {
   private _allData: any[] = [];
   private _mostFreqStage: string | undefined;
   private _mostFreqFlow: string | undefined;
-  constructor(colorMap: Map<string, string>, notebookOrder: number[]) {
+  private _hiddenStages?: Set<string>;
+  private currentNotebook: any = null; // 新增：保存当前 notebook detail
+  constructor(colorMap: Map<string, string>, notebookOrder: number[], hiddenStages?: Set<string>) {
     super();
     this.colorMap = colorMap;
     this.id = 'galaxy-detail-sidebar';
@@ -35,7 +46,21 @@ export class DetailSidebar extends Widget {
     this.addClass('galaxy-detail-sidebar');
     this.setDefault();
     this.node.style.overflowY = 'auto';
-    // 移除事件监听到 onAfterAttach
+    this._hiddenStages = hiddenStages ?? new Set(['1', '9']);
+    // 监听左侧 legend 显隐变化，自动刷新统计
+    window.addEventListener('galaxy-hidden-stages-changed', (e: any) => {
+      const arr = e.detail?.hiddenStages ?? [];
+      this._hiddenStages = new Set(arr);
+      if (this._allData && this._allData.length > 0) {
+        if (this.filter) {
+          this.setSummary(this._allData, this._mostFreqStage, this._mostFreqFlow);
+        } else if (this.currentNotebook) {
+          this.setNotebookDetail(this.currentNotebook);
+        } else {
+          this.setSummary(this._allData, this._mostFreqStage, this._mostFreqFlow);
+        }
+      }
+    });
   }
 
   onAfterAttach() {
@@ -54,15 +79,16 @@ export class DetailSidebar extends Widget {
   }
 
   setNotebookDetail(nb: any) {
+    this.currentNotebook = nb; // 新增：保存当前 notebook
     // 确保 nb 有 index 字段
     if (nb && nb.index === undefined) {
       nb.index = 0;
     }
-    const cells = nb.cells ?? [];
+    // 只用未被隐藏的 cell
+    const cells = (nb.cells ?? []).filter((c: any) => !(this._hiddenStages ?? new Set(['1', '9'])).has(String(c["1st-level label"] ?? "None")));
     const total = cells.length;
     const codeCount = cells.filter((c: any) => c.cellType === 'code').length;
     const mdCount = cells.filter((c: any) => c.cellType === 'markdown').length;
-
     // 统计最常见stage和flow（与flowchart一致）
     const stageFreq: Record<string, number> = {};
     const transitions: Record<string, number> = {};
@@ -75,14 +101,14 @@ export class DetailSidebar extends Widget {
         const from = String(cells[i]["1st-level label"] ?? 'None');
         const to = String(cells[i + 1]["1st-level label"] ?? 'None');
         if (from !== 'None' && to !== 'None' && from !== to) {
-          const key = `${from}->${to}`;
-          transitions[key] = (transitions[key] || 0) + 1;
+          // 只统计未被隐藏的 flow
+          if (!(this._hiddenStages ?? new Set(['1', '9'])).has(from) && !(this._hiddenStages ?? new Set(['1', '9'])).has(to)) {
+            const key = `${from}->${to}`;
+            transitions[key] = (transitions[key] || 0) + 1;
+          }
         }
       }
     }
-    // const mostFreqStage = Object.entries(stageFreq).sort((a, b) => b[1] - a[1])[0]?.[0] ?? '';
-    // const mostFreqFlow = Object.entries(transitions).sort((a, b) => b[1] - a[1])[0]?.[0] ?? '';
-    
     // 找到所有频率最高的stage和transition
     const maxStageFreq = Math.max(...Object.values(stageFreq));
     const maxFlowFreq = Math.max(...Object.values(transitions));
@@ -92,17 +118,52 @@ export class DetailSidebar extends Widget {
     const mostFreqFlows = Object.entries(transitions)
       .filter(([_, freq]) => freq === maxFlowFreq)
       .map(([flow, _]) => flow);
-    
-    // 生成stage和transition的链接
-    const stageLinks = mostFreqStages.map(stage => 
-      `<a href="#" class="dsb-stage-link" data-stage="${stage}" style="color:${this.colorMap.get(stage) || '#0066cc'} !important; text-decoration:underline; cursor:pointer; font-weight:600; font-size:14px; margin-right:8px;">${LABEL_MAP[stage] ?? stage}</a>`
-    ).join('');
-    const flowLinks = mostFreqFlows.map(flow => {
-      const [from, to] = flow.split('->');
-      const fromColor = this.colorMap.get(from) || '#1976d2';
-      const toColor = this.colorMap.get(to) || '#42a5f5';
-      return `<div style="margin-bottom:4px;"><a href="#" class="dsb-flow-link" data-flow="${flow}" style="cursor:pointer; font-weight:600; font-size:14px; text-decoration:none; border-bottom:2px solid; border-image:linear-gradient(90deg, ${fromColor}, ${toColor}) 1;"><span style="background: linear-gradient(90deg, ${fromColor}, ${toColor}); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; color: transparent;">${LABEL_MAP[from] ?? from} → ${LABEL_MAP[to] ?? to}</span></a></div>`;
-    }).join('');
+
+    // 统计出现次数
+    // 只显示出现次数，不显示(tie)
+    const stageCountText = `${maxStageFreq} count(s)`;
+    const flowCountText = `${maxFlowFreq} count(s)`;
+    // 展开/收起逻辑变量（notebook detail）
+    let showAllStages = false;
+    let showAllFlows = false;
+    // 过滤 stage 和 flow，隐藏包含 hidden stage 的
+    const hiddenStages = this._hiddenStages || new Set();
+    // 过滤 stage
+    const mostFreqStagesFiltered = mostFreqStages.filter(stage => {
+      const id = getStageIdByName(stage);
+      console.log('[DetailSidebar] stage:', stage, 'id:', id, 'hiddenStages:', Array.from(hiddenStages));
+      return typeof id === 'string' && !hiddenStages.has(String(id));
+    });
+    // 过滤 flow
+    const mostFreqFlowsFiltered = mostFreqFlows.filter(f => {
+      let [from, to] = f.split(/->|→/);
+      from = String(from); to = String(to);
+      const fromId = getStageIdByName(from);
+      const toId = getStageIdByName(to);
+      console.log('[DetailSidebar] flow:', f, 'from:', from, 'fromId:', fromId, 'to:', to, 'toId:', toId, 'hiddenStages:', Array.from(hiddenStages));
+      return (
+        typeof fromId === 'string' &&
+        typeof toId === 'string' &&
+        !hiddenStages.has(String(fromId)) &&
+        !hiddenStages.has(String(toId))
+      );
+    });
+    // 渲染函数，支持收缩/展开
+    const renderStageLinks = () => {
+      const arr = showAllStages ? mostFreqStagesFiltered : mostFreqStagesFiltered.slice(0, 3);
+      return arr.map(stage =>
+        `<a href="#" class="dsb-stage-link" data-stage="${stage}" style="color:${this.colorMap.get(stage) || '#0066cc'} !important; text-decoration:underline; cursor:pointer; font-weight:600; font-size:14px; margin-right:8px;">${LABEL_MAP[stage] ?? stage}</a>`
+      ).join('') + (mostFreqStagesFiltered.length > 3 ? `<button type='button' class='dsb-stage-expand-btn' style='background:none; border:none; color:#1976d2; font-size:13px; font-weight:500; margin-left:6px; cursor:pointer; padding:0; text-decoration:underline; transition:color 0.15s;'>${showAllStages ? 'Show less' : 'Show more'}</button>` : '');
+    };
+    const renderFlowLinks = () => {
+      const arr = showAllFlows ? mostFreqFlowsFiltered : mostFreqFlowsFiltered.slice(0, 3);
+      return arr.map(flow => {
+        const [from, to] = flow.split(/->|→/);
+        const fromColor = this.colorMap.get(from) || '#1976d2';
+        const toColor = this.colorMap.get(to) || '#42a5f5';
+        return `<div style=\"margin-bottom:4px;\"><a href=\"#\" class=\"dsb-flow-link\" data-flow=\"${flow}\" style=\"cursor:pointer; font-weight:600; font-size:14px; text-decoration:none; border-bottom:2px solid; border-image:linear-gradient(90deg, ${fromColor}, ${toColor}) 1;\"><span style=\"background: linear-gradient(90deg, ${fromColor}, ${toColor}); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; color: transparent;\">${LABEL_MAP[from] ?? from} → ${LABEL_MAP[to] ?? to}</span></a></div>`;
+      }).join('') + (mostFreqFlowsFiltered.length > 3 ? `<button type='button' class='dsb-flow-expand-btn' style='background:none; border:none; color:#1976d2; font-size:13px; font-weight:500; margin-left:6px; cursor:pointer; padding:0; text-decoration:underline; transition:color 0.15s;'>${showAllFlows ? 'Show less' : 'Show more'}</button>` : '');
+    };
 
     const stageCounts: Record<string, number> = {};
     cells.forEach((c: any) => {
@@ -161,12 +222,12 @@ export class DetailSidebar extends Widget {
         
         <div style="font-size:16px; font-weight:600; margin-bottom:10px;">Stage Analysis</div>
         <div style="margin-bottom:16px;">
-          <div style="font-weight:500; margin-bottom:8px; color:#555;">Most Common Stage(s)</div>
-          <div style="display:flex; flex-wrap:wrap; gap:8px;">${stageLinks}</div>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; color:#555;"><span style="font-weight:500;">Most Common Stage(s)</span><span style="color:#1976d2; font-size:14px; font-weight:600;">${stageCountText}</span></div>
+          <div style="display:flex; flex-wrap:wrap; gap:8px;" id="dsb-stage-links">${renderStageLinks()}</div>
         </div>
         <div style="margin-bottom:16px;">
-          <div style="font-weight:500; margin-bottom:8px; color:#555;">Most Common Transition(s)</div>
-          <div style="display:flex; flex-direction:column; gap:4px;">${flowLinks}</div>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; color:#555;"><span style="font-weight:500;">Most Common Transition(s)</span><span style="color:#1976d2; font-size:14px; font-weight:600;">${flowCountText}</span></div>
+          <div style="display:flex; flex-direction:column; gap:4px;" id="dsb-flow-links">${renderFlowLinks()}</div>
         </div>
         <div style="margin:18px 0 8px 0; font-weight:600; font-size:15px;">Stage Frequency Distribution</div>
         <div style="height:16px;"></div>
@@ -209,11 +270,11 @@ export class DetailSidebar extends Widget {
           tooltip!.style.opacity = "0";
         });
       });
-      
+
       // 绑定stage和flow链接事件
       const stageLinks = this.node.querySelectorAll('.dsb-stage-link');
       const flowLinks = this.node.querySelectorAll('.dsb-flow-link');
-      
+
       stageLinks.forEach(link => {
         link.addEventListener('click', (e) => {
           e.preventDefault();
@@ -224,7 +285,7 @@ export class DetailSidebar extends Widget {
           }
         });
       });
-      
+
       flowLinks.forEach(link => {
         link.addEventListener('click', (e) => {
           e.preventDefault();
@@ -235,6 +296,45 @@ export class DetailSidebar extends Widget {
           }
         });
       });
+    }, 0);
+    // 展开/收起事件绑定（notebook detail）
+    setTimeout(() => {
+      const stageLinksDiv = this.node.querySelector('#dsb-stage-links');
+      const flowLinksDiv = this.node.querySelector('#dsb-flow-links');
+      if (stageLinksDiv) {
+        stageLinksDiv.addEventListener('click', (e) => {
+          const target = e.target as HTMLElement;
+          if (target.classList.contains('dsb-stage-expand') || target.classList.contains('dsb-stage-expand-btn')) {
+            showAllStages = !showAllStages;
+            stageLinksDiv.innerHTML = renderStageLinks();
+          }
+        });
+      }
+      if (flowLinksDiv) {
+        flowLinksDiv.addEventListener('click', (e) => {
+          const target = e.target as HTMLElement;
+          if (target.classList.contains('dsb-flow-expand') || target.classList.contains('dsb-flow-expand-btn')) {
+            showAllFlows = !showAllFlows;
+            flowLinksDiv.innerHTML = renderFlowLinks();
+          }
+        });
+      }
+      // 按钮hover效果
+      const addHover = (selector: string) => {
+        const btns = this.node.querySelectorAll(selector);
+        btns.forEach(btn => {
+          btn.addEventListener('mouseenter', () => {
+            (btn as HTMLElement).style.textDecoration = 'underline';
+            (btn as HTMLElement).style.color = '#1251a2';
+          });
+          btn.addEventListener('mouseleave', () => {
+            (btn as HTMLElement).style.textDecoration = 'underline';
+            (btn as HTMLElement).style.color = '#1976d2';
+          });
+        });
+      };
+      addHover('.dsb-stage-expand-btn');
+      addHover('.dsb-flow-expand-btn');
     }, 0);
   }
 
@@ -618,12 +718,20 @@ export class DetailSidebar extends Widget {
     this._allData = data.map((nb, i) => ({ ...nb, index: nb.index !== undefined ? nb.index : i }));
     this._mostFreqStage = mostFreqStage;
     this._mostFreqFlow = mostFreqFlow;
-    let filteredData = data;
+    const hiddenStages = this._hiddenStages ?? new Set(['1', '9']);
+    // 过滤掉 hiddenStages 的 cell
+    let filteredData = data.map(nb => ({
+      ...nb,
+      cells: (nb.cells ?? []).filter(cell => {
+        const stage = String(cell["1st-level label"] ?? "None");
+        return !hiddenStages.has(stage);
+      })
+    })).filter(nb => nb.cells.length > 0);
     if (this.filter) {
       if (this.filter.type === 'stage') {
-        filteredData = data.filter(nb => nb.cells.some((cell: any) => String(cell["1st-level label"] ?? "None") === this.filter.stage));
+        filteredData = filteredData.filter(nb => nb.cells.some((cell: any) => String(cell["1st-level label"] ?? "None") === this.filter.stage));
       } else if (this.filter.type === 'flow') {
-        filteredData = data.filter(nb => {
+        filteredData = filteredData.filter(nb => {
           const cells = nb.cells;
           for (let i = 0; i < cells.length - 1; i++) {
             const a = String(cells[i]["1st-level label"] ?? "None");
@@ -643,44 +751,21 @@ export class DetailSidebar extends Widget {
     const cellCounts = filteredData.map(nb => nb.cells?.length ?? 0);
     const totalCellCount = cellCounts.reduce((a, b) => a + b, 0);
     const avgCellCount = notebookCount ? (totalCellCount / notebookCount) : 0;
-    // 最长/最短 notebook
-    let longestIdx = 0, shortestIdx = 0;
-    cellCounts.forEach((c, i) => {
-      if (c > cellCounts[longestIdx]) longestIdx = i;
-      if (c < cellCounts[shortestIdx]) shortestIdx = i;
-    });
-    // const longestTitle = filteredData[longestIdx]?.path ?? '';
-    // const shortestTitle = filteredData[shortestIdx]?.path ?? '';
-    // const longestKernel = filteredData[longestIdx]?.kernelVersionId ? ` <span style='color:#888'>(kernelVersionId: ${filteredData[longestIdx].kernelVersionId})</span>` : '';
-    // const shortestKernel = filteredData[shortestIdx]?.kernelVersionId ? ` <span style='color:#888'>(kernelVersionId: ${filteredData[shortestIdx].kernelVersionId})</span>` : '';
-    // const longestIndex = `#${longestIdx + 1}`;
-    // const shortestIndex = `#${shortestIdx + 1}`;
-    // 每 notebook 首 stage 种类数
-    // const firstStages = data.map(nb => {
-    //   const first = nb.cells?.find((cell: any) => cell["1st-level label"] != null);
-    //   return first ? String(first["1st-level label"]) : 'None';
-    // });
-    // const uniqueFirstStages = Array.from(new Set(firstStages));
-    // stage 频率
+    // stage/flow 统计只用可见 cell
     const stageFreq: Record<string, number> = {};
     const stageFlowFreq: Record<string, number> = {};
-    const firstStageFreq: Record<string, number> = {};
     filteredData.forEach(nb => {
       let prevStage: string | null = null;
-      nb.cells?.forEach((cell: any, idx: number) => {
+      nb.cells?.forEach((cell: any) => {
         const stage = String(cell["1st-level label"] ?? 'None');
         if (stage !== 'None') {
           stageFreq[stage] = (stageFreq[stage] || 0) + 1;
-        }
-        if (idx === 0 && stage !== 'None') {
-          firstStageFreq[stage] = (firstStageFreq[stage] || 0) + 1;
         }
         if (
           prevStage !== null &&
           prevStage !== undefined &&
           prevStage !== 'None' &&
           stage !== 'None' &&
-          !(prevStage === 'None' && stage === 'None') &&
           prevStage !== stage
         ) {
           const flow = prevStage + '→' + stage;
@@ -689,26 +774,39 @@ export class DetailSidebar extends Widget {
         prevStage = stage;
       });
     });
-    // 找到所有频率最高的stage和transition
-    const maxStageFreq = Math.max(...Object.values(stageFreq));
-    const maxFlowFreq = Math.max(...Object.values(stageFlowFreq));
+    // Most Common Stage(s)
+    const maxStageFreq = Math.max(...Object.values(stageFreq), 0);
     const mostFreqStages = Object.entries(stageFreq)
       .filter(([_, freq]) => freq === maxStageFreq)
       .map(([stage, _]) => stage);
+    // Most Common Transition(s)
+    const maxFlowFreq = Math.max(...Object.values(stageFlowFreq), 0);
     const mostFreqFlows = Object.entries(stageFlowFreq)
       .filter(([_, freq]) => freq === maxFlowFreq)
       .map(([flow, _]) => flow);
-    
-    // 生成stage和transition的链接
-    const stageLinks = mostFreqStages.map(stage => 
-      `<a href="#" class="dsb-stage-link" data-stage="${stage}" style="color:${this.colorMap.get(stage) || '#0066cc'} !important; text-decoration:underline; cursor:pointer; font-weight:600; font-size:14px; margin-right:8px;">${LABEL_MAP[stage] ?? stage}</a>`
-    ).join('');
-    const flowLinks = mostFreqFlows.map(flow => {
-      const [from, to] = flow.split('→');
-      const fromColor = this.colorMap.get(from) || '#1976d2';
-      const toColor = this.colorMap.get(to) || '#42a5f5';
-      return `<div style="margin-bottom:4px;"><a href="#" class="dsb-flow-link" data-flow="${flow}" style="cursor:pointer; font-weight:600; font-size:14px; text-decoration:none; border-bottom:2px solid; border-image:linear-gradient(90deg, ${fromColor}, ${toColor}) 1;"><span style="background: linear-gradient(90deg, ${fromColor}, ${toColor}); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; color: transparent;">${LABEL_MAP[from] ?? from} → ${LABEL_MAP[to] ?? to}</span></a></div>`;
-    }).join('');
+    const stageCountText = `${maxStageFreq} count(s)`;
+    const flowCountText = maxFlowFreq > 0 ? `${maxFlowFreq} count(s)` : '0 count(s)';
+    let showAllStages = false;
+    let showAllFlows = false;
+    // 渲染函数
+    const renderStageLinks = () => {
+      const arr = showAllStages ? mostFreqStages : mostFreqStages.slice(0, 3);
+      return arr.map(stage =>
+        `<a href=\"#\" class=\"dsb-stage-link\" data-stage=\"${stage}\" style=\"color:${this.colorMap.get(stage) || '#0066cc'} !important; text-decoration:underline; cursor:pointer; font-weight:600; font-size:14px; margin-right:8px;\">${LABEL_MAP[stage] ?? stage}</a>`
+      ).join('') + (mostFreqStages.length > 3 ? `<button type='button' class='dsb-stage-expand-btn' style='background:none; border:none; color:#1976d2; font-size:13px; font-weight:500; margin-left:6px; cursor:pointer; padding:0; text-decoration:underline; transition:color 0.15s;'>${showAllStages ? 'Show less' : 'Show more'}</button>` : '');
+    };
+    const renderFlowLinks = () => {
+      if (mostFreqFlows.length === 0) {
+        return `<span style='color:#aaa; font-size:13px;'>无</span>`;
+      }
+      const arr = showAllFlows ? mostFreqFlows : mostFreqFlows.slice(0, 3);
+      return arr.map(flow => {
+        const [from, to] = flow.split(/->|→/);
+        const fromColor = this.colorMap.get(from) || '#1976d2';
+        const toColor = this.colorMap.get(to) || '#42a5f5';
+        return `<div style=\"margin-bottom:4px;\"><a href=\"#\" class=\"dsb-flow-link\" data-flow=\"${flow}\" style=\"cursor:pointer; font-weight:600; font-size:14px; text-decoration:none; border-bottom:2px solid; border-image:linear-gradient(90deg, ${fromColor}, ${toColor}) 1;\"><span style=\"background: linear-gradient(90deg, ${fromColor}, ${toColor}); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; color: transparent;\">${LABEL_MAP[from] ?? from} → ${LABEL_MAP[to] ?? to}</span></a></div>`;
+      }).join('') + (mostFreqFlows.length > 3 ? `<button type='button' class='dsb-flow-expand-btn' style='background:none; border:none; color:#1976d2; font-size:13px; font-weight:500; margin-left:6px; cursor:pointer; padding:0; text-decoration:underline; transition:color 0.15s;'>${showAllFlows ? 'Show less' : 'Show more'}</button>` : '');
+    };
 
     // 统计每个 notebook 的 unique stage 数
     const uniqueStageCounts = filteredData.map(nb => {
@@ -801,22 +899,24 @@ export class DetailSidebar extends Widget {
           <tr><td style="font-weight:500;">Total Notebooks</td><td style="text-align:right;"><b>${notebookCount}</b></td></tr>
           <tr><td style="font-weight:500;">Total Cells</td><td style="text-align:right;"><b>${totalCellCount}</b></td></tr>
           <tr><td style="font-weight:500;">Average Cells per Notebook</td><td style="text-align:right;"><b>${avgCellCount.toFixed(2)}</b></td></tr>
+          <tr><td style="font-weight:500;">Notebook(s) with Most Cells</td><td style="text-align:right;"><b>${maxCellCount} cell(s)</b></td></tr>
         </table>
+        <div style='margin: 0 0 8px 0; font-size:13px; color:#1976d2;'><span> ${longestLinks}</span></div>
         <table style="width:100%; border-collapse:collapse;">
-          <tr><td style="font-weight:500;">Notebook(s) with Most Cells</td><td style="text-align:right;">${longestLinks}</td></tr>
-          <tr><td style="font-weight:500;">Notebook(s) with Fewest Cells</td><td style="text-align:right;">${shortestLinks}</td></tr>
+          <tr><td style="font-weight:500;">Notebook(s) with Fewest Cells</td><td style="text-align:right;"><b>${minCellCount} cell(s)</b></td></tr>
         </table>
+        <div style='margin: 0 0 8px 0; font-size:13px; color:#1976d2;'><span> ${shortestLinks}</span></div>
         <div style="font-weight:500; margin-bottom:10px;">Number of Unique Stages Distribution</div>
         <div style="margin: 8px 0 12px 0; width:100%; max-width:600px; margin-left:auto; margin-right:auto;">${uniqueStageDistChart}</div>
         <hr style="margin:16px 0 10px 0; border:none; border-top:1px solid #eee;">
         <div style="font-size:16px; font-weight:600; margin-bottom:10px;">Stage Analysis</div>
         <div style="margin-bottom:16px;">
-          <div style="font-weight:500; margin-bottom:8px; color:#555;">Most Common Stage(s)</div>
-          <div style="display:flex; flex-wrap:wrap; gap:8px;">${stageLinks}</div>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; color:#555;"><span style="font-weight:500;">Most Common Stage(s)</span><span style="color:#1976d2; font-size:14px; font-weight:600;">${stageCountText}</span></div>
+          <div style="display:flex; flex-wrap:wrap; gap:8px;" id="dsb-stage-links">${renderStageLinks()}</div>
         </div>
         <div style="margin-bottom:16px;">
-          <div style="font-weight:500; margin-bottom:8px; color:#555;">Most Common Transition(s)</div>
-          <div style="display:flex; flex-direction:column; gap:4px;">${flowLinks}</div>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; color:#555;"><span style="font-weight:500;">Most Common Transition(s)</span><span style="color:#1976d2; font-size:14px; font-weight:600;">${flowCountText}</span></div>
+          <div style="display:flex; flex-direction:column; gap:4px;" id="dsb-flow-links">${renderFlowLinks()}</div>
         </div>
         <div style="margin:18px 0 8px 0; font-weight:600; font-size:15px;">Stage Frequency Distribution</div>
         <div style="height:16px;"></div>
@@ -896,11 +996,11 @@ export class DetailSidebar extends Widget {
           }
         });
       });
-      
+
       // 绑定stage和flow链接事件
       const stageLinks = this.node.querySelectorAll('.dsb-stage-link');
       const flowLinks = this.node.querySelectorAll('.dsb-flow-link');
-      
+
       stageLinks.forEach(link => {
         link.addEventListener('click', (e) => {
           e.preventDefault();
@@ -911,7 +1011,7 @@ export class DetailSidebar extends Widget {
           }
         });
       });
-      
+
       flowLinks.forEach(link => {
         link.addEventListener('click', (e) => {
           e.preventDefault();
@@ -956,6 +1056,45 @@ export class DetailSidebar extends Widget {
           tooltipDiv!.style.display = 'none';
         });
       });
+    }, 0);
+    // 展开/收起事件绑定（summary）
+    setTimeout(() => {
+      const stageLinksDiv = this.node.querySelector('#dsb-stage-links');
+      const flowLinksDiv = this.node.querySelector('#dsb-flow-links');
+      if (stageLinksDiv) {
+        stageLinksDiv.addEventListener('click', (e) => {
+          const target = e.target as HTMLElement;
+          if (target.classList.contains('dsb-stage-expand') || target.classList.contains('dsb-stage-expand-btn')) {
+            showAllStages = !showAllStages;
+            stageLinksDiv.innerHTML = renderStageLinks();
+          }
+        });
+      }
+      if (flowLinksDiv) {
+        flowLinksDiv.addEventListener('click', (e) => {
+          const target = e.target as HTMLElement;
+          if (target.classList.contains('dsb-flow-expand') || target.classList.contains('dsb-flow-expand-btn')) {
+            showAllFlows = !showAllFlows;
+            flowLinksDiv.innerHTML = renderFlowLinks();
+          }
+        });
+      }
+      // 按钮hover效果
+      const addHover = (selector: string) => {
+        const btns = this.node.querySelectorAll(selector);
+        btns.forEach(btn => {
+          btn.addEventListener('mouseenter', () => {
+            (btn as HTMLElement).style.textDecoration = 'underline';
+            (btn as HTMLElement).style.color = '#1251a2';
+          });
+          btn.addEventListener('mouseleave', () => {
+            (btn as HTMLElement).style.textDecoration = 'underline';
+            (btn as HTMLElement).style.color = '#1976d2';
+          });
+        });
+      };
+      addHover('.dsb-stage-expand-btn');
+      addHover('.dsb-flow-expand-btn');
     }, 0);
   }
 
