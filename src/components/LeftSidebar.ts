@@ -35,6 +35,7 @@ export class LeftSidebar extends Widget {
     private initialStageOrder: string[] = [];
     private _resizeObserver: ResizeObserver | null = null;
     private _resizeInterval: any = null;
+    private hiddenStages: Set<string> = new Set(); // 新增：隐藏的 stage
 
     constructor(data: Notebook[], colorMap: Map<string, string>) {
         super();
@@ -44,6 +45,9 @@ export class LeftSidebar extends Widget {
         this.addClass('flow-chart-widget');
         this.data = data;
         this.colorMap = colorMap;
+
+        // 默认隐藏 Debug 和 Other
+        this.hiddenStages = new Set(['1', '9']);
 
         // 初始化 stageData 顺序（只做一次）
         const stageStats = new Map<string, { positions: number[]; firstPositions: number[]; count: number }>();
@@ -297,8 +301,10 @@ export class LeftSidebar extends Widget {
             d.count = info.count;
         });
 
-        this.stageData.forEach((d, i) => {
-            d.norm_pos = i / (this.stageData.length - 1);
+        // 只对未隐藏的 stage 重新分布 norm_pos
+        const normVisibleStages = this.stageData.filter(d => !this.hiddenStages.has(d.stage));
+        normVisibleStages.forEach((d, i) => {
+            d.norm_pos = normVisibleStages.length > 1 ? i / (normVisibleStages.length - 1) : 0.5;
         });
 
         // const yScale = d3.scaleLinear().domain([0, 1]).range([10, 850]);
@@ -340,8 +346,11 @@ export class LeftSidebar extends Widget {
         const g = svg.append("g").attr("transform", "translate(200, 20)");
         // const legendG = svg.append("g").attr("transform", "translate(0, 740)");
 
+        // 过滤掉隐藏的 stage
+        const visibleStages = this.stageData.filter(d => !this.hiddenStages.has(d.stage));
+        // 重新构建 stageMap 只包含可见的 stage
         const stageMap = new Map<string, { x: number; y: number; width: number; height: number; centerX: number; centerY: number }>();
-        this.stageData.forEach((d) => {
+        visibleStages.forEach((d) => {
             const y = yScale(d.norm_pos!);
             const size = sizeScale(d.count);
             d.y = y;
@@ -361,9 +370,7 @@ export class LeftSidebar extends Widget {
         transitions.forEach((count, key) => {
             const [from, to] = key.split("->");
             if (from === 'None' || to === 'None' || from === to) return;
-            const fromPos = stageMap.get(from);
-            const toPos = stageMap.get(to);
-            if (!fromPos || !toPos) return;
+            if (!stageMap.has(from) || !stageMap.has(to)) return; // 只渲染可见的
             renderedFlows.push({ from, to, count });
         });
         const renderedFlowCounts = renderedFlows.map(f => f.count);
@@ -372,7 +379,7 @@ export class LeftSidebar extends Widget {
             const [from, to] = key.split("->");
             const fromPos = stageMap.get(from);
             const toPos = stageMap.get(to);
-            if (!fromPos || !toPos) return;
+            if (!fromPos || !toPos) return; // 只渲染可见的
 
             const x1 = fromPos.x;
             const y1 = fromPos.y;
@@ -488,7 +495,7 @@ export class LeftSidebar extends Widget {
             });
 
         g.selectAll("rect")
-            .data(this.stageData)
+            .data(visibleStages)
             .enter()
             .append("rect")
             .attr("x", (d) => stageMap.get(d.stage)!.x - sizeScale(d.count) / 2)
@@ -538,14 +545,23 @@ export class LeftSidebar extends Widget {
 
         // --- legend 渲染到底部 div ---
         this.legendDiv.innerHTML = '';
-        const itemsPerCol = Math.ceil(this.stageData.length / 2);
-        const leftCol = this.stageData.slice(0, itemsPerCol);
-        const rightCol = this.stageData.slice(itemsPerCol);
+        // legend 分两列，左右总数尽量相等，所有隐藏项都放右列末尾
+        const legendVisibleStages = this.stageData.filter(d => !this.hiddenStages.has(d.stage));
+        const legendHiddenStages = this.stageData.filter(d => this.hiddenStages.has(d.stage));
+        const total = this.stageData.length;
+        const leftCount = Math.ceil(total / 2);
+        let leftCol: typeof this.stageData = [];
+        let rightCol: typeof this.stageData = [];
+        let visibleLeftCount = Math.min(leftCount, legendVisibleStages.length);
+        leftCol = legendVisibleStages.slice(0, visibleLeftCount);
+        rightCol = legendVisibleStages.slice(visibleLeftCount);
+        // 把所有隐藏项加到右列末尾
+        rightCol = rightCol.concat(legendHiddenStages);
         const legendFlex = document.createElement('div');
         legendFlex.style.display = 'flex';
         legendFlex.style.flexDirection = 'row';
         legendFlex.style.width = '100%';
-
+        // makeCol 保持不变
         const makeCol = (colData: typeof this.stageData) => {
             const col = document.createElement('div');
             col.style.display = 'flex';
@@ -556,20 +572,31 @@ export class LeftSidebar extends Widget {
                 item.style.display = 'flex';
                 item.style.alignItems = 'center';
                 item.style.marginBottom = '4px';
-
+                item.style.cursor = 'pointer';
+                // 判断是否隐藏
+                const isHidden = this.hiddenStages.has(d.stage);
                 const colorBox = document.createElement('span');
                 colorBox.style.display = 'inline-block';
                 colorBox.style.width = '10px';
                 colorBox.style.height = '12px';
                 colorBox.style.background = this.colorMap.get(d.stage) || '#ccc';
                 colorBox.style.marginRight = '8px';
-
+                colorBox.style.opacity = isHidden ? '0.3' : '1';
                 const label = document.createElement('span');
                 label.style.fontSize = '10px';
                 label.textContent = LABEL_MAP[d.stage] ?? d.stage;
-
+                label.style.opacity = isHidden ? '0.3' : '1';
                 item.appendChild(colorBox);
                 item.appendChild(label);
+                // 点击切换显示/隐藏
+                item.onclick = () => {
+                    if (isHidden) {
+                        this.hiddenStages.delete(d.stage);
+                    } else {
+                        this.hiddenStages.add(d.stage);
+                    }
+                    this.render();
+                };
                 col.appendChild(item);
             });
             return col;
@@ -591,7 +618,7 @@ export class LeftSidebar extends Widget {
             const barY = 40;
 
             // 计算底部 legend 的起始 y 位置（加上一些 padding）
-            const bottomY = Math.max(...this.stageData.map(d => d.y! + d.size!)) + 40;
+            const bottomY = Math.max(...visibleStages.map(d => d.y! + d.size!)) + 40;
 
             // 统一声明legend相关变量
             const stageCounts = this.stageData.map(d => d.count);
