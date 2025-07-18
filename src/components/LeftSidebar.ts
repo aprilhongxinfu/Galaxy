@@ -165,6 +165,11 @@ export class LeftSidebar extends Widget {
             this.selection = { type: 'flow', from, to };
             this.render();
         });
+        // 新增：监听 matrix 筛选事件，flow chart 跟随筛选
+        window.addEventListener('galaxy-matrix-filtered', (e: any) => {
+            const filteredData = e.detail?.notebooks ?? [];
+            this.setData(filteredData);
+        });
 
         this.render();
     }
@@ -301,8 +306,8 @@ export class LeftSidebar extends Widget {
             d.count = info.count;
         });
 
-        // 只对未隐藏的 stage 重新分布 norm_pos
-        const normVisibleStages = this.stageData.filter(d => !this.hiddenStages.has(d.stage));
+        // 只对未隐藏且 count>0 的 stage 重新分布 norm_pos
+        const normVisibleStages = this.stageData.filter(d => !this.hiddenStages.has(d.stage) && d.count > 0);
         normVisibleStages.forEach((d, i) => {
             d.norm_pos = normVisibleStages.length > 1 ? i / (normVisibleStages.length - 1) : 0.5;
         });
@@ -346,9 +351,9 @@ export class LeftSidebar extends Widget {
         const g = svg.append("g").attr("transform", "translate(200, 20)");
         // const legendG = svg.append("g").attr("transform", "translate(0, 740)");
 
-        // 过滤掉隐藏的 stage
-        const visibleStages = this.stageData.filter(d => !this.hiddenStages.has(d.stage));
-        // 重新构建 stageMap 只包含可见的 stage
+        // 过滤掉隐藏的 stage 和 count=0 的 stage
+        const visibleStages = this.stageData.filter(d => !this.hiddenStages.has(d.stage) && d.count > 0);
+        // 重新构建 stageMap 只包含可见且 count>0 的 stage
         const stageMap = new Map<string, { x: number; y: number; width: number; height: number; centerX: number; centerY: number }>();
         visibleStages.forEach((d) => {
             const y = yScale(d.norm_pos!);
@@ -546,9 +551,9 @@ export class LeftSidebar extends Widget {
         // --- legend 渲染到底部 div ---
         this.legendDiv.innerHTML = '';
         // legend 分两列，左右总数尽量相等，所有隐藏项都放右列末尾
-        const legendVisibleStages = this.stageData.filter(d => !this.hiddenStages.has(d.stage));
-        const legendHiddenStages = this.stageData.filter(d => this.hiddenStages.has(d.stage));
-        const total = this.stageData.length;
+        const legendVisibleStages = this.stageData.filter(d => !this.hiddenStages.has(d.stage) && d.count > 0);
+        const legendHiddenStages = this.stageData.filter(d => this.hiddenStages.has(d.stage) && d.count > 0);
+        const total = legendVisibleStages.length + legendHiddenStages.length;
         const leftCount = Math.ceil(total / 2);
         let leftCol: typeof this.stageData = [];
         let rightCol: typeof this.stageData = [];
@@ -865,4 +870,10 @@ export class LeftSidebar extends Widget {
 
     // 新增：标记是否已初始化派发
     private _hasDispatchedHiddenStages: boolean = false;
+
+    // 新增：根据筛选结果更新数据并重渲染
+    setData(data: Notebook[]) {
+        this.data = data;
+        this.render();
+    }
 }

@@ -10,5 +10,5 @@ export const LABEL_MAP: Record<string, string> = {
   '8': 'Data_Export',
   '9': 'Other',
   '10': 'Hyperparam_Tuning',
-  '11': 'Model_Interpretation'
+  '11': 'Feature_Engineering'
 }; 

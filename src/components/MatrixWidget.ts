@@ -10,6 +10,7 @@ type Cell = {
 
 type Notebook = {
     cells: Cell[];
+    globalIndex?: number;
 };
 
 // type StageDatum = {
@@ -19,15 +20,18 @@ type Notebook = {
 export class MatrixWidget extends Widget {
     private data: Notebook[];
     private colorScale: (label: string) => string;
-    private sortState: number = 0;
+    private sortState: number = 0; // 0: 默认, 1: notebook长度降序, 2: notebook长度升序, 3: similarity排序
     private notebookOrder: number[] = [];
     private sortButton: HTMLButtonElement;
+    private similaritySortButton: HTMLButtonElement;
     private filter: any = null;
+    private similarityGroups: any[];
 
-    constructor(data: Notebook[], colorScale: (label: string) => string) {
+    constructor(data: Notebook[], colorScale: (label: string) => string, similarityGroups?: any[]) {
         super();
-        this.data = data;
+        this.data = data.map((nb, i) => ({ ...nb, globalIndex: i }));
         this.colorScale = colorScale;
+        this.similarityGroups = similarityGroups || [];
         this.id = 'matrix-widget';
         this.title.label = 'Stage Matrix';
         this.title.closable = true;
@@ -38,6 +42,48 @@ export class MatrixWidget extends Widget {
         nav.className = 'galaxy-breadcrumbs';
         nav.innerText = 'Overview';
         this.node.appendChild(nav);
+
+        // ====== DROPLISTS FOR FILTERING ======
+        // Collect unique assignments and student_ids
+        const assignments = Array.from(new Set(this.data.map(nb => (nb as any).assignment).filter(Boolean)));
+        const studentIds = Array.from(new Set(this.data.map(nb => (nb as any).student_id).filter(Boolean)));
+
+        // Assignment dropdown
+        const assignmentSelect = document.createElement('select');
+        assignmentSelect.style.marginRight = '12px';
+        assignmentSelect.innerHTML = `<option value="">All Assignments</option>` +
+            assignments.map(a => `<option value="${a}">${a}</option>`).join('');
+
+        // Student ID dropdown
+        const studentSelect = document.createElement('select');
+        studentSelect.innerHTML = `<option value="">All Students</option>` +
+            studentIds.map(s => `<option value="${s}">${s}</option>`).join('');
+
+        // Add to DOM
+        const filterBar = document.createElement('div');
+        filterBar.style.margin = '8px 0';
+        filterBar.style.display = 'none'; // 隐藏 droplists
+        filterBar.appendChild(assignmentSelect);
+        filterBar.appendChild(studentSelect);
+        this.node.appendChild(filterBar);
+
+        // Store filter state
+        (this as any)._assignmentFilter = '';
+        (this as any)._studentFilter = '';
+
+        // Listen for changes
+        assignmentSelect.onchange = () => {
+            (this as any)._assignmentFilter = assignmentSelect.value;
+            this.drawMatrix();
+            const filteredNotebooks = this.getFilteredNotebooks();
+            window.dispatchEvent(new CustomEvent('galaxy-matrix-filtered', { detail: { notebooks: filteredNotebooks } }));
+        };
+        studentSelect.onchange = () => {
+            (this as any)._studentFilter = studentSelect.value;
+            this.drawMatrix();
+            const filteredNotebooks = this.getFilteredNotebooks();
+            window.dispatchEvent(new CustomEvent('galaxy-matrix-filtered', { detail: { notebooks: filteredNotebooks } }));
+        };
 
         // 排序按钮区域
         const sortBar = document.createElement('div');
@@ -60,13 +106,45 @@ export class MatrixWidget extends Widget {
         this.sortButton.style.marginRight = '8px';
         this.sortButton.innerHTML = this.getSortIcon();
         this.sortButton.onclick = () => {
+            if (this.sortState === 3) return; // similarity模式下禁用
             this.sortState = (this.sortState + 1) % 3;
             this.updateNotebookOrder();
             this.sortButton.innerHTML = this.getSortIcon();
+            this.similaritySortButton.classList.remove('active');
+            this.updateSortButtonState();
             this.drawMatrix();
+            const filteredNotebooks = this.getFilteredNotebooks();
+            window.dispatchEvent(new CustomEvent('galaxy-matrix-filtered', { detail: { notebooks: filteredNotebooks } }));
         };
         sortBar.appendChild(this.sortButton);
+
+        // similarity排序按钮
+        this.similaritySortButton = document.createElement('button');
+        this.similaritySortButton.title = 'Similarity group sort';
+        this.similaritySortButton.style.background = 'none';
+        this.similaritySortButton.style.border = 'none';
+        this.similaritySortButton.style.cursor = 'pointer';
+        this.similaritySortButton.style.fontSize = '18px';
+        this.similaritySortButton.innerHTML = this.getSimilaritySortIcon();
+        this.similaritySortButton.onclick = () => {
+            if (this.sortState === 3) {
+                this.sortState = 0;
+                this.similaritySortButton.classList.remove('active');
+            } else {
+                this.sortState = 3;
+                this.similaritySortButton.classList.add('active');
+            }
+            this.updateNotebookOrder();
+            this.sortButton.innerHTML = this.getSortIcon();
+            this.similaritySortButton.innerHTML = this.getSimilaritySortIcon();
+            this.updateSortButtonState();
+            this.drawMatrix();
+            const filteredNotebooks = this.getFilteredNotebooks();
+            window.dispatchEvent(new CustomEvent('galaxy-matrix-filtered', { detail: { notebooks: filteredNotebooks } }));
+        };
+        sortBar.appendChild(this.similaritySortButton);
         this.node.appendChild(sortBar);
+        this.updateSortButtonState();
 
         // 统一内边距
         this.node.style.padding = '16px 16px 12px 16px';
@@ -81,19 +159,60 @@ export class MatrixWidget extends Widget {
             return `<svg width="18" height="18" viewBox="0 0 20 20"><path d="M4 7h12M4 12h12M4 17h12" stroke="#555" stroke-width="2" stroke-linecap="round"/></svg>`;
         } else if (this.sortState === 1) {
             return `<svg width="18" height="18" viewBox="0 0 20 20"><path d="M6 7h8M8 12h4M10 17h0" stroke="#555" stroke-width="2" stroke-linecap="round"/><path d="M15 4v10m0 0l-3-3m3 3l3-3" stroke="#555" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-        } else {
+        } else if (this.sortState === 2) {
             return `<svg width="18" height="18" viewBox="0 0 20 20"><path d="M6 17h8M8 12h4M10 7h0" stroke="#555" stroke-width="2" stroke-linecap="round"/><path d="M15 14V4m0 0l-3 3m3-3l3 3" stroke="#555" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+        } else {
+            // similarity排序时，依然显示三条横线但灰色
+            return `<svg width="18" height="18" viewBox="0 0 20 20"><path d="M4 7h12M4 12h12M4 17h12" stroke="#bbb" stroke-width="2" stroke-linecap="round"/></svg>`;
         }
     }
-
+    private getSimilaritySortIcon(): string {
+        // similarity排序icon，左右框+双向箭头，激活绿色，未激活灰色
+        if (this.sortState === 3) {
+            // 激活（绿色）
+            return `<svg width="18" height="18" viewBox="0 0 24 24">
+  <rect x="3" y="5" width="7" height="14" rx="2" fill="none" stroke="#4caf50" stroke-width="2"/>
+  <rect x="14" y="5" width="7" height="14" rx="2" fill="none" stroke="#4caf50" stroke-width="2" stroke-dasharray="4 2"/>
+  <path d="M10 12h4" stroke="#4caf50" stroke-width="2" stroke-linecap="round"/>
+  <polygon points="12,10 10,12 12,14" fill="#4caf50"/>
+  <polygon points="14,10 16,12 14,14" fill="#4caf50"/>
+</svg>`;
+        } else {
+            // 未激活（灰色）
+            return `<svg width="18" height="18" viewBox="0 0 24 24">
+  <rect x="3" y="5" width="7" height="14" rx="2" fill="none" stroke="#555" stroke-width="2"/>
+  <rect x="14" y="5" width="7" height="14" rx="2" fill="none" stroke="#555" stroke-width="2" stroke-dasharray="4 2"/>
+  <path d="M10 12h4" stroke="#555" stroke-width="2" stroke-linecap="round"/>
+  <polygon points="12,10 10,12 12,14" fill="#555"/>
+  <polygon points="14,10 16,12 14,14" fill="#555"/>
+</svg>`;
+        }
+    }
     private updateNotebookOrder() {
         if (this.sortState === 0) {
             this.notebookOrder = this.data.map((_, i) => i);
-        } else {
+        } else if (this.sortState === 1 || this.sortState === 2) {
             // 按 notebook 长度排序
             const arr = this.data.map((nb, i) => ({ i, len: nb.cells.length }));
             arr.sort((a, b) => this.sortState === 1 ? b.len - a.len : a.len - b.len);
             this.notebookOrder = arr.map(d => d.i);
+        } else if (this.sortState === 3 && this.similarityGroups && this.similarityGroups.length > 0) {
+            // similarity排序
+            // 先构建 kernelVersionId -> similarity_score
+            const simMap: Record<string, { similarity_score: number }> = {};
+            this.similarityGroups.forEach((row: any) => {
+                simMap[row.kernelVersionId] = { similarity_score: +row.similarity_score };
+            });
+            // 只按 similarity_score 排序
+            const arr = this.data.map((nb, i) => {
+                const kernelId = (nb as any).kernelVersionId?.toString();
+                const sim = simMap[kernelId] || { similarity_score: -1 };
+                return { i, similarity_score: sim.similarity_score };
+            });
+            arr.sort((a, b) => b.similarity_score - a.similarity_score);
+            this.notebookOrder = arr.map(d => d.i);
+        } else {
+            this.notebookOrder = this.data.map((_, i) => i);
         }
         // 排序后派发事件
         const event = new CustomEvent('galaxy-notebook-order-changed', {
@@ -189,6 +308,15 @@ export class MatrixWidget extends Widget {
                 });
             }
         }
+        // ====== FILTER BY DROPLISTS ======
+        const assignmentFilter = (this as any)._assignmentFilter || '';
+        const studentFilter = (this as any)._studentFilter || '';
+        notebookOrder = notebookOrder.filter(idx => {
+            const nb = notebooks[idx] as any;
+            const matchAssignment = !assignmentFilter || nb.assignment === assignmentFilter;
+            const matchStudent = !studentFilter || nb.student_id === studentFilter;
+            return matchAssignment && matchStudent;
+        });
 
         const cellHeight = 5;
         const cellWidth = 20;
@@ -221,6 +349,7 @@ export class MatrixWidget extends Widget {
 
         const g = svg.append('g').attr('transform', 'translate(20, 24)');
 
+        const self = this;
         notebookOrder.forEach((row, colIdx) => {
             const nb = notebooks[row];
             const sortedCells = nb.cells.sort((a, b) => a.cellId - b.cellId);
@@ -237,7 +366,7 @@ export class MatrixWidget extends Widget {
 
                 const base = g
                     .append('rect')
-                    .datum({ ...cell, kernelVersionId: (nb as any).kernelVersionId })
+                    .datum({ ...cell, kernelVersionId: (nb as any).kernelVersionId, notebook_name: (nb as any).notebook_name })
                     .attr('x', colIdx * (cellWidth + rowPadding) + 1)
                     .attr('y', i * cellHeight + 1)
                     .attr('width', cellWidth - 2)
@@ -271,9 +400,20 @@ export class MatrixWidget extends Widget {
                             document.body.appendChild(tooltip);
                         }
                         tooltip.innerHTML = `Stage: ${typeof LABEL_MAP !== 'undefined' ? (LABEL_MAP[String(d["1st-level label"] ?? "None")] ?? d["1st-level label"] ?? "None") : (d["1st-level label"] ?? "None")}` +
-                            `<br>Notebook: ${d.kernelVersionId ?? ''}` +
+                            `<br>Notebook: ${(d as any).notebook_name ?? (d as any).kernelVersionId}` +
                             `<br>cellId: ${d.cellId}` +
                             `<br>cellType: ${d.cellType}`;
+                        // 新增：如果有 similarityGroups，显示 group_id, similarity_score, pattern, group_type
+                        if (self.similarityGroups && self.similarityGroups.length > 0) {
+                            const kernelId = (d as any).kernelVersionId?.toString();
+                            const simRow = self.similarityGroups.find((row: any) => row.kernelVersionId === kernelId);
+                            if (simRow) {
+                                tooltip.innerHTML += `<br>group_id: ${simRow.group_id}`;
+                                tooltip.innerHTML += `<br>similarity_score: ${simRow.similarity_score}`;
+                                tooltip.innerHTML += `<br>group_type: ${simRow.group_type}`;
+                                tooltip.innerHTML += `<br>pattern: ${simRow.pattern}`;
+                            }
+                        }
                         tooltip.style.display = 'block';
                     })
                     .on('mousemove', function (event) {
@@ -298,22 +438,22 @@ export class MatrixWidget extends Widget {
                         // 先隐藏 tooltip
                         const tooltip = document.getElementById('galaxy-tooltip');
                         if (tooltip) tooltip.style.display = 'none';
-                        const notebookObj = { ...nb, index: row };
+                        const notebookObj = { ...nb, index: nb.globalIndex };
                         window.dispatchEvent(new CustomEvent('galaxy-notebook-selected', {
                             detail: { notebook: notebookObj }
                         }));
                         setTimeout(() => {
-                          window.dispatchEvent(new CustomEvent('galaxy-notebook-detail-jump', {
-                              detail: {
-                                  notebookIndex: row,
-                                  cellIndex: i
-                              }
-                          }));
-                          window.dispatchEvent(new CustomEvent('galaxy-cell-detail', {
-                              detail: {
-                                  cell: { ...d, notebookIndex: row, cellIndex: i, _notebookDetail: notebookObj }
-                              }
-                          }));
+                            window.dispatchEvent(new CustomEvent('galaxy-notebook-detail-jump', {
+                                detail: {
+                                    notebookIndex: nb.globalIndex,
+                                    cellIndex: i
+                                }
+                            }));
+                            window.dispatchEvent(new CustomEvent('galaxy-cell-detail', {
+                                detail: {
+                                    cell: { ...d, notebookIndex: nb.globalIndex, cellIndex: i, _notebookDetail: notebookObj }
+                                }
+                            }));
                         }, 0);
                     });
 
@@ -334,9 +474,10 @@ export class MatrixWidget extends Widget {
                 .attr('font-size', '11px')
                 .attr('fill', '#555')
                 .style('cursor', 'pointer')
-                .text(notebookOrder[col] + 1)
+                .text((notebooks[notebookOrder[col]]?.globalIndex ?? 0) + 1)
                 .on('click', () => {
-                    window.dispatchEvent(new CustomEvent('galaxy-notebook-selected', { detail: { notebook: { ...notebooks[notebookOrder[col]], index: col } } }));
+                    const nb = notebooks[notebookOrder[col]];
+                    window.dispatchEvent(new CustomEvent('galaxy-notebook-selected', { detail: { notebook: { ...nb, index: nb?.globalIndex ?? 0 } } }));
                 });
         }
     }
@@ -348,5 +489,29 @@ export class MatrixWidget extends Widget {
     setFilter(selection: any) {
         this.filter = selection;
         this.drawMatrix();
+    }
+
+    // 新增：获取当前筛选后的notebook列表
+    private getFilteredNotebooks(): any[] {
+        const assignmentFilter = (this as any)._assignmentFilter || '';
+        const studentFilter = (this as any)._studentFilter || '';
+        return this.data.filter(nb => {
+            const matchAssignment = !assignmentFilter || (nb as any).assignment === assignmentFilter;
+            const matchStudent = !studentFilter || (nb as any).student_id === studentFilter;
+            return matchAssignment && matchStudent;
+        });
+    }
+
+    // 新增：根据当前排序状态更新按钮样式和可用性
+    private updateSortButtonState() {
+        if (this.sortState === 3) {
+            this.sortButton.style.opacity = '0.4';
+            this.sortButton.style.cursor = 'not-allowed';
+            this.sortButton.disabled = true;
+        } else {
+            this.sortButton.style.opacity = '1';
+            this.sortButton.style.cursor = 'pointer';
+            this.sortButton.disabled = false;
+        }
     }
 }

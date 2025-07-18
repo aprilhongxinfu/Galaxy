@@ -1,4 +1,5 @@
 # galaxy
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/April-lemonade/Galaxy.git/HEAD)
 
 [![Github Actions Status](https://github.com/April-lemonade/Galaxy.git/workflows/Build/badge.svg)](https://github.com/April-lemonade/Galaxy.git/actions/workflows/build.yml)
 [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/April-lemonade/Galaxy.git/main?urlpath=lab)
@@ -97,3 +98,4 @@ More information are provided within the [ui-tests](./ui-tests/README.md) README
 ### Packaging the extension
 
 See [RELEASE](RELEASE.md)
+

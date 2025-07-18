@@ -61,6 +61,13 @@ export class DetailSidebar extends Widget {
         }
       }
     });
+    // 新增：监听 matrix 筛选事件，summary 状态下刷新统计
+    window.addEventListener('galaxy-matrix-filtered', (e: any) => {
+      const filteredData = e.detail?.notebooks ?? [];
+      if (!this.currentNotebook) {
+        this.setSummary(filteredData, this._mostFreqStage, this._mostFreqFlow);
+      }
+    });
   }
 
   onAfterAttach() {
@@ -204,7 +211,7 @@ export class DetailSidebar extends Widget {
     // 插入内容
     this.node.innerHTML = `
       <div style="padding:28px 18px 18px 18px; font-size:15px; color:#222; max-width:420px; margin:0 auto;">
-        <div style="font-size:20px; font-weight:700; margin-bottom:18px; line-height:1.2; word-break:break-all;">${nb.kernelVersionId ?? ''}</div>
+        <div style="font-size:20px; font-weight:700; margin-bottom:18px; line-height:1.2; word-break:break-all;">${nb.notebook_name ?? nb.kernelVersionId}</div>
         <div style="display:flex; flex-direction:row; gap:18px; margin-bottom:18px;">
           <div style="flex:1;">
             <div style="font-size:13px; color:#888;">Total Cells</div>
@@ -715,18 +722,34 @@ export class DetailSidebar extends Widget {
   }
 
   setSummary(data: any[], mostFreqStage?: string, mostFreqFlow?: string, notebookOrder?: number[]) {
-    this._allData = data.map((nb, i) => ({ ...nb, index: nb.index !== undefined ? nb.index : i }));
+    this.currentNotebook = null;
+    // 只在首次初始化时赋值 this._allData，后续不再覆盖
+    if (!this._allData || !Array.isArray(this._allData) || this._allData.length === 0) {
+      this._allData = data.map((nb, i) => ({ ...nb, globalIndex: i + 1 }));
+    } else {
+      // 补全缺失的globalIndex
+      this._allData.forEach((nb, i) => {
+        if (typeof nb.globalIndex !== 'number') nb.globalIndex = i + 1;
+      });
+    }
     this._mostFreqStage = mostFreqStage;
     this._mostFreqFlow = mostFreqFlow;
     const hiddenStages = this._hiddenStages ?? new Set(['1', '9']);
     // 过滤掉 hiddenStages 的 cell
-    let filteredData = data.map(nb => ({
-      ...nb,
-      cells: (nb.cells ?? []).filter(cell => {
-        const stage = String(cell["1st-level label"] ?? "None");
-        return !hiddenStages.has(stage);
-      })
-    })).filter(nb => nb.cells.length > 0);
+    let filteredData = data.map((nb) => {
+      // 用 kernelVersionId 在 this._allData 里查找 globalIndex
+      const orig = this._allData.find(item =>
+        item.kernelVersionId && nb.kernelVersionId && item.kernelVersionId === nb.kernelVersionId
+      );
+      return {
+        ...nb,
+        globalIndex: orig ? orig.globalIndex : -1,
+        cells: (nb.cells ?? []).filter(cell => {
+          const stage = String(cell["1st-level label"] ?? "None");
+          return !hiddenStages.has(stage);
+        })
+      };
+    }).filter(nb => nb.cells.length > 0);
     if (this.filter) {
       if (this.filter.type === 'stage') {
         filteredData = filteredData.filter(nb => nb.cells.some((cell: any) => String(cell["1st-level label"] ?? "None") === this.filter.stage));
@@ -748,8 +771,18 @@ export class DetailSidebar extends Widget {
     }
     // 统计
     const notebookCount = filteredData.length;
-    const cellCounts = filteredData.map(nb => nb.cells?.length ?? 0);
-    const totalCellCount = cellCounts.reduce((a, b) => a + b, 0);
+    // 统计真实cell数并保留全局globalIndex
+    const cellCountsWithIndex = data.map(nb => {
+      const orig = this._allData.find(item =>
+        item.kernelVersionId && nb.kernelVersionId && item.kernelVersionId === nb.kernelVersionId
+      );
+      return {
+        count: (nb.cells ?? []).length,
+        globalIndex: orig ? orig.globalIndex : 0,
+        nb: orig || nb
+      };
+    });
+    const totalCellCount = cellCountsWithIndex.reduce((a, b) => a + b.count, 0);
     const avgCellCount = notebookCount ? (totalCellCount / notebookCount) : 0;
     // stage/flow 统计只用可见 cell
     const stageFreq: Record<string, number> = {};
@@ -871,26 +904,36 @@ export class DetailSidebar extends Widget {
     </svg>`;
 
     // Notebook kernelVersionId 列表
-    const order = notebookOrder ?? filteredData.map((_, i) => i);
-    const notebookListHtml = order.map(idx => {
-      const nb = filteredData[idx];
-      if (!nb) return '';
-      // 用 kernelVersionId 或 path 匹配原始数据
-      const origIdx = this._allData.findIndex(item =>
-        (item.kernelVersionId && nb.kernelVersionId && item.kernelVersionId === nb.kernelVersionId) ||
-        (item.path && nb.path && item.path === nb.path)
-      );
-      return `<tr><td style="color:#888;">${origIdx + 1}</td><td><a href="#" class="dsb-nb-kernel-link" data-idx="${idx}" style="color:#1976d2; text-decoration:underline; cursor:pointer; font-weight:600; font-size:14px; padding:2px 8px; border-radius:4px; transition:background 0.15s;">${nb.kernelVersionId ?? ''}</a></td></tr>`;
-    }).join('');
+    let notebookListHtml = '';
+    if (!this.filter && notebookOrder) {
+      // 只有在没有筛选时才允许排序
+      notebookListHtml = notebookOrder.map(idx => {
+        const nb = filteredData[idx];
+        if (!nb) return '';
+        return `<tr><td style=\"color:#888;\">${nb.globalIndex + 1}</td><td><a href=\"#\" class=\"dsb-nb-kernel-link\" data-idx=\"${nb.globalIndex}\" data-global-idx=\"${nb.globalIndex}\" style=\"color:#1976d2; text-decoration:underline; cursor:pointer; font-weight:600; font-size:14px; padding:2px 8px; border-radius:4px; transition:background 0.15s;\">${nb.notebook_name ?? nb.kernelVersionId}</a></td></tr>`;
+      }).join('');
+    } else {
+      // 有筛选时保持filteredData顺序
+      notebookListHtml = filteredData.map(nb => {
+        return `<tr><td style=\"color:#888;\">${nb.globalIndex + 1}</td><td><a href=\"#\" class=\"dsb-nb-kernel-link\" data-idx=\"${nb.globalIndex}\" data-global-idx=\"${nb.globalIndex}\" style=\"color:#1976d2; text-decoration:underline; cursor:pointer; font-weight:600; font-size:14px; padding:2px 8px; border-radius:4px; transition:background 0.15s;\">${nb.notebook_name ?? nb.kernelVersionId}</a></td></tr>`;
+      }).join('');
+    }
 
     // 找到所有cell数等于最大值和最小值的notebook索引
-    const maxCellCount = Math.max(...cellCounts);
-    const minCellCount = Math.min(...cellCounts);
-    const longestIdxArr = cellCounts.map((c, i) => c === maxCellCount ? i : -1).filter(i => i !== -1);
-    const shortestIdxArr = cellCounts.map((c, i) => c === minCellCount ? i : -1).filter(i => i !== -1);
-    // 多个编号拼接
-    const longestLinks = longestIdxArr.map(idx => `<a href="#" class="dsb-nb-longest-link" data-idx="${idx}" style="color:#0066cc !important; text-decoration:underline; cursor:pointer; font-weight:600; font-size:14px;">#${idx + 1}</a>`).join(', ');
-    const shortestLinks = shortestIdxArr.map(idx => `<a href="#" class="dsb-nb-shortest-link" data-idx="${idx}" style="color:#0066cc !important; text-decoration:underline; cursor:pointer; font-weight:600; font-size:14px;">#${idx + 1}</a>`).join(', ');
+    const maxCellCount = Math.max(...cellCountsWithIndex.map(x => x.count));
+    const minCellCount = Math.min(...cellCountsWithIndex.map(x => x.count));
+    const longest = cellCountsWithIndex.filter(x => x.count === maxCellCount && x.globalIndex !== -1);
+    const shortest = cellCountsWithIndex.filter(x => x.count === minCellCount && x.globalIndex !== -1);
+    const longestLinks = longest
+      .filter(x => x.globalIndex > 0)
+      .map(x =>
+        `<a href=\"#\" class=\"dsb-nb-longest-link\" data-idx=\"${x.globalIndex}\" data-global-idx=\"${x.globalIndex}\" style=\"color:#0066cc !important; text-decoration:underline; cursor:pointer; font-weight:600; font-size:14px;\">#${x.globalIndex}</a>`
+      ).join(', ');
+    const shortestLinks = shortest
+      .filter(x => x.globalIndex > 0)
+      .map(x =>
+        `<a href=\"#\" class=\"dsb-nb-shortest-link\" data-idx=\"${x.globalIndex}\" data-global-idx=\"${x.globalIndex}\" style=\"color:#0066cc !important; text-decoration:underline; cursor:pointer; font-weight:600; font-size:14px;\">#${x.globalIndex}</a>`
+      ).join(', ');
     // 渲染
     this.node.innerHTML = `
       <div style="padding:20px 18px 18px 18px; font-size:14px; line-height:1.7; color:#222;">
@@ -922,9 +965,9 @@ export class DetailSidebar extends Widget {
         <div style="height:16px;"></div>
         <div style="margin: 8px 0 12px 0; width:100%; max-width:600px; margin-left:auto; margin-right:auto;">${stageBarChart}</div>
         <hr style="margin:16px 0 10px 0; border:none; border-top:1px solid #eee;">
-        <div style="font-size:16px; font-weight:600; margin:24px 0 10px 0;">Notebook Kernel Version</div>
+        <div style="font-size:16px; font-weight:600; margin:24px 0 10px 0;">Notebook List</div>
         <table style="width:100%; font-size:13px; color:#555;">
-          <tr><th style="text-align:left; color:#888; font-weight:400;">#</th><th style="text-align:left; color:#888; font-weight:400;">kernelVersionId</th></tr>
+          <tr><th style="text-align:left; color:#888; font-weight:400;">#</th><th style="text-align:left; color:#888; font-weight:400;">Notebook Title</th></tr>
           ${notebookListHtml}
         </table>
       </div>
@@ -941,12 +984,12 @@ export class DetailSidebar extends Widget {
         });
         link.addEventListener('click', (e) => {
           e.preventDefault();
-          const idx = parseInt((link as HTMLElement).getAttribute('data-idx') || '0', 10);
-          if (this._allData && this._allData[idx]) {
+          const globalIdx = parseInt((link as HTMLElement).getAttribute('data-global-idx') || '0', 10);
+          if (this._allData && this._allData[globalIdx]) {
             window.dispatchEvent(new CustomEvent('galaxy-notebook-selected', {
-              detail: { notebook: { ...this._allData[idx], index: idx } }
+              detail: { notebook: { ...this._allData[globalIdx], index: globalIdx } }
             }));
-            this.setNotebookDetail(this._allData[idx]);
+            this.setNotebookDetail(this._allData[globalIdx]);
           }
         });
       });
@@ -966,12 +1009,12 @@ export class DetailSidebar extends Widget {
         });
         link.addEventListener('click', (e) => {
           e.preventDefault();
-          const idx = parseInt((link as HTMLElement).getAttribute('data-idx') || '0', 10);
-          if (this._allData && this._allData[idx]) {
+          const globalIdx = parseInt((link as HTMLElement).getAttribute('data-global-idx') || '0', 10);
+          if (this._allData && this._allData[globalIdx]) {
             window.dispatchEvent(new CustomEvent('galaxy-notebook-selected', {
-              detail: { notebook: { ...this._allData[idx], index: idx } }
+              detail: { notebook: { ...this._allData[globalIdx], index: globalIdx } }
             }));
-            this.setNotebookDetail(this._allData[idx]);
+            this.setNotebookDetail(this._allData[globalIdx]);
           }
         });
       });
@@ -987,12 +1030,12 @@ export class DetailSidebar extends Widget {
         });
         link.addEventListener('click', (e) => {
           e.preventDefault();
-          const idx = parseInt((link as HTMLElement).getAttribute('data-idx') || '0', 10);
-          if (this._allData && this._allData[idx]) {
+          const globalIdx = parseInt((link as HTMLElement).getAttribute('data-global-idx') || '0', 10);
+          if (this._allData && this._allData[globalIdx]) {
             window.dispatchEvent(new CustomEvent('galaxy-notebook-selected', {
-              detail: { notebook: { ...this._allData[idx], index: idx } }
+              detail: { notebook: { ...this._allData[globalIdx], index: globalIdx } }
             }));
-            this.setNotebookDetail(this._allData[idx]);
+            this.setNotebookDetail(this._allData[globalIdx]);
           }
         });
       });
@@ -1096,6 +1139,12 @@ export class DetailSidebar extends Widget {
       addHover('.dsb-stage-expand-btn');
       addHover('.dsb-flow-expand-btn');
     }, 0);
+
+    // debug: 输出filteredData和全局allData的kernelVersionId和globalIndex
+    // eslint-disable-next-line no-console
+    console.log('filteredData:', filteredData.map(nb => ({ kernelVersionId: nb.kernelVersionId, globalIndex: nb.globalIndex })));
+    // eslint-disable-next-line no-console
+    console.log('allData:', this._allData.map(nb => ({ kernelVersionId: nb.kernelVersionId, globalIndex: nb.globalIndex })));
   }
 
   // 新增：渲染代码行数分布柱状图

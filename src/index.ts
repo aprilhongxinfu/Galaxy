@@ -19,6 +19,7 @@ import { MatrixWidget } from './components/MatrixWidget';
 import { DetailSidebar } from './components/DetailSidebar';
 import { NotebookDetailWidget } from './components/NotebookDetailWidget';
 import { LabShell } from '@jupyterlab/application';
+import { csvParse } from 'd3-dsv';
 
 function getXsrfTokenFromCookie(): string | null {
   const match = document.cookie.match(/\b_xsrf=([^;]*)/);
@@ -63,7 +64,29 @@ function activate(
 
         // 判断是否只选中了一个 .json 文件
         let result1: any = null;
+        let similarityGroups: any[] = [];
         if (
+          selectedItems.length === 1 &&
+          selectedItems[0].type === 'file' &&
+          selectedItems[0].path.endsWith('18599_predicted.json')
+        ) {
+          // 直接用 Contents API 读取 JSON 文件内容
+          const contentsManager = app.serviceManager.contents;
+          const model = await contentsManager.get(selectedItems[0].path, { type: 'file', format: 'text', content: true });
+          result1 = JSON.parse(model.content as string);
+          console.log('Loaded JSON:', result1);
+          // 读取 CSV 文件
+          try {
+            const csvModel = await contentsManager.get('test-notebooks/enhanced_similarity_groups.csv', { type: 'file', format: 'text', content: true });
+            similarityGroups = csvParse(csvModel.content as string);
+            // 转换 similarity_score 为数字
+            similarityGroups.forEach((d: any) => { d.similarity_score = +d.similarity_score; });
+            console.log('Loaded CSV:', similarityGroups);
+          } catch (e) {
+            alert('无法读取 enhanced_similarity_groups.csv');
+            similarityGroups = [];
+          }
+        } else if (
           selectedItems.length === 1 &&
           selectedItems[0].type === 'file' &&
           selectedItems[0].path.endsWith('.json')
@@ -71,7 +94,6 @@ function activate(
           // 直接用 Contents API 读取 JSON 文件内容
           const contentsManager = app.serviceManager.contents;
           const model = await contentsManager.get(selectedItems[0].path, { type: 'file', format: 'text', content: true });
-          // console.log('model:', model);
           result1 = JSON.parse(model.content as string);
           console.log('Loaded JSON:', result1);
         } else {
@@ -123,7 +145,7 @@ function activate(
 
         // 添加 MatrixWidget 到主区域
         const colorScale = (label: string) => colorMap.get(label) || '#ccc';
-        const matrixWidget = new MatrixWidget(result1, colorScale);
+        const matrixWidget = new MatrixWidget(result1, colorScale, similarityGroups);
         app.shell.add(matrixWidget, 'main');
         matrixWidget.disposed.connect(() => {
           closeSidebarsIfNoMainWidgets(app);
