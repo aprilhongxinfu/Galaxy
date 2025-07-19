@@ -198,18 +198,18 @@ export class MatrixWidget extends Widget {
             this.notebookOrder = arr.map(d => d.i);
         } else if (this.sortState === 3 && this.similarityGroups && this.similarityGroups.length > 0) {
             // similarity排序
-            // 先构建 kernelVersionId -> similarity_score
-            const simMap: Record<string, { similarity_score: number }> = {};
+            // 先构建 kernelVersionId -> similarity
+            const simMap: Record<string, { similarity: number }> = {};
             this.similarityGroups.forEach((row: any) => {
-                simMap[row.kernelVersionId] = { similarity_score: +row.similarity_score };
+                simMap[row.kernelVersionId] = { similarity: +row.similarity };
             });
-            // 只按 similarity_score 排序
+            // 只按 similarity 排序
             const arr = this.data.map((nb, i) => {
                 const kernelId = (nb as any).kernelVersionId?.toString();
-                const sim = simMap[kernelId] || { similarity_score: -1 };
-                return { i, similarity_score: sim.similarity_score };
+                const sim = simMap[kernelId] || { similarity: -1 };
+                return { i, similarity: sim.similarity };
             });
-            arr.sort((a, b) => b.similarity_score - a.similarity_score);
+            arr.sort((a, b) => b.similarity - a.similarity);
             this.notebookOrder = arr.map(d => d.i);
         } else {
             this.notebookOrder = this.data.map((_, i) => i);
@@ -403,15 +403,14 @@ export class MatrixWidget extends Widget {
                             `<br>Notebook: ${(d as any).notebook_name ?? (d as any).kernelVersionId}` +
                             `<br>cellId: ${d.cellId}` +
                             `<br>cellType: ${d.cellType}`;
-                        // 新增：如果有 similarityGroups，显示 group_id, similarity_score, pattern, group_type
+                        // 新增：如果有 similarityGroups，显示 group_id, similarity, label_integers
                         if (self.similarityGroups && self.similarityGroups.length > 0) {
                             const kernelId = (d as any).kernelVersionId?.toString();
                             const simRow = self.similarityGroups.find((row: any) => row.kernelVersionId === kernelId);
                             if (simRow) {
                                 tooltip.innerHTML += `<br>group_id: ${simRow.group_id}`;
-                                tooltip.innerHTML += `<br>similarity_score: ${simRow.similarity_score}`;
-                                tooltip.innerHTML += `<br>group_type: ${simRow.group_type}`;
-                                tooltip.innerHTML += `<br>pattern: ${simRow.pattern}`;
+                                tooltip.innerHTML += `<br>similarity: ${simRow.similarity}`;
+                                tooltip.innerHTML += `<br>label_integers: ${simRow.label_integers}`;
                             }
                         }
                         tooltip.style.display = 'block';
