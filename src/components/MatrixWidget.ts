@@ -197,19 +197,25 @@ export class MatrixWidget extends Widget {
             arr.sort((a, b) => this.sortState === 1 ? b.len - a.len : a.len - b.len);
             this.notebookOrder = arr.map(d => d.i);
         } else if (this.sortState === 3 && this.similarityGroups && this.similarityGroups.length > 0) {
-            // similarity排序
-            // 先构建 kernelVersionId -> similarity
-            const simMap: Record<string, { similarity: number }> = {};
+            // similarity排序 - 按 group_id 排序
+            // 先构建 kernelVersionId -> group_id
+            const groupMap: Record<string, { group_id: number }> = {};
             this.similarityGroups.forEach((row: any) => {
-                simMap[row.kernelVersionId] = { similarity: +row.similarity };
+                groupMap[row.kernelVersionId] = { group_id: +row.group_id };
             });
-            // 只按 similarity 排序
+            // 按 group_id 排序：1, 2, 3, ..., n, 然后 -1 在最后
             const arr = this.data.map((nb, i) => {
                 const kernelId = (nb as any).kernelVersionId?.toString();
-                const sim = simMap[kernelId] || { similarity: -1 };
-                return { i, similarity: sim.similarity };
+                const group = groupMap[kernelId] || { group_id: -1 };
+                return { i, group_id: group.group_id };
             });
-            arr.sort((a, b) => b.similarity - a.similarity);
+            arr.sort((a, b) => {
+                // 将 -1 放在最后
+                if (a.group_id === -1 && b.group_id !== -1) return 1;
+                if (a.group_id !== -1 && b.group_id === -1) return -1;
+                // 其他情况按数值升序排列
+                return a.group_id - b.group_id;
+            });
             this.notebookOrder = arr.map(d => d.i);
         } else {
             this.notebookOrder = this.data.map((_, i) => i);
