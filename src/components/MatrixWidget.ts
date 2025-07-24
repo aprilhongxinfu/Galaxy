@@ -197,25 +197,19 @@ export class MatrixWidget extends Widget {
             arr.sort((a, b) => this.sortState === 1 ? b.len - a.len : a.len - b.len);
             this.notebookOrder = arr.map(d => d.i);
         } else if (this.sortState === 3 && this.similarityGroups && this.similarityGroups.length > 0) {
-            // similarity排序 - 按 group_id 排序
-            // 先构建 kernelVersionId -> group_id
-            const groupMap: Record<string, { group_id: number }> = {};
-            this.similarityGroups.forEach((row: any) => {
-                groupMap[row.kernelVersionId] = { group_id: +row.group_id };
+            // similarity排序 - 按文件中的原始顺序排序
+            // 先构建 kernelVersionId -> 文件中的顺序索引
+            const fileOrderMap: Record<string, number> = {};
+            this.similarityGroups.forEach((row: any, index: number) => {
+                fileOrderMap[row.kernelVersionId] = index;
             });
-            // 按 group_id 排序：1, 2, 3, ..., n, 然后 -1 在最后
+            // 按文件中的原始顺序排序
             const arr = this.data.map((nb, i) => {
                 const kernelId = (nb as any).kernelVersionId?.toString();
-                const group = groupMap[kernelId] || { group_id: -1 };
-                return { i, group_id: group.group_id };
+                const fileOrder = fileOrderMap[kernelId] !== undefined ? fileOrderMap[kernelId] : 999999;
+                return { i, fileOrder };
             });
-            arr.sort((a, b) => {
-                // 将 -1 放在最后
-                if (a.group_id === -1 && b.group_id !== -1) return 1;
-                if (a.group_id !== -1 && b.group_id === -1) return -1;
-                // 其他情况按数值升序排列
-                return a.group_id - b.group_id;
-            });
+            arr.sort((a, b) => a.fileOrder - b.fileOrder);
             this.notebookOrder = arr.map(d => d.i);
         } else {
             this.notebookOrder = this.data.map((_, i) => i);
@@ -409,12 +403,12 @@ export class MatrixWidget extends Widget {
                             `<br>Notebook: ${(d as any).notebook_name ?? (d as any).kernelVersionId}` +
                             `<br>cellId: ${d.cellId}` +
                             `<br>cellType: ${d.cellType}`;
-                        // 新增：如果有 similarityGroups，显示 group_id, similarity, label_integers
+                        // 新增：如果有 similarityGroups，显示 cluster_id, similarity, label_integers
                         if (self.similarityGroups && self.similarityGroups.length > 0) {
                             const kernelId = (d as any).kernelVersionId?.toString();
                             const simRow = self.similarityGroups.find((row: any) => row.kernelVersionId === kernelId);
                             if (simRow) {
-                                tooltip.innerHTML += `<br>group_id: ${simRow.group_id}`;
+                                tooltip.innerHTML += `<br>cluster_id: ${simRow.cluster_id}`;
                                 tooltip.innerHTML += `<br>similarity: ${simRow.similarity}`;
                                 tooltip.innerHTML += `<br>label_integers: ${simRow.label_integers}`;
                             }
