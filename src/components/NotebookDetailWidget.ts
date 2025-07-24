@@ -54,7 +54,9 @@ export class NotebookDetailWidget extends Widget {
   constructor(notebook: any) {
     super();
     this.notebook = notebook;
-    this.id = 'notebook-detail-widget';
+    (this as any).notebook = notebook; // 让外部 handleTabSwitch 能直接访问
+    const nbId = notebook.kernelVersionId;
+    this.id = 'notebook-detail-widget-' + nbId;
     this.title.label = 'Notebook Detail';
     this.title.closable = true;
     this.addClass('notebook-detail-widget');
@@ -267,49 +269,49 @@ export class NotebookDetailWidget extends Widget {
     // 先渲染主结构和cell列表容器
     this.node.innerHTML = `
       <div style="padding:24px; max-width:900px; margin:0 auto; height:100%; box-sizing:border-box; display:flex; flex-direction:column;">
-        <div style="display:flex; align-items:center; font-size:15px; font-weight:500; margin-bottom:18px; margin-top:8px;">
+        <!--<div style="display:flex; align-items:center; font-size:15px; font-weight:500; margin-bottom:18px; margin-top:8px;">
           <span class="nbd-breadcrumb" style="color:#3182bd; cursor:pointer; text-decoration:underline;">Overview</span>
           <span style="margin:0 8px; color:#888;">/</span>
           <span style="color:#222;">notebook ${nbIdx || ''}</span>
-        </div>
+        </div>-->
         <div style="flex:1 1 auto; min-height:0; display:flex; flex-direction:row; align-items:flex-start; gap:0;">
           <!-- Mini map -->
           <div style="width:20px; margin-right:14px; display:flex; flex-direction:column; justify-content:center; align-self:center; max-height:600px;">
-            ${(function() {
-              const cells = nb.cells ?? [];
-              const cellHeight = 4;
-              const gap = 1;
-              const rectHeight = 3;
-              const minimapHeight = cells.length * (cellHeight + gap);
-              const minimapSvgWidth = 32;
-              const rectX = (minimapSvgWidth - 20) / 2;
-              const maxMinimapHeight = 800;
-              let svgHeight = minimapHeight;
-              let viewBox = `0 0 ${minimapSvgWidth} ${minimapHeight}`;
-              let style = 'display:block; margin:0 auto;';
-              if (minimapHeight > maxMinimapHeight) {
-                svgHeight = maxMinimapHeight;
-                style += ` height:${maxMinimapHeight}px; width:${minimapSvgWidth}px;`;
-              } else {
-                style += ` height:${minimapHeight}px; width:${minimapSvgWidth}px;`;
-              }
-              const rects = cells.map((cell: any, i: number) => {
-                const stage = String(cell["1st-level label"] ?? 'None');
-                const color = colorMap.get(stage) || '#ccc';
-                const rectY = i * (cellHeight + gap);
-                if (cell.cellType === 'markdown') {
-                  const stroke = '#bbb';
-                  const strokeWidth = 1;
-                  return `<rect x="${rectX}" y="${rectY}" width="20" height="${rectHeight}" fill="transparent" stroke="${stroke}" stroke-width="${strokeWidth}" data-stage="${stage}" data-idx="${i}" data-orig-width="20" data-orig-x="${rectX}" style="cursor:pointer;" />`;
-                } else {
-                  const stageColor = colorMap.get(stage) || '#bbb';
-                  const stroke = stageColor;
-                  const strokeWidth = 1;
-                  return `<rect x="${rectX}" y="${rectY}" width="20" height="${rectHeight}" fill="${color}" stroke="${stroke}" stroke-width="${strokeWidth}" data-stage="${stage}" data-idx="${i}" data-orig-width="20" data-orig-x="${rectX}" style="cursor:pointer;" />`;
-                }
-              }).join('');
-              return `<svg width="${minimapSvgWidth}" height="${svgHeight}" viewBox="${viewBox}" style="${style}" preserveAspectRatio="none">${rects}</svg>`;
-            })()}
+            ${(function () {
+        const cells = nb.cells ?? [];
+        const cellHeight = 4;
+        const gap = 1;
+        const rectHeight = 3;
+        const minimapHeight = cells.length * (cellHeight + gap);
+        const minimapSvgWidth = 32;
+        const rectX = (minimapSvgWidth - 20) / 2;
+        const maxMinimapHeight = 800;
+        let svgHeight = minimapHeight;
+        let viewBox = `0 0 ${minimapSvgWidth} ${minimapHeight}`;
+        let style = 'display:block; margin:0 auto;';
+        if (minimapHeight > maxMinimapHeight) {
+          svgHeight = maxMinimapHeight;
+          style += ` height:${maxMinimapHeight}px; width:${minimapSvgWidth}px;`;
+        } else {
+          style += ` height:${minimapHeight}px; width:${minimapSvgWidth}px;`;
+        }
+        const rects = cells.map((cell: any, i: number) => {
+          const stage = String(cell["1st-level label"] ?? 'None');
+          const color = colorMap.get(stage) || '#ccc';
+          const rectY = i * (cellHeight + gap);
+          if (cell.cellType === 'markdown') {
+            const stroke = '#bbb';
+            const strokeWidth = 1;
+            return `<rect x="${rectX}" y="${rectY}" width="20" height="${rectHeight}" fill="transparent" stroke="${stroke}" stroke-width="${strokeWidth}" data-stage="${stage}" data-idx="${i}" data-orig-width="20" data-orig-x="${rectX}" style="cursor:pointer;" />`;
+          } else {
+            const stageColor = colorMap.get(stage) || '#bbb';
+            const stroke = stageColor;
+            const strokeWidth = 1;
+            return `<rect x="${rectX}" y="${rectY}" width="20" height="${rectHeight}" fill="${color}" stroke="${stroke}" stroke-width="${strokeWidth}" data-stage="${stage}" data-idx="${i}" data-orig-width="20" data-orig-x="${rectX}" style="cursor:pointer;" />`;
+          }
+        }).join('');
+        return `<svg width="${minimapSvgWidth}" height="${svgHeight}" viewBox="${viewBox}" style="${style}" preserveAspectRatio="none">${rects}</svg>`;
+      })()}
           </div>
           <!-- Cell 列表 -->
           <div style="flex:1 1 auto; min-height:0; display:flex; flex-direction:column; gap:18px; overflow-y:auto; height:100%;" id="nbd-cell-list-scroll"></div>

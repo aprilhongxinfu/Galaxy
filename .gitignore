@@ -123,3 +123,7 @@ dmypy.json
 
 # Yarn cache
 .yarn/
+
+# test
+src/components/SankeyWidget.ts
+src/components/GalaxySidebar.ts

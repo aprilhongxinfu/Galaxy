@@ -1,6 +1,8 @@
 import { Widget } from '@lumino/widgets';
 import * as d3 from 'd3';
 import { LABEL_MAP } from './labelMap';
+// import { STAGE_GROUP_MAP } from './stage_hierarchy';
+// import { STAGE_GROUP_COLOR } from './STAGE_GROUP_COLOR';
 
 type Cell = {
     cellId: number;
@@ -168,7 +170,7 @@ export class LeftSidebar extends Widget {
         // 新增：监听 matrix 筛选事件，flow chart 跟随筛选
         window.addEventListener('galaxy-matrix-filtered', (e: any) => {
             const filteredData = e.detail?.notebooks ?? [];
-            this.setData(filteredData);
+            this.setData(filteredData, this.colorMap);
         });
 
         this.render();
@@ -208,18 +210,19 @@ export class LeftSidebar extends Widget {
 
         this.svg.selectAll('*').remove();
         // const svgNode = this.svg.node()!;
-        const chartPadding = 30;  // 保证底部 legend 有空间
-
+        // 预留 legend 区域高度，保证legend始终可见且不重叠
+        const legendAreaHeight = 120;
+        const chartPadding = 40;  // 保证底部 legend 有空间
         // 根据 stageData 中最后一个 stage 的 y 值和 block size 估算需要的逻辑高度
         const lastStage = this.stageData[this.stageData.length - 1];
         const lastY = (lastStage?.norm_pos ?? 1) * 1.0;  // 如果没有 norm_pos 则用 1
         const estimatedVirtualHeight = d3.scaleLinear().domain([0, 1]).range([10, 800])(lastY) + 80;
-
-        // 最终逻辑高度
-        const virtualHeight = Math.max(estimatedVirtualHeight, 1000); // 设置下限，防止过小
-
+        // 最终逻辑高度（不包含legend）
+        const virtualHeight = Math.max(estimatedVirtualHeight, 1000);
+        // SVG总高度 = flowchart高度 + legend区域
+        const svgHeight = virtualHeight + chartPadding + legendAreaHeight;
         // 设置 viewBox
-        this.svg.attr("viewBox", `0 0 400 ${virtualHeight + chartPadding}`);
+        this.svg.attr("viewBox", `0 0 400 ${svgHeight}`);
 
 
 
@@ -255,13 +258,12 @@ export class LeftSidebar extends Widget {
         }
 
         this.data.forEach((nb) => {
-            const cells = [...nb.cells]
-                .sort((a, b) => a.cellId - b.cellId);
+            // 只保留 code cell
+            const codeCells = [...nb.cells]
+                .sort((a, b) => a.cellId - b.cellId)
+                .filter((d) => d.cellType === 'code');
             const stageSeq: string[] = [];
-            const stageFirstPos: Record<string, number> = {};
-
-            cells.forEach((cell, idx) => {
-                const relPos = idx / cells.length;
+            codeCells.forEach((cell) => {
                 const stage = String(cell["1st-level label"] ?? "None");
                 if (!stageStats.has(stage)) {
                     stageStats.set(stage, {
@@ -270,29 +272,16 @@ export class LeftSidebar extends Widget {
                         count: 0
                     });
                 }
-                stageStats.get(stage)!.positions.push(relPos);
                 stageStats.get(stage)!.count++;
-                if (stage !== 'None') {
-                    stageFreq[stage] = (stageFreq[stage] || 0) + 1;
-                }
-
-                if (!(stage in stageFirstPos)) {
-                    stageFirstPos[stage] = relPos;
-                }
-
                 if (stageSeq.length === 0 || stageSeq[stageSeq.length - 1] !== stage) {
                     stageSeq.push(stage);
                 }
             });
 
-            for (let stage in stageFirstPos) {
-                stageStats.get(stage)!.firstPositions.push(stageFirstPos[stage]);
-            }
-
-            // flow 统计：只要相邻 cell 的 stage 是 from->to 就算一次
-            for (let i = 0; i < cells.length - 1; i++) {
-                const a = String(cells[i]["1st-level label"] ?? "None");
-                const b = String(cells[i + 1]["1st-level label"] ?? "None");
+            // flow 统计：只考虑 code cell，忽略 markdown cell
+            for (let i = 0; i < codeCells.length - 1; i++) {
+                const a = String(codeCells[i]["1st-level label"] ?? "None");
+                const b = String(codeCells[i + 1]["1st-level label"] ?? "None");
                 const key = `${a}->${b}`;
                 transitions.set(key, (transitions.get(key) || 0) + 1);
             }
@@ -348,7 +337,7 @@ export class LeftSidebar extends Widget {
 
         const svg = this.svg;
         const defs = svg.append("defs");
-        const g = svg.append("g").attr("transform", "translate(200, 20)");
+        const g = svg.append("g").attr("transform", "translate(200, 50)");
         // const legendG = svg.append("g").attr("transform", "translate(0, 740)");
 
         // 过滤掉隐藏的 stage 和 count=0 的 stage
@@ -370,16 +359,89 @@ export class LeftSidebar extends Widget {
             });
         });
 
-        // 统一收集所有实际渲染的 flow，并计算线宽比例尺
-        const renderedFlows: { from: string, to: string, count: number }[] = [];
-        transitions.forEach((count, key) => {
-            const [from, to] = key.split("->");
-            if (from === 'None' || to === 'None' || from === to) return;
-            if (!stageMap.has(from) || !stageMap.has(to)) return; // 只渲染可见的
-            renderedFlows.push({ from, to, count });
-        });
-        const renderedFlowCounts = renderedFlows.map(f => f.count);
+        // 拖拽行为
+        let isDragging = false;
+        let dragStartY = 0;
+        const drag = d3.drag<SVGRectElement, StageDatum>()
+            .on('start', function (event, d) {
+                dragStartY = event.y;
+                isDragging = false;
+                d3.select(this).raise().attr('stroke', '#333').attr('stroke-width', 3);
+            })
+            .on('drag', (event, d) => {
+                if (Math.abs(event.y - dragStartY) > 3) {
+                    isDragging = true;
+                }
+                d3.select(event.sourceEvent.target)
+                    .attr('y', event.y - d.size! / 2);
+            })
+            .on('end', (event, d) => {
+                if (isDragging) {
+                    // 拖动才重排
+                    let closest = this.stageData[0];
+                    let minDist = Math.abs(event.y - (closest.y ?? 0));
+                    for (const s of this.stageData) {
+                        const dist = Math.abs(event.y - (s.y ?? 0));
+                        if (dist < minDist) {
+                            minDist = dist;
+                            closest = s;
+                        }
+                    }
+                    const oldIdx = this.stageData.findIndex(s => s.stage === d.stage);
+                    const newIdx = this.stageData.findIndex(s => s.stage === closest.stage);
+                    if (oldIdx !== newIdx) {
+                        const arr = [...this.stageData];
+                        arr.splice(oldIdx, 1);
+                        arr.splice(newIdx, 0, d);
+                        this.stageData = arr;
+                        this.render();
+                    } else {
+                        this.render();
+                    }
+                } else {
+                    this.selection = { type: 'stage', stage: d.stage };
+                    console.log('set selection', d.stage);
+                }
+                // 关键：短暂延迟后重置 isDragging，保证 pointerup 能正确识别
+                setTimeout(() => { isDragging = false; }, 0);
+            });
 
+        // === 新增：渲染 group 背景色 rect（高度延伸到上下 block 的中点） ===
+        // const sidebarWidth = 400; // SVG viewBox 宽度
+        // const bgMargin = 30; // 让背景色左右多出 30px
+        // 计算每个 block 背景的 y 和 height（所有背景高度一致，block居中）
+        // const svgHeight = virtualHeight + chartPadding; // SVG 实际高度
+        // const centers = visibleStages.map(d => stageMap.get(d.stage)!.y);
+        // let standardHeight = 60;
+        // if (visibleStages.length > 1) {
+        //     standardHeight = centers[1] - centers[0];
+        // }
+        // const bgRects = visibleStages.map((d, i) => {
+        //     const currY = centers[i];
+        //     const y = currY - standardHeight / 2;
+        //     return {
+        //         stage: d.stage,
+        //         y: y,
+        //         height: standardHeight
+        //     };
+        // });
+        // g.selectAll('group-bg-rect')
+        //     .data(bgRects)
+        //     .enter()
+        //     .append('rect')
+        //     .attr('x', -sidebarWidth / 2 - bgMargin)
+        //     .attr('y', d => d.y)
+        //     .attr('width', sidebarWidth + bgMargin * 2)
+        //     .attr('height', d => d.height)
+        //     .attr('fill', d => {
+        //         const stageName = LABEL_MAP[d.stage];
+        //         const group = STAGE_GROUP_MAP[stageName];
+        //         return STAGE_GROUP_COLOR[group] || '#eee';
+        //     })
+        //     .attr('opacity', 0.18);
+        // === END group 背景色 ===
+
+        // === 渲染 transition（flow-link） ===
         transitions.forEach((count, key) => {
             const [from, to] = key.split("->");
             const fromPos = stageMap.get(from);
@@ -451,64 +513,19 @@ export class LeftSidebar extends Widget {
                     console.log('flow clicked', from, to);
                 });
         });
+        // === END transition ===
 
-        // 拖拽行为
-        let isDragging = false;
-        let dragStartY = 0;
-        const drag = d3.drag<SVGRectElement, StageDatum>()
-            .on('start', function (event, d) {
-                dragStartY = event.y;
-                isDragging = false;
-                d3.select(this).raise().attr('stroke', '#333').attr('stroke-width', 3);
-            })
-            .on('drag', (event, d) => {
-                if (Math.abs(event.y - dragStartY) > 3) {
-                    isDragging = true;
-                }
-                d3.select(event.sourceEvent.target)
-                    .attr('y', event.y - d.size! / 2);
-            })
-            .on('end', (event, d) => {
-                if (isDragging) {
-                    // 拖动才重排
-                    let closest = this.stageData[0];
-                    let minDist = Math.abs(event.y - (closest.y ?? 0));
-                    for (const s of this.stageData) {
-                        const dist = Math.abs(event.y - (s.y ?? 0));
-                        if (dist < minDist) {
-                            minDist = dist;
-                            closest = s;
-                        }
-                    }
-                    const oldIdx = this.stageData.findIndex(s => s.stage === d.stage);
-                    const newIdx = this.stageData.findIndex(s => s.stage === closest.stage);
-                    if (oldIdx !== newIdx) {
-                        const arr = [...this.stageData];
-                        arr.splice(oldIdx, 1);
-                        arr.splice(newIdx, 0, d);
-                        this.stageData = arr;
-                        this.render();
-                    } else {
-                        this.render();
-                    }
-                } else {
-                    this.selection = { type: 'stage', stage: d.stage };
-                    console.log('set selection', d.stage);
-                }
-                // 关键：短暂延迟后重置 isDragging，保证 pointerup 能正确识别
-                setTimeout(() => { isDragging = false; }, 0);
-            });
-
-        g.selectAll("rect")
+        // === 渲染 block rect（无透明度） ===
+        g.selectAll('stage-rect')
             .data(visibleStages)
             .enter()
-            .append("rect")
-            .attr("x", (d) => stageMap.get(d.stage)!.x - sizeScale(d.count) / 2)
-            .attr("y", (d) => stageMap.get(d.stage)!.y - sizeScale(d.count) / 2)
-            .attr("width", (d) => sizeScale(d.count))
-            .attr("height", (d) => sizeScale(d.count))
-            .attr("fill", (d) => colorMap.get(d.stage) || '#ccc')
-            .attr("class", (d) => `stage-rect stage-${d.stage}` + (this.selection && this.selection.type === 'stage' && this.selection.stage === d.stage ? ' selected' : ''))
+            .append('rect')
+            .attr('x', (d) => stageMap.get(d.stage)!.x - sizeScale(d.count) / 2)
+            .attr('y', (d) => stageMap.get(d.stage)!.y - sizeScale(d.count) / 2)
+            .attr('width', (d) => sizeScale(d.count))
+            .attr('height', (d) => sizeScale(d.count))
+            .attr('fill', (d) => colorMap.get(d.stage) || '#ccc')
+            .attr('class', (d) => `stage-rect stage-${d.stage}` + (this.selection && this.selection.type === 'stage' && this.selection.stage === d.stage ? ' selected' : ''))
             .on("mouseover", (event, d) => {
                 const stage = d.stage;
                 d3.selectAll(".flow-link").attr("opacity", 0.05);
@@ -539,7 +556,6 @@ export class LeftSidebar extends Widget {
                 tooltip!.style.display = 'none';
             })
             .on("pointerup", (event, d) => {
-
                 if (isDragging) return;
                 this.selection = { type: 'stage', stage: d.stage };
                 this.render();
@@ -547,6 +563,17 @@ export class LeftSidebar extends Widget {
                 window.dispatchEvent(new CustomEvent('galaxy-stage-selected', { detail: { stage: d.stage } }));
             })
             .call(drag);
+        // === END block rect ===
+
+        // 统一收集所有实际渲染的 flow，并计算线宽比例尺
+        const renderedFlows: { from: string, to: string, count: number }[] = [];
+        transitions.forEach((count, key) => {
+            const [from, to] = key.split("->");
+            if (from === 'None' || to === 'None' || from === to) return;
+            if (!stageMap.has(from) || !stageMap.has(to)) return; // 只渲染可见的
+            renderedFlows.push({ from, to, count });
+        });
+        const renderedFlowCounts = renderedFlows.map(f => f.count);
 
         // --- legend 渲染到底部 div ---
         this.legendDiv.innerHTML = '';
@@ -576,7 +603,7 @@ export class LeftSidebar extends Widget {
                 const item = document.createElement('div');
                 item.style.display = 'flex';
                 item.style.alignItems = 'center';
-                item.style.marginBottom = '4px';
+                item.style.marginBottom = '6px';
                 item.style.cursor = 'pointer';
                 // 判断是否隐藏
                 const isHidden = this.hiddenStages.has(d.stage);
@@ -615,16 +642,7 @@ export class LeftSidebar extends Widget {
         this.legendDiv.appendChild(legendFlex);
         this.legendDiv.style.border = '';
 
-        // 初始化时也派发一次隐藏列表
-        if (!this._hasDispatchedHiddenStages) {
-            window.dispatchEvent(new CustomEvent('galaxy-hidden-stages-changed', {
-                detail: { hiddenStages: Array.from(this.hiddenStages) }
-            }));
-            this._hasDispatchedHiddenStages = true;
-        }
-
-        // 添加flow宽度scale说明和legend（SVG）
-        // legend 采样直接用 renderedFlowCounts（和 flowchart 渲染用的是同一个数组）
+        // === legend SVG 渲染（width legend 和 size legend）放到所有背景之后 ===
         if (renderedFlowCounts.length > 0) {
             const min = Math.min(...renderedFlowCounts);
             const max = Math.max(...renderedFlowCounts);
@@ -633,9 +651,10 @@ export class LeftSidebar extends Widget {
             const uniqSamples = Array.from(new Set(samples));
             const svgW = 220;
             const barY = 40;
-
-            // 计算底部 legend 的起始 y 位置（加上一些 padding）
-            const bottomY = Math.max(...visibleStages.map(d => d.y! + d.size!)) + 40;
+            // legend始终画在SVG底部区域，且不与背景重叠
+            const minLegendY = svgHeight - legendAreaHeight + 40;
+            // const maxBgY = Math.max(...bgRects.map(r => r.y + r.height)) + 60;
+            const bottomY = minLegendY;
 
             // 统一声明legend相关变量
             const stageCounts = this.stageData.map(d => d.count);
@@ -664,7 +683,6 @@ export class LeftSidebar extends Widget {
                 const x = 28 + i * ((svgW - 56) / (uniqSamples.length - 1));
                 const w = strokeScale(count);
                 const lineY = barY + 5;
-                // const minHeight = 60; // 不再需要
 
                 // 绘制方形来展示线宽
                 legendG.append("rect")
@@ -691,11 +709,9 @@ export class LeftSidebar extends Widget {
 
             // 先计算所有labelX和最大矩形半径
             const labelXs: number[] = [];
-            // let maxR;
             sizeSamples.sort((a, b) => b - a).forEach((count, i) => {
                 const size = sizeScale(count);
                 const r = size / 2;
-                // if (i === 0) maxR = r; // 最大矩形半径
                 const extendLength = 40 + ((sizeSamples.length - 1 - i) * 30);
                 const labelX = cx + r + extendLength;
                 labelXs.push(labelX);
@@ -777,6 +793,7 @@ export class LeftSidebar extends Widget {
                     .text(count.toLocaleString());
             });
         }
+        // === END legend SVG 渲染 ===
 
         // 保证 colorMap 有所有 stage 的颜色
         const palette = d3.schemeSet3;
@@ -869,11 +886,37 @@ export class LeftSidebar extends Widget {
     }
 
     // 新增：标记是否已初始化派发
-    private _hasDispatchedHiddenStages: boolean = false;
+    // private _hasDispatchedHiddenStages: boolean = false;
 
     // 新增：根据筛选结果更新数据并重渲染
-    setData(data: Notebook[]) {
+    setData(data: Notebook[], colorMap: Map<string, string>) {
         this.data = data;
+        this.colorMap = colorMap;
+        this.selection = null;
+        // 重新初始化 stageData 和 initialStageOrder
+        const stageStats = new Map<string, { positions: number[]; firstPositions: number[]; count: number }>();
+        this.data.forEach((nb) => {
+            const cells = [...nb.cells]
+                .sort((a, b) => a.cellId - b.cellId)
+                .filter((d) => d.cellType === 'code');
+            const stageSeq: string[] = [];
+            cells.forEach((cell) => {
+                const stage = String(cell["1st-level label"] ?? "None");
+                if (!stageStats.has(stage)) {
+                    stageStats.set(stage, {
+                        positions: [],
+                        firstPositions: [],
+                        count: 0
+                    });
+                }
+                stageStats.get(stage)!.count++;
+                if (stageSeq.length === 0 || stageSeq[stageSeq.length - 1] !== stage) {
+                    stageSeq.push(stage);
+                }
+            });
+        });
+        this.stageData = Array.from(stageStats.keys()).map(stage => ({ stage: String(stage), avg_pos: 0, avg_first: 0, count: 0 }));
+        this.initialStageOrder = this.stageData.map(d => d.stage);
         this.render();
     }
 }

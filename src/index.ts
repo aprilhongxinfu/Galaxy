@@ -36,6 +36,13 @@ function activate(
 
   const command = 'galaxy:analyze';
 
+  let flowChartWidget: LeftSidebar | null = null;
+  let detailSidebar: DetailSidebar | null = null;
+  let matrixWidget: MatrixWidget | null = null;
+  let result1: any = null;
+  let similarityGroups: any[] = [];
+  const notebookCache = new Map<string, any>();
+
   app.commands.addCommand(command, {
     label: 'Analyze Selected Notebooks',
     execute: async () => {
@@ -63,8 +70,6 @@ function activate(
         }
 
         // 判断是否只选中了一个 .json 文件
-        let result1: any = null;
-        let similarityGroups: any[] = [];
         if (
           selectedItems.length === 1 &&
           selectedItems[0].type === 'file' &&
@@ -96,6 +101,7 @@ function activate(
           const model = await contentsManager.get(selectedItems[0].path, { type: 'file', format: 'text', content: true });
           result1 = JSON.parse(model.content as string);
           console.log('Loaded JSON:', result1);
+          similarityGroups = [];
         } else {
           // 原有的后端 fetch 逻辑
           const selectedPaths = selectedItems
@@ -122,6 +128,7 @@ function activate(
           if (!res1.ok) throw new Error(`❌ ${res1.statusText}`);
           result1 = await res1.json();
           console.log(result1);
+          similarityGroups = [];
         }
 
         // 统一颜色映射
@@ -133,7 +140,7 @@ function activate(
           });
         });
         initColorMap(allStages);
-        const flowChartWidget = new LeftSidebar(result1, colorMap);
+        flowChartWidget = new LeftSidebar(result1, colorMap);
         app.shell.add(flowChartWidget, 'left');
         if (typeof (app.shell as any).expandLeftArea === 'function') {
           (app.shell as any).expandLeftArea();
@@ -141,17 +148,18 @@ function activate(
         app.shell.activateById(flowChartWidget.id);
         console.log('LeftSidebar added, expanded, and activated');
         // 保存原始 sidebar 和数据，便于 notebook 详情切换回来
-        let originalLeftSidebar = flowChartWidget;
+        // let originalLeftSidebar = flowChartWidget;
 
         // 添加 MatrixWidget 到主区域
         const colorScale = (label: string) => colorMap.get(label) || '#ccc';
-        const matrixWidget = new MatrixWidget(result1, colorScale, similarityGroups);
+        matrixWidget = new MatrixWidget(result1, colorScale, similarityGroups);
         app.shell.add(matrixWidget, 'main');
         matrixWidget.disposed.connect(() => {
           closeSidebarsIfNoMainWidgets(app);
         });
         const notebookOrder = matrixWidget.getNotebookOrder();
-        const detailSidebar = new DetailSidebar(colorMap, notebookOrder);
+        const detailSidebarInstance = new DetailSidebar(colorMap, notebookOrder);
+        detailSidebar = detailSidebarInstance;
         const { mostFreqStage, mostFreqFlow } = flowChartWidget.getMostFrequentStageAndFlow();
         detailSidebar.setSummary(result1, mostFreqStage, mostFreqFlow, matrixWidget.getNotebookOrder());
         app.shell.add(detailSidebar, 'right');
@@ -162,37 +170,34 @@ function activate(
         console.log('DetailSidebar added, expanded, and activated');
         // 监听 notebook 排序变化，实时同步 sidebar
         window.addEventListener('galaxy-notebook-order-changed', (e: any) => {
-          detailSidebar.setSummary(result1, mostFreqStage, mostFreqFlow, matrixWidget.getNotebookOrder());
+          detailSidebar?.setSummary(result1, mostFreqStage, mostFreqFlow, matrixWidget?.getNotebookOrder?.());
         });
 
         // 统一管理 flowchart/matrix/detail 的筛选联动
         let currentSelection: any = null;
         window.addEventListener('galaxy-stage-selected', (e: any) => {
           currentSelection = { type: 'stage', stage: e.detail.stage };
-          matrixWidget.setFilter(currentSelection);
-          detailSidebar.setFilter(currentSelection);
+          matrixWidget?.setFilter(currentSelection);
+          detailSidebar?.setFilter(currentSelection);
         });
         window.addEventListener('galaxy-flow-selected', (e: any) => {
           currentSelection = { type: 'flow', from: e.detail.from, to: e.detail.to };
-          matrixWidget.setFilter(currentSelection);
-          detailSidebar.setFilter(currentSelection);
+          matrixWidget?.setFilter(currentSelection);
+          detailSidebar?.setFilter(currentSelection);
         });
         window.addEventListener('galaxy-selection-cleared', () => {
           currentSelection = null;
-          matrixWidget.setFilter(null);
-          detailSidebar.setFilter(null);
+          matrixWidget?.setFilter(null);
+          detailSidebar?.setFilter(null);
         });
 
         // 监听 notebook 详情切换
         window.addEventListener('galaxy-notebook-selected', (e: any) => {
-          // 关闭所有已存在的 notebook 详情 widget
-          const mainWidgets = app.shell.widgets('main');
-          for (const w of mainWidgets) {
-            if (w.id === 'notebook-detail-widget') w.close();
+          // 新建并显示 notebook 详情，深拷贝 notebook 数据
+          const nb = JSON.parse(JSON.stringify(e.detail.notebook));
+          if (nb && nb.kernelVersionId) {
+            notebookCache.set(String(nb.kernelVersionId), nb);
           }
-
-          // 新建并显示 notebook 详情
-          const nb = e.detail.notebook;
           const nbDetailWidget = new NotebookDetailWidget(nb);
           app.shell.add(nbDetailWidget, 'main');
           app.shell.activateById(nbDetailWidget.id);
@@ -213,14 +218,9 @@ function activate(
           }, 0);
 
           // 右侧 sidebar 只显示该 notebook 信息
-          detailSidebar.setNotebookDetail(nb);
+          detailSidebar?.setNotebookDetail(nb);
 
-          // 再关闭 matrix widget
-          const oldMain = app.shell.widgets('main');
-          for (const w of oldMain) {
-            if (w.id === 'matrix-widget') w.close();
-          }
-          // 再关闭左侧 flow-chart-widget（如果有旧的）
+          // 只关闭左侧 flow-chart-widget（overview），不关闭 matrix-widget
           const oldLeft = app.shell.widgets('left');
           for (const w of oldLeft) {
             if (w.id === 'flow-chart-widget' && w !== singleLeftSidebar) w.close();
@@ -248,13 +248,11 @@ function activate(
               if (w.id === 'flow-chart-widget') w.close();
             }
             // 恢复原始 LeftSidebar
-            app.shell.add(originalLeftSidebar, 'left');
-            app.shell.activateById(originalLeftSidebar.id);
-            // 重新显示 matrix widget
-            app.shell.add(matrixWidget, 'main');
-            app.shell.activateById(matrixWidget.id);
+            app.shell.add(flowChartWidget!, 'left');
+            app.shell.activateById(flowChartWidget!.id);
+            // matrix-widget 保持不变
             // 恢复 summary 视图
-            detailSidebar.setSummary(result1, mostFreqStage, mostFreqFlow, matrixWidget.getNotebookOrder());
+            detailSidebar?.setSummary(result1, mostFreqStage, mostFreqFlow, matrixWidget?.getNotebookOrder?.());
             window.removeEventListener('galaxy-notebook-detail-back', handleBack);
           };
           window.addEventListener('galaxy-notebook-detail-back', handleBack);
@@ -292,6 +290,94 @@ function activate(
     app.shell.layoutModified.connect(() => {
       closeSidebarsIfNoMainWidgets(app);
     });
+
+    // 新增：tab切换时左侧flowchart同步切换（监听activeChanged和currentChanged）
+    function handleTabSwitch(widget: any) {
+      if (!widget) {
+        console.warn('[tab switch] widget is null');
+        return;
+      }
+      const tabId = widget.id || '';
+      console.log('[tab switch] widget.id:', tabId, widget);
+      if (tabId.startsWith('notebook-detail-widget-') && widget.notebook) {
+        // notebook detail tab
+        const nb = widget.notebook;
+        // 保证左侧只保留 flowChartWidget
+        const leftWidgets = Array.from(app.shell.widgets('left'));
+        for (const w of leftWidgets) {
+          if (w !== flowChartWidget && w.id === 'flow-chart-widget') w.close();
+        }
+        flowChartWidget?.setData([nb], colorMap);
+        if (flowChartWidget) {
+          app.shell.add(flowChartWidget, 'left');
+          app.shell.activateById(flowChartWidget.id);
+        }
+        detailSidebar?.setNotebookDetail(nb);
+        if (detailSidebar) {
+          app.shell.add(detailSidebar, 'right');
+          app.shell.activateById(detailSidebar.id);
+        }
+        console.log('[tab switch] notebook detail:', nb);
+        return;
+      }
+      if (tabId.includes('matrix-widget')) {
+        // overview tab
+        // 保证左侧只保留 flowChartWidget
+        const leftWidgets = Array.from(app.shell.widgets('left'));
+        for (const w of leftWidgets) {
+          if (w !== flowChartWidget && w.id === 'flow-chart-widget') w.close();
+        }
+        flowChartWidget?.setData(result1, colorMap);
+        if (flowChartWidget) {
+          app.shell.add(flowChartWidget, 'left');
+          app.shell.activateById(flowChartWidget.id);
+        }
+        if (flowChartWidget && matrixWidget && result1 && detailSidebar) {
+          const { mostFreqStage, mostFreqFlow } = flowChartWidget.getMostFrequentStageAndFlow();
+          detailSidebar.setSummary(result1, mostFreqStage, mostFreqFlow, matrixWidget?.getNotebookOrder?.());
+          app.shell.add(detailSidebar, 'right');
+          app.shell.activateById(detailSidebar.id);
+        }
+        console.log('[tab switch] matrix overview');
+        return;
+      }
+      // 其它 tab 不更新 sidebar
+      console.log('[tab switch] no flowchart action for tab:', tabId);
+    }
+
+    app.shell.currentChanged.connect(() => {
+      setTimeout(() => handleTabSwitch(app.shell.currentWidget), 0);
+    });
+    app.shell.activeChanged.connect(() => {
+      setTimeout(() => handleTabSwitch(app.shell.currentWidget), 0);
+    });
+    // 只保留事件委托监听 .lm-TabBar-content 的 click 事件，tab 切换时同步 flowchart（无轮询，支持动态tab）
+    setTimeout(() => {
+      document.querySelectorAll('.lm-TabBar-content').forEach(tabBar => {
+        tabBar.addEventListener('click', (e) => {
+          let target = e.target as HTMLElement;
+          // 向上查找 .lm-TabBar-tab
+          while (target && !target.classList.contains('lm-TabBar-tab') && target !== tabBar) {
+            target = target.parentElement as HTMLElement;
+          }
+          if (target && target.classList.contains('lm-TabBar-tab')) {
+            const dataId = target.getAttribute('data-id');
+            console.log('[tab click-delegate] data-id:', dataId);
+            // 通过 data-id 找到 widget
+            const allWidgets = [
+              ...Array.from(app.shell.widgets('main')),
+              ...Array.from(app.shell.widgets('left')),
+              ...Array.from(app.shell.widgets('right'))
+            ];
+            const widget = allWidgets.find(w => w.id === dataId);
+            if (widget) {
+              handleTabSwitch(widget);
+            }
+          }
+        });
+      });
+      console.log('[tab switch] listening to .lm-TabBar-content click (event delegation)');
+    }, 1000);
   }
 }
 
