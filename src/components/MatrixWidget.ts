@@ -403,12 +403,12 @@ export class MatrixWidget extends Widget {
                             `<br>Notebook: ${(d as any).notebook_name ?? (d as any).kernelVersionId}` +
                             `<br>cellId: ${d.cellId}` +
                             `<br>cellType: ${d.cellType}`;
-                        // 新增：如果有 similarityGroups，显示 cluster_id, similarity, label_integers
+                        // 新增：如果有 similarityGroups，显示 group_id, similarity, label_integers
                         if (self.similarityGroups && self.similarityGroups.length > 0) {
                             const kernelId = (d as any).kernelVersionId?.toString();
                             const simRow = self.similarityGroups.find((row: any) => row.kernelVersionId === kernelId);
                             if (simRow) {
-                                tooltip.innerHTML += `<br>cluster_id: ${simRow.cluster_id}`;
+                                tooltip.innerHTML += `<br>group_id: ${simRow.group_id}`;
                                 tooltip.innerHTML += `<br>similarity: ${simRow.similarity}`;
                                 tooltip.innerHTML += `<br>label_integers: ${simRow.label_integers}`;
                             }
