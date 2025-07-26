@@ -42,12 +42,26 @@ import { CodeEditor } from '@jupyterlab/codeeditor';
 //   return html;
 // }
 
+// 动态插入 JupyterLab CodeMirror 样式（只插入一次）
+function ensureJupyterlabCodeMirrorStyle() {
+  const styleId = 'jupyterlab-codemirror-style';
+  if (!document.getElementById(styleId)) {
+    const link = document.createElement('link');
+    link.id = styleId;
+    link.rel = 'stylesheet';
+    // 如有本地静态资源可替换为本地路径
+    link.href = 'https://unpkg.com/@jupyterlab/codemirror/style/index.css';
+    document.head.appendChild(link);
+  }
+}
+
 export class NotebookDetailWidget extends Widget {
   private notebook: any;
   private selectedCellIdx: number | null = null;
   private stageHoverHandler: (event: Event) => void;
   private transitionHoverHandler: (event: Event) => void;
   private clearCellSelectionHandler: () => void;
+  private notebookSelectedHandler: (event: Event) => void;
   private rendermime: RenderMimeRegistry;
   private codeMirrorFactory: CodeMirrorEditorFactory;
 
@@ -101,14 +115,15 @@ export class NotebookDetailWidget extends Widget {
       }
     });
     // 监听 notebook 切换时的 cell 跳转请求
-    window.addEventListener('galaxy-notebook-selected', (e: Event) => {
+    this.notebookSelectedHandler = (e: Event) => {
       const detail = (e as CustomEvent).detail;
       if (detail && detail.jumpCellIndex !== undefined && this.notebook.index === detail.notebook.index) {
         window.dispatchEvent(new CustomEvent('galaxy-notebook-detail-jump', {
           detail: { notebookIndex: detail.notebook.index, cellIndex: detail.jumpCellIndex }
         }));
       }
-    });
+    };
+    window.addEventListener('galaxy-notebook-selected', this.notebookSelectedHandler);
   }
 
   onAfterAttach(): void {
@@ -123,6 +138,7 @@ export class NotebookDetailWidget extends Widget {
     window.removeEventListener('galaxy-stage-hover', this.stageHoverHandler);
     window.removeEventListener('galaxy-transition-hover', this.transitionHoverHandler);
     window.removeEventListener('galaxy-clear-cell-selection', this.clearCellSelectionHandler);
+    window.removeEventListener('galaxy-notebook-selected', this.notebookSelectedHandler);
   }
 
   private handleStageHover(event: Event): void {
@@ -359,7 +375,7 @@ export class NotebookDetailWidget extends Widget {
       cellList.innerHTML = '';
       (nb.cells ?? []).forEach((cell: any, i: number) => {
         const stage = String(cell["1st-level label"] ?? 'None');
-        const stageColor = colorMap.get(stage) || '#ccc';
+        const stageColor = colorMap.get(stage) || '#fff';
         const content = cell.source ?? cell.code ?? '';
         const isSelected = this.selectedCellIdx === i;
         // cell外层div
@@ -400,6 +416,7 @@ export class NotebookDetailWidget extends Widget {
         // cell内容区
         const cellDiv = document.createElement('div');
         cellDiv.className = 'nbd-cell';
+        cellDiv.setAttribute('contenteditable', 'false'); // 禁止编辑
         cellDiv.style.flex = '1 1 0';
         cellDiv.style.minWidth = '0';
         cellDiv.style.display = 'flex';
@@ -429,12 +446,14 @@ export class NotebookDetailWidget extends Widget {
           mdWidget.renderModel(model);
           contentDiv.appendChild(mdWidget.node);
         } else if (cell.cellType === 'code') {
+          ensureJupyterlabCodeMirrorStyle();
           const host = document.createElement('div');
           const model = new CodeEditor.Model();
           model.sharedModel.setSource(content);
           model.mimeType = 'text/x-python';
           const editor = this.codeMirrorFactory.newInlineEditor({ host, model });
           editor.setOption('readOnly', true);
+          host.style.pointerEvents = 'none'; // 禁止所有交互
           contentDiv.appendChild(host);
         } else {
           // 其它类型直接显示
