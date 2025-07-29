@@ -24,10 +24,10 @@ export class MatrixWidget extends Widget {
     private notebookOrder: number[] = [];
     private sortButton: HTMLButtonElement;
     private similaritySortButton: HTMLButtonElement;
-    private cellHeightButton: HTMLButtonElement; // 新增：cell高度模式按钮
+    private cellHeightButton: HTMLButtonElement; // cell高度模式按钮
     private filter: any = null;
     private similarityGroups: any[];
-    private cellHeightMode: 'fixed' | 'dynamic' = 'fixed'; // 新增：cell高度模式
+    private cellHeightMode: 'fixed' | 'dynamic' = 'fixed'; // cell高度模式
 
     constructor(data: Notebook[], colorScale: (label: string) => string, similarityGroups?: any[]) {
         super();
@@ -279,10 +279,19 @@ export class MatrixWidget extends Widget {
     }
 
     onAfterAttach(): void {
-        // 恢复之前的筛选状态
-        this.restoreFilterState();
-        this.updateNotebookOrder();
-        this.drawMatrix();
+        // 延迟恢复状态，确保tab切换完成
+        setTimeout(() => {
+            // 恢复状态
+            this.restoreFilterState();
+            this.updateNotebookOrder();
+            
+            // 绘制矩阵（restoreFilterState 中可能已经调用了 drawMatrix，所以这里检查一下）
+            const existingContainer = this.node.querySelector('.matrix-container');
+            if (!existingContainer) {
+                this.drawMatrix();
+            }
+        }, 50); // 添加小延迟，确保tab切换完成
+        
         window.addEventListener('galaxy-stage-hover', this.handleStageHover);
         window.addEventListener('galaxy-transition-hover', this.handleTransitionHover);
         window.addEventListener('galaxy-stage-selected', this.handleStageSelected);
@@ -334,7 +343,6 @@ export class MatrixWidget extends Widget {
 
     private handleStageHover = (event: Event) => {
         const stage = (event as CustomEvent).detail.stage;
-        console.log(stage);
         
         // 检查是否有选中的stage
         const hasStageSelection = (window as any)._galaxyStageSelection;
@@ -512,6 +520,12 @@ export class MatrixWidget extends Widget {
         container.style.overflow = 'auto';
         container.style.height = 'auto';
         container.style.padding = '8px 8px 4px 8px';
+
+        // 添加滚动事件监听器来保存滚动位置
+        container.addEventListener('scroll', () => {
+            this.saveFilterState();
+        });
+        
         this.node.appendChild(container);
 
         const svg = d3
@@ -583,7 +597,7 @@ export class MatrixWidget extends Widget {
                             `<br>cellId: ${d.cellId}` +
                             `<br>cellType: ${d.cellType}` +
                             `<br>Lines: ${lineCount}`;
-                        // 新增：如果有 similarityGroups，显示 group_id, similarity, label_integers
+                        // 如果有 similarityGroups，显示 group_id, similarity, label_integers
                         if (self.similarityGroups && self.similarityGroups.length > 0) {
                             const kernelId = (d as any).kernelVersionId?.toString();
                             const simRow = self.similarityGroups.find((row: any) => row.kernelVersionId === kernelId);
@@ -659,6 +673,61 @@ export class MatrixWidget extends Widget {
                     window.dispatchEvent(new CustomEvent('galaxy-notebook-selected', { detail: { notebook: { ...nb, index: nb?.globalIndex ?? 0 } } }));
                 });
         }
+
+        // 在矩阵绘制完成后恢复滚动位置
+        setTimeout(() => {
+            this.restoreScrollPosition();
+        }, 200); // 增加延迟时间，确保容器完全渲染
+    }
+
+    // 恢复滚动位置
+    private restoreScrollPosition(): void {
+        const tabId = this.getTabId();
+        const stateKey = `_galaxyMatrixFilterState_${tabId}`;
+        const savedState = (window as any)[stateKey];
+        
+        if (savedState && (savedState.scrollLeft !== undefined || savedState.scrollTop !== undefined)) {
+            const matrixContainer = this.node.querySelector('.matrix-container') as HTMLElement;
+            if (matrixContainer) {
+                // 使用更可靠的方式来检测容器是否准备好
+                const isContainerReady = () => {
+                    const svg = matrixContainer.querySelector('svg');
+                    const hasContent = svg && svg.children.length > 0;
+                    const hasScrollableContent = matrixContainer.scrollWidth > matrixContainer.clientWidth || 
+                                               matrixContainer.scrollHeight > matrixContainer.clientHeight;
+                    return hasContent && hasScrollableContent;
+                };
+                
+                const restoreScroll = () => {
+                    if (isContainerReady()) {
+                        matrixContainer.scrollLeft = savedState.scrollLeft || 0;
+                        matrixContainer.scrollTop = savedState.scrollTop || 0;
+                        return true; // 成功恢复
+                    } else {
+                        return false; // 需要重试
+                    }
+                };
+                
+                // 使用递归重试机制，最多重试10次，每次间隔递增
+                let retryCount = 0;
+                const maxRetries = 10;
+                
+                const attemptRestore = () => {
+                    if (retryCount >= maxRetries) {
+                        return;
+                    }
+                    
+                    if (!restoreScroll()) {
+                        retryCount++;
+                        const delay = Math.min(100 * retryCount, 1000); // 递增延迟，最大1秒
+                        setTimeout(attemptRestore, delay);
+                    }
+                };
+                
+                // 开始尝试恢复
+                requestAnimationFrame(attemptRestore);
+            }
+        }
     }
 
     getNotebookOrder(): number[] {
@@ -670,7 +739,7 @@ export class MatrixWidget extends Widget {
         this.drawMatrix();
     }
 
-    // 新增：获取当前筛选后的notebook列表
+    // 获取当前筛选后的notebook列表
     private getFilteredNotebooks(): any[] {
         const assignmentFilter = (this as any)._assignmentFilter || '';
         const studentFilter = (this as any)._studentFilter || '';
@@ -681,7 +750,7 @@ export class MatrixWidget extends Widget {
         });
     }
 
-    // 新增：根据当前排序状态更新按钮样式和可用性
+    // 根据当前排序状态更新按钮样式和可用性
     private updateSortButtonState() {
         if (this.sortState === 3) {
             this.sortButton.style.opacity = '0.4';
@@ -694,27 +763,42 @@ export class MatrixWidget extends Widget {
         }
     }
 
-    // 新增：获取当前tab ID
+    // 获取当前tab ID
     private getTabId(): string {
         // MatrixWidget总是显示overview，所以使用overview标识
         return 'overview';
     }
 
-    // 新增：保存筛选状态到全局变量（按tab隔离）
+    // 保存筛选状态到全局变量（按tab隔离）
     private saveFilterState() {
         const tabId = this.getTabId();
         const stateKey = `_galaxyMatrixFilterState_${tabId}`;
+        
+        // 获取之前保存的状态
+        const previousState = (window as any)[stateKey];
+        
+        // 保存当前滚动位置
+        const matrixContainer = this.node.querySelector('.matrix-container') as HTMLElement;
+        const scrollLeft = matrixContainer ? matrixContainer.scrollLeft : 0;
+        const scrollTop = matrixContainer ? matrixContainer.scrollTop : 0;
+        
+        // 如果当前滚动位置为0，但之前有有效的滚动位置，则保留之前的滚动位置
+        const finalScrollLeft = (scrollLeft === 0 && previousState && previousState.scrollLeft > 0) ? previousState.scrollLeft : scrollLeft;
+        const finalScrollTop = (scrollTop === 0 && previousState && previousState.scrollTop > 0) ? previousState.scrollTop : scrollTop;
+        
         (window as any)[stateKey] = {
             filter: this.filter,
             sortState: this.sortState,
             notebookOrder: this.notebookOrder,
             assignmentFilter: (this as any)._assignmentFilter,
             studentFilter: (this as any)._studentFilter,
-            cellHeightMode: this.cellHeightMode
+            cellHeightMode: this.cellHeightMode,
+            scrollLeft: finalScrollLeft,
+            scrollTop: finalScrollTop
         };
     }
 
-    // 新增：隐藏所有tooltip
+    // 隐藏所有tooltip
     private hideAllTooltips() {
         // 隐藏galaxy-tooltip
         const galaxyTooltip = document.getElementById('galaxy-tooltip');
@@ -728,7 +812,7 @@ export class MatrixWidget extends Widget {
         }
     }
 
-    // 新增：从全局变量恢复筛选状态（按tab隔离）
+    // 从全局变量恢复筛选状态（按tab隔离）
     private restoreFilterState() {
         // 切换tab时隐藏所有tooltip
         this.hideAllTooltips();
@@ -756,6 +840,21 @@ export class MatrixWidget extends Widget {
             const studentSelect = this.node.querySelectorAll('select')[1] as HTMLSelectElement;
             if (assignmentSelect) assignmentSelect.value = (this as any)._assignmentFilter;
             if (studentSelect) studentSelect.value = (this as any)._studentFilter;
+            
+            // 只有在没有现有容器时才重新绘制矩阵
+            const existingContainer = this.node.querySelector('.matrix-container');
+            if (!existingContainer) {
+                this.drawMatrix();
+                // 在 drawMatrix 后延迟恢复滚动位置，给容器更多时间渲染
+                setTimeout(() => {
+                    this.restoreScrollPosition();
+                }, 200); // 增加延迟时间
+            } else {
+                // 如果容器已存在，也需要延迟恢复滚动位置，确保tab切换完成
+                setTimeout(() => {
+                    this.restoreScrollPosition();
+                }, 200); // 增加延迟时间
+            }
         } else {
             // 如果没有保存的状态，使用默认状态
             this.filter = null;
@@ -777,8 +876,12 @@ export class MatrixWidget extends Widget {
             if (assignmentSelect) assignmentSelect.value = '';
             if (studentSelect) studentSelect.value = '';
             
-            // 重新绘制矩阵
-            this.drawMatrix();
+            // 只有在没有现有容器时才重新绘制矩阵
+            const existingContainer = this.node.querySelector('.matrix-container');
+            if (!existingContainer) {
+                this.drawMatrix();
+            }
         }
     }
+
 }

@@ -1,8 +1,6 @@
 import { Widget } from '@lumino/widgets';
 import * as d3 from 'd3';
 import { LABEL_MAP } from './labelMap';
-// import { STAGE_GROUP_MAP } from './stage_hierarchy';
-// import { STAGE_GROUP_COLOR } from './STAGE_GROUP_COLOR';
 
 type Cell = {
     cellId: number;
@@ -37,7 +35,7 @@ export class LeftSidebar extends Widget {
     private initialStageOrder: string[] = [];
     private _resizeObserver: ResizeObserver | null = null;
     private _resizeInterval: any = null;
-    private hiddenStages: Set<string> = new Set(); // 新增：隐藏的 stage
+    private hiddenStages: Set<string> = new Set(); // 隐藏的 stage
 
     constructor(data: Notebook[], colorMap: Map<string, string>) {
         super();
@@ -166,7 +164,7 @@ export class LeftSidebar extends Widget {
                 this.render();
             }
         });
-        // 新增：监听 stage 选中事件（按tab隔离）
+        // 监听 stage 选中事件（按tab隔离）
         window.addEventListener('galaxy-stage-selected', (e: any) => {
             const { stage, tabId } = e.detail;
             const currentTabId = this.getTabId();
@@ -177,7 +175,7 @@ export class LeftSidebar extends Widget {
                 this.render();
             }
         });
-        // 新增：监听 flow 选中事件（按tab隔离）
+        // 监听 flow 选中事件（按tab隔离）
         window.addEventListener('galaxy-flow-selected', (e: any) => {
             const { from, to, tabId } = e.detail;
             const currentTabId = this.getTabId();
@@ -188,13 +186,13 @@ export class LeftSidebar extends Widget {
                 this.render();
             }
         });
-        // 新增：监听 matrix 筛选事件，flow chart 跟随筛选
+        // 监听 matrix 筛选事件，flow chart 跟随筛选
         window.addEventListener('galaxy-matrix-filtered', (e: any) => {
             const filteredData = e.detail?.notebooks ?? [];
             this.setData(filteredData, this.colorMap);
         });
         
-        // 新增：监听 notebook 排序变化事件，保持 selection 状态
+        // 监听 notebook 排序变化事件，保持 selection 状态
         window.addEventListener('galaxy-notebook-order-changed', (e: any) => {
             // 重新渲染以应用视觉效果
             this.render();
@@ -266,11 +264,6 @@ export class LeftSidebar extends Widget {
         this.stageData.forEach(d => {
             d.stage = String(d.stage);
         });
-        // 调试输出
-        // const stageList = this.stageData.map(d => d.stage);
-        // const colorMapKeys = Array.from(this.colorMap.keys());
-        // console.log('LeftSidebar stageData:', stageList);
-        // console.log('LeftSidebar colorMap keys:', colorMapKeys);
         this.stageData.forEach(d => {
             if (!this.colorMap.has(d.stage)) {
                 console.warn('colorMap 缺少 stage:', d.stage);
@@ -279,19 +272,6 @@ export class LeftSidebar extends Widget {
         const stageStats = new Map<string, { positions: number[]; firstPositions: number[]; count: number }>();
         const transitions: Map<string, number> = new Map();
         const stageFreq: Record<string, number> = {};
-
-        const noneCells: Cell[] = [];
-        this.data.forEach(nb => {
-            nb.cells.forEach(cell => {
-                if ((cell["1st-level label"] == null || cell["1st-level label"] === '') && cell['cellType'] === 'code') {
-                    noneCells.push(cell);
-                }
-            });
-        });
-        // console.log('None cells count:', noneCells.length);
-        // if (noneCells.length > 0) {
-        //     console.log('Example None cell:', noneCells[0]);
-        // }
 
         this.data.forEach((nb) => {
             // 只保留 code cell
@@ -321,8 +301,6 @@ export class LeftSidebar extends Widget {
                 if (from !== "None" && to !== "None") {
                     const key = `${from}->${to}`;
                     transitions.set(key, (transitions.get(key) || 0) + 1);
-                    // 调试输出
-                    // console.log(`Found transition: ${key} in notebook ${(nb as any).notebook_name || (nb as any).kernelVersionId || 'unknown'}`);
                 }
             }
         });
@@ -462,46 +440,10 @@ export class LeftSidebar extends Widget {
                     const stageSelectionKey = `_galaxyStageSelection_${tabId}`;
                     (window as any)[stageSelectionKey] = d.stage;
                     (window as any)[flowSelectionKey] = null;
-                    // console.log('set selection', d.stage);
                 }
                 // 关键：短暂延迟后重置 isDragging，保证 pointerup 能正确识别
                 setTimeout(() => { isDragging = false; }, 0);
             });
-
-        // === 新增：渲染 group 背景色 rect（高度延伸到上下 block 的中点） ===
-        // const sidebarWidth = 400; // SVG viewBox 宽度
-        // const bgMargin = 30; // 让背景色左右多出 30px
-        // 计算每个 block 背景的 y 和 height（所有背景高度一致，block居中）
-        // const svgHeight = virtualHeight + chartPadding; // SVG 实际高度
-        // const centers = visibleStages.map(d => stageMap.get(d.stage)!.y);
-        // let standardHeight = 60;
-        // if (visibleStages.length > 1) {
-        //     standardHeight = centers[1] - centers[0];
-        // }
-        // const bgRects = visibleStages.map((d, i) => {
-        //     const currY = centers[i];
-        //     const y = currY - standardHeight / 2;
-        //     return {
-        //         stage: d.stage,
-        //         y: y,
-        //         height: standardHeight
-        //     };
-        // });
-        // g.selectAll('group-bg-rect')
-        //     .data(bgRects)
-        //     .enter()
-        //     .append('rect')
-        //     .attr('x', -sidebarWidth / 2 - bgMargin)
-        //     .attr('y', d => d.y)
-        //     .attr('width', sidebarWidth + bgMargin * 2)
-        //     .attr('height', d => d.height)
-        //     .attr('fill', d => {
-        //         const stageName = LABEL_MAP[d.stage];
-        //         const group = STAGE_GROUP_MAP[stageName];
-        //         return STAGE_GROUP_COLOR[group] || '#eee';
-        //     })
-        //     .attr('opacity', 0.18);
-        // === END group 背景色 ===
 
         // === 渲染 transition（flow-link） ===
         transitions.forEach((count, key) => {
@@ -603,7 +545,6 @@ export class LeftSidebar extends Widget {
                     (window as any)[stageSelectionKey] = null;
                     this.render();
                     window.dispatchEvent(new CustomEvent('galaxy-flow-selected', { detail: { from, to, tabId: this.getTabId() } }));
-                    // console.log('flow clicked', from, to);
                 });
         });
         // === END transition ===
@@ -684,7 +625,6 @@ export class LeftSidebar extends Widget {
                 (window as any)[flowSelectionKey] = null;
                 this.saveFilterState();
                 this.render();
-                // console.log('set selection', d.stage);
                 window.dispatchEvent(new CustomEvent('galaxy-stage-selected', { detail: { stage: d.stage, tabId: this.getTabId() } }));
             })
             .call(drag);
@@ -752,7 +692,7 @@ export class LeftSidebar extends Widget {
                     } else {
                         this.hiddenStages.add(d.stage);
                     }
-                    // 新增：每次变更后派发事件
+                    // 每次变更后派发事件
                     window.dispatchEvent(new CustomEvent('galaxy-hidden-stages-changed', {
                         detail: { hiddenStages: Array.from(this.hiddenStages) }
                     }));
@@ -977,8 +917,6 @@ export class LeftSidebar extends Widget {
         }
 
         // 选中状态下不触发hover事件，避免minimap高亮
-
-        // console.log('breadcrumb selection', this.selection);
     }
 
     getMostFrequentStageAndFlow() {
@@ -1060,10 +998,7 @@ export class LeftSidebar extends Widget {
         return node.parentElement || node;
     }
 
-    // 新增：标记是否已初始化派发
-    // private _hasDispatchedHiddenStages: boolean = false;
-
-    // 新增：根据筛选结果更新数据并重渲染
+    // 根据筛选结果更新数据并重渲染
     setData(data: Notebook[], colorMap: Map<string, string>) {
         this.data = data;
         this.colorMap = colorMap;
@@ -1096,7 +1031,7 @@ export class LeftSidebar extends Widget {
         this.render();
     }
 
-    // 新增：获取当前tab ID
+    // 获取当前tab ID
     private getTabId(): string {
         // 基于当前显示的内容生成唯一标识
         // 如果是notebook detail模式，使用notebook的ID
@@ -1107,7 +1042,7 @@ export class LeftSidebar extends Widget {
         return 'overview';
     }
 
-    // 新增：保存筛选状态到全局变量（按tab隔离）
+    // 保存筛选状态到全局变量（按tab隔离）
     private saveFilterState() {
         const tabId = this.getTabId();
         const stateKey = `_galaxyLeftSidebarFilterState_${tabId}`;
@@ -1136,7 +1071,7 @@ export class LeftSidebar extends Widget {
         };
     }
 
-    // 新增：隐藏所有tooltip
+    // 隐藏所有tooltip
     private hideAllTooltips() {
         // 隐藏galaxy-tooltip
         const galaxyTooltip = document.getElementById('galaxy-tooltip');
@@ -1150,7 +1085,7 @@ export class LeftSidebar extends Widget {
         }
     }
 
-    // 新增：从全局变量恢复筛选状态（按tab隔离）
+    // 从全局变量恢复筛选状态（按tab隔离）
     private restoreFilterState() {
         // 切换tab时隐藏所有tooltip
         this.hideAllTooltips();

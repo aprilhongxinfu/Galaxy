@@ -19,9 +19,9 @@ export class DetailSidebar extends Widget {
   private _mostFreqStage: string | undefined;
   private _mostFreqFlow: string | undefined;
   private _hiddenStages?: Set<string>;
-  private currentNotebook: any = null; // 新增：保存当前 notebook detail
-  private _currentTitle: string = 'Notebook Overview'; // 新增：跟踪当前标题
-  private _currentSelection: any = null; // 新增：跟踪当前选中状态
+  private currentNotebook: any = null; // 保存当前 notebook detail
+  private _currentTitle: string = 'Notebook Overview'; // 跟踪当前标题
+  private _currentSelection: any = null; // 跟踪当前选中状态
   private rendermime: RenderMimeRegistry;
   
   private _getTitleStyle(): string {
@@ -135,14 +135,14 @@ export class DetailSidebar extends Widget {
         }
       }
     });
-    // 新增：监听 matrix 筛选事件，summary 状态下刷新统计
+    // 监听 matrix 筛选事件，summary 状态下刷新统计
     window.addEventListener('galaxy-matrix-filtered', (e: any) => {
       const filteredData = e.detail?.notebooks ?? [];
       if (!this.currentNotebook) {
         this.setSummary(filteredData, this._mostFreqStage, this._mostFreqFlow);
       }
     });
-    // 新增：监听 notebook order 变化事件
+    // 监听 notebook order 变化事件
     window.addEventListener('galaxy-notebook-order-changed', (e: any) => {
       this.notebookOrder = e.detail?.notebookOrder ?? [];
     });
@@ -170,7 +170,7 @@ export class DetailSidebar extends Widget {
   }
 
   setNotebookDetail(nb: any, skipEventDispatch: boolean = false) {
-    this.currentNotebook = nb; // 新增：保存当前 notebook
+    this.currentNotebook = nb; // 保存当前 notebook
     // 在notebook detail视图下，不改变标题颜色
     this._currentSelection = null;
     // 确保 nb 有 index 字段
@@ -252,7 +252,6 @@ export class DetailSidebar extends Widget {
     // 过滤 stage
     const mostFreqStagesFiltered = mostFreqStages.filter(stage => {
       const id = getStageIdByName(stage);
-      console.log('[DetailSidebar] stage:', stage, 'id:', id, 'hiddenStages:', Array.from(hiddenStages));
       return typeof id === 'string' && !hiddenStages.has(String(id));
     });
     // 过滤 flow
@@ -261,7 +260,6 @@ export class DetailSidebar extends Widget {
       from = String(from); to = String(to);
       const fromId = getStageIdByName(from);
       const toId = getStageIdByName(to);
-      console.log('[DetailSidebar] flow:', f, 'from:', from, 'fromId:', fromId, 'to:', to, 'toId:', toId, 'hiddenStages:', Array.from(hiddenStages));
       return (
         typeof fromId === 'string' &&
         typeof toId === 'string' &&
@@ -595,7 +593,7 @@ export class DetailSidebar extends Widget {
 
 
   setCellDetail(cell: any) {
-    this.currentNotebook = cell.notebook; // 新增：保存当前 notebook
+    this.currentNotebook = cell.notebook; // 保存当前 notebook
     // 在cell detail视图下，不改变标题颜色
     this._currentSelection = null;
     this.saveDetailFilterState();
@@ -876,7 +874,7 @@ export class DetailSidebar extends Widget {
     </div>
     <div class="galaxy-tab-content" data-tab-content="second" style="display:none;"></div>`;
     this.node.innerHTML = `<div style="padding:24px 18px 18px 18px; margin:18px 0; width:100%; font-size:15px; color:#222; box-sizing:border-box;">
-      <div style="font-size:17px; font-weight:600; margin-bottom:12px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;" id="detail-sidebar-title">
+      <div style="font-size:17px; font-weight:600; margin-bottom:12px; display:flex; align-items:center; gap:10px; flex-wrap:" id="detail-sidebar-title">
         <span style="${this._getTitleStyle()}">
         <span class="dsb-nb-link" style="color:#3182bd; cursor:pointer; text-decoration:underline;">Notebook${nbIdx ? + nbIdx : ''}</span>
         ${cellIdx ? `<span style='color:#888; font-size:14px;'>/ Cell ${cellIdx}</span>` : ''}
@@ -949,7 +947,7 @@ export class DetailSidebar extends Widget {
       });
       // 默认激活 first stage
       (btns[0] as HTMLElement).click();
-      // 新增：为跳转icon绑定事件
+      // 为跳转icon绑定事件
       function bindJumpIconEvents(cellListDiv: HTMLElement | null) {
         if (!cellListDiv) return;
         const jumpIcons = cellListDiv.querySelectorAll('.nbd-jump-icon');
@@ -1109,14 +1107,12 @@ export class DetailSidebar extends Widget {
         (window as any)._galaxyFlowSelection = { type: 'stage', stage: selection.stage };
         const stageName = LABEL_MAP[selection.stage] || selection.stage;
         this._currentTitle = stageName;
-        console.log('Setting stage title:', stageName);
       } else if (selection.type === 'flow') {
         (window as any)._galaxyFlowSelection = { type: 'flow', from: selection.from, to: selection.to };
         const fromName = LABEL_MAP[selection.from] || selection.from;
         const toName = LABEL_MAP[selection.to] || selection.to;
         const flowName = `${fromName} → ${toName}`;
         this._currentTitle = flowName;
-        console.log('Setting flow title:', flowName);
       }
     } else {
       (window as any)._galaxyFlowSelection = null;
@@ -1889,14 +1885,10 @@ export class DetailSidebar extends Widget {
       addHover('.dsb-flow-expand-btn');
     }, 0);
 
-    // debug: 输出filteredData和全局allData的kernelVersionId和globalIndex
-    // eslint-disable-next-line no-console
-    console.log('filteredData:', filteredData.map(nb => ({ kernelVersionId: nb.kernelVersionId, globalIndex: nb.globalIndex })));
-    // eslint-disable-next-line no-console
-    console.log('allData:', this._allData.map(nb => ({ kernelVersionId: nb.kernelVersionId, globalIndex: nb.globalIndex })));
+
   }
 
-  // 新增：渲染代码行数分布柱状图
+  // 渲染代码行数分布柱状图
   private _renderCodeLineDistChart(cell: any, allNotebooks: any[], stageColor?: string): string {
     // 收集所有同 stage 的 code cell 的代码行数
     const stage = cell["1st-level label"];
@@ -1973,7 +1965,7 @@ export class DetailSidebar extends Widget {
     </svg>`;
   }
 
-  // 新增：获取当前tab ID
+  // 获取当前tab ID
   private getTabId(): string {
     // 基于当前显示的内容生成唯一标识
     // 如果是notebook detail模式，使用notebook的ID
@@ -1984,7 +1976,7 @@ export class DetailSidebar extends Widget {
     return 'overview';
   }
 
-  // 新增：保存DetailSidebar筛选状态到全局变量（按tab隔离）
+  // 保存DetailSidebar筛选状态到全局变量（按tab隔离）
   private saveDetailFilterState() {
     const tabId = this.getTabId();
     const stateKey = `_galaxyDetailSidebarFilterState_${tabId}`;
@@ -1996,7 +1988,7 @@ export class DetailSidebar extends Widget {
     };
   }
 
-  // 新增：隐藏所有tooltip
+  // 隐藏所有tooltip
   private hideAllTooltips() {
     // 隐藏galaxy-tooltip
     const galaxyTooltip = document.getElementById('galaxy-tooltip');
@@ -2010,7 +2002,7 @@ export class DetailSidebar extends Widget {
     }
   }
 
-  // 新增：从全局变量恢复DetailSidebar筛选状态（按tab隔离）
+  // 从全局变量恢复DetailSidebar筛选状态（按tab隔离）
   private restoreDetailFilterState() {
     // 切换tab时隐藏所有tooltip
     this.hideAllTooltips();
