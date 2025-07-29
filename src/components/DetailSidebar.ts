@@ -84,7 +84,7 @@ export class DetailSidebar extends Widget {
         if (this.filter) {
           this.setSummary(this._allData, this._mostFreqStage, this._mostFreqFlow);
         } else if (this.currentNotebook) {
-          this.setNotebookDetail(this.currentNotebook);
+          this.setNotebookDetail(this.currentNotebook, true); // 跳过事件派发，避免循环
         } else {
           this.setSummary(this._allData, this._mostFreqStage, this._mostFreqFlow);
         }
@@ -124,7 +124,7 @@ export class DetailSidebar extends Widget {
     this.node.innerHTML = `<div style="padding:16px; color:#888;">请选择一个 notebook 或 cell 查看详情。</div>`;
   }
 
-  setNotebookDetail(nb: any) {
+  setNotebookDetail(nb: any, skipEventDispatch: boolean = false) {
     this.currentNotebook = nb; // 新增：保存当前 notebook
     // 在notebook detail视图下，不改变标题颜色
     this._currentSelection = null;
@@ -136,6 +136,14 @@ export class DetailSidebar extends Widget {
     // 设置notebook的默认标题
     this._currentTitle = nb.notebook_name ?? nb.kernelVersionId ?? `Notebook ${nb.globalIndex || nb.index || 0}`;
     this.saveDetailFilterState();
+    
+    // 只有在不跳过事件派发时才派发notebook选中事件
+    if (!skipEventDispatch) {
+      const notebookObj = { ...nb, index: nb.globalIndex };
+      window.dispatchEvent(new CustomEvent('galaxy-notebook-selected', {
+        detail: { notebook: notebookObj }
+      }));
+    }
     
     // 使用所有cell，与LeftSidebar保持一致
     const cells = nb.cells ?? [];
@@ -149,10 +157,13 @@ export class DetailSidebar extends Widget {
     // 只考虑code cell，与LeftSidebar保持一致
     const codeCells = cells.filter((c: any) => c.cellType === 'code');
     
-    // 统计stage频率
+    // 获取被隐藏的stage列表
+    const hiddenStages = this._hiddenStages ?? new Set(['1', '9']);
+    
+    // 统计stage频率，排除被隐藏的stage
     for (let i = 0; i < codeCells.length; i++) {
       const stage = String(codeCells[i]["1st-level label"] ?? 'None');
-      if (stage !== 'None') {
+      if (stage !== 'None' && !hiddenStages.has(stage)) {
         stageFreq[stage] = (stageFreq[stage] || 0) + 1;
       }
     }
@@ -166,18 +177,18 @@ export class DetailSidebar extends Widget {
       }
     }
     
-    // 计算stage序列中的transitions
+    // 计算stage序列中的transitions，排除被隐藏的stage
     for (let i = 0; i < stageSeq.length - 1; i++) {
       const from = stageSeq[i];
       const to = stageSeq[i + 1];
-      if (from !== 'None' && to !== 'None') {
+      if (from !== 'None' && to !== 'None' && !hiddenStages.has(from) && !hiddenStages.has(to)) {
         const key = `${from}->${to}`;
         transitions[key] = (transitions[key] || 0) + 1;
       }
     }
     // 找到所有频率最高的stage和transition
-    const maxStageFreq = Math.max(...Object.values(stageFreq));
-    const maxFlowFreq = Math.max(...Object.values(transitions));
+    const maxStageFreq = Object.keys(stageFreq).length > 0 ? Math.max(...Object.values(stageFreq)) : 0;
+    const maxFlowFreq = Object.keys(transitions).length > 0 ? Math.max(...Object.values(transitions)) : 0;
     const mostFreqStages = Object.entries(stageFreq)
       .filter(([_, freq]) => freq === maxStageFreq)
       .map(([stage, _]) => stage);
@@ -187,13 +198,12 @@ export class DetailSidebar extends Widget {
 
     // 统计出现次数
     // 只显示出现次数，不显示(tie)
-    const stageCountText = `${maxStageFreq} count(s)`;
-    const flowCountText = `${maxFlowFreq} count(s)`;
+    const stageCountText = maxStageFreq > 0 ? `${maxStageFreq} count(s)` : 'None';
+    const flowCountText = maxFlowFreq > 0 ? `${maxFlowFreq} count(s)` : 'None';
     // 展开/收起逻辑变量（notebook detail）
     let showAllStages = false;
     let showAllFlows = false;
     // 过滤 stage 和 flow，隐藏包含 hidden stage 的
-    const hiddenStages = this._hiddenStages || new Set();
     // 过滤 stage
     const mostFreqStagesFiltered = mostFreqStages.filter(stage => {
       const id = getStageIdByName(stage);
@@ -445,8 +455,8 @@ export class DetailSidebar extends Widget {
           e.preventDefault();
           const stage = (link as HTMLElement).getAttribute('data-stage');
           if (stage) {
-            // 可以在这里添加stage点击的处理逻辑
-            console.log('Stage clicked:', stage);
+            // 触发stage选中效果，与选中block相同
+            this.setFilter({ type: 'stage', stage });
           }
         });
       });
@@ -456,14 +466,48 @@ export class DetailSidebar extends Widget {
           e.preventDefault();
           const flow = (link as HTMLElement).getAttribute('data-flow');
           if (flow) {
-            // 可以在这里添加flow点击的处理逻辑
-            console.log('Flow clicked:', flow);
+            // 解析flow字符串，格式为 "from→to" 或 "from->to"
+            const [from, to] = flow.split(/→|->/);
+            if (from && to) {
+              // 触发flow选中效果，与选中flow相同
+              this.setFilter({ type: 'flow', from, to });
+            }
           }
         });
       });
     }, 0);
     // 展开/收起事件绑定（notebook detail）
     setTimeout(() => {
+      // 绑定stage和flow链接事件
+      const stageLinks = this.node.querySelectorAll('.dsb-stage-link');
+      const flowLinks = this.node.querySelectorAll('.dsb-flow-link');
+
+      stageLinks.forEach(link => {
+        link.addEventListener('click', (e) => {
+          e.preventDefault();
+          const stage = (link as HTMLElement).getAttribute('data-stage');
+          if (stage) {
+            // 触发stage选中效果，与选中block相同
+            this.setFilter({ type: 'stage', stage });
+          }
+        });
+      });
+
+      flowLinks.forEach(link => {
+        link.addEventListener('click', (e) => {
+          e.preventDefault();
+          const flow = (link as HTMLElement).getAttribute('data-flow');
+          if (flow) {
+            // 解析flow字符串，格式为 "from→to" 或 "from->to"
+            const [from, to] = flow.split(/→|->/);
+            if (from && to) {
+              // 触发flow选中效果，与选中flow相同
+              this.setFilter({ type: 'flow', from, to });
+            }
+          }
+        });
+      });
+
       const stageLinksDiv = this.node.querySelector('#dsb-stage-links');
       const flowLinksDiv = this.node.querySelector('#dsb-flow-links');
       if (stageLinksDiv) {
@@ -882,7 +926,7 @@ export class DetailSidebar extends Widget {
     }, 0);
   }
 
-  setFilter(selection: any) {
+  setFilter(selection: any, skipEventDispatch: boolean = false) {
     this.filter = selection;
     this._currentSelection = selection; // 更新当前选中状态
     
@@ -908,13 +952,33 @@ export class DetailSidebar extends Widget {
     
     this.saveDetailFilterState();
     
-    // 触发筛选状态变化事件，通知NotebookDetailWidget重新渲染
-    window.dispatchEvent(new CustomEvent('galaxy-flow-selection-changed', { detail: selection }));
+    // 只有在不跳过事件派发时才触发事件
+    if (!skipEventDispatch) {
+      // 触发筛选状态变化事件，通知NotebookDetailWidget重新渲染
+      window.dispatchEvent(new CustomEvent('galaxy-flow-selection-changed', { detail: selection }));
+      
+      // 触发MatrixWidget和flowchart的事件通知
+      if (selection) {
+        if (selection.type === 'stage') {
+          // 通知MatrixWidget和flowchart选中stage
+          const tabId = this.getTabId();
+          window.dispatchEvent(new CustomEvent('galaxy-stage-selected', { detail: { stage: selection.stage, tabId } }));
+        } else if (selection.type === 'flow') {
+          // 通知MatrixWidget和flowchart选中flow
+          const tabId = this.getTabId();
+          window.dispatchEvent(new CustomEvent('galaxy-flow-selected', { detail: { from: selection.from, to: selection.to, tabId } }));
+        }
+      } else {
+        // 清除选中状态
+        const tabId = this.getTabId();
+        window.dispatchEvent(new CustomEvent('galaxy-selection-cleared', { detail: { tabId } }));
+      }
+    }
     
     // 根据当前状态调用相应的方法
     if (this.currentNotebook) {
       // 在notebook detail状态下，重新渲染notebook detail
-      this.setNotebookDetail(this.currentNotebook);
+      this.setNotebookDetail(this.currentNotebook, true); // 跳过事件派发，避免循环
     } else {
       this.setSummary(this._allData, this._mostFreqStage, this._mostFreqFlow);
     }
@@ -1261,14 +1325,15 @@ export class DetailSidebar extends Widget {
     });
     const totalCellCount = cellCountsWithIndex.reduce((a, b) => a + b.count, 0);
     const avgCellCount = notebookCount ? (totalCellCount / notebookCount) : 0;
-    // stage/flow 统计只用可见 cell
+    // stage/flow 统计只用可见 cell，排除被隐藏的stage
     const stageFreq: Record<string, number> = {};
     const stageFlowFreq: Record<string, number> = {};
     filteredData.forEach(nb => {
       let prevStage: string | null = null;
       nb.cells?.forEach((cell: any) => {
         const stage = String(cell["1st-level label"] ?? 'None');
-        if (stage !== 'None') {
+        // 排除被隐藏的stage
+        if (stage !== 'None' && !hiddenStages.has(stage)) {
           stageFreq[stage] = (stageFreq[stage] || 0) + 1;
         }
         if (
@@ -1276,7 +1341,9 @@ export class DetailSidebar extends Widget {
           prevStage !== undefined &&
           prevStage !== 'None' &&
           stage !== 'None' &&
-          prevStage !== stage
+          prevStage !== stage &&
+          !hiddenStages.has(prevStage) &&
+          !hiddenStages.has(stage)
         ) {
           const flow = prevStage + '→' + stage;
           stageFlowFreq[flow] = (stageFlowFreq[flow] || 0) + 1;
@@ -1285,17 +1352,17 @@ export class DetailSidebar extends Widget {
       });
     });
     // Most Common Stage(s)
-    const maxStageFreq = Math.max(...Object.values(stageFreq), 0);
+    const maxStageFreq = Object.keys(stageFreq).length > 0 ? Math.max(...Object.values(stageFreq)) : 0;
     const mostFreqStages = Object.entries(stageFreq)
       .filter(([_, freq]) => freq === maxStageFreq)
       .map(([stage, _]) => stage);
     // Most Common Transition(s)
-    const maxFlowFreq = Math.max(...Object.values(stageFlowFreq), 0);
+    const maxFlowFreq = Object.keys(stageFlowFreq).length > 0 ? Math.max(...Object.values(stageFlowFreq)) : 0;
     const mostFreqFlows = Object.entries(stageFlowFreq)
       .filter(([_, freq]) => freq === maxFlowFreq)
       .map(([flow, _]) => flow);
-    const stageCountText = `${maxStageFreq} count(s)`;
-    const flowCountText = maxFlowFreq > 0 ? `${maxFlowFreq} count(s)` : '0 count(s)';
+    const stageCountText = maxStageFreq > 0 ? `${maxStageFreq} count(s)` : 'None';
+    const flowCountText = maxFlowFreq > 0 ? `${maxFlowFreq} count(s)` : 'None';
     let showAllStages = false;
     let showAllFlows = false;
     // 渲染函数
@@ -1389,9 +1456,7 @@ export class DetailSidebar extends Widget {
         if (!nb) return '';
         return `<tr class="overview-notebook-item" data-notebook-index="${nb.globalIndex}" style="cursor:pointer; transition:background-color 0.15s;">
           <td style="padding:8px 12px; border-bottom:1px solid #eee; text-align:center; color:#888; font-size:12px; width:40px;">${nb.globalIndex}</td>
-          <td style="padding:8px 12px; border-bottom:1px solid #eee; font-weight:500; color:#333;">
-            <a href="#" class="dsb-nb-kernel-link" data-idx="${nb.globalIndex}" data-global-idx="${nb.globalIndex}" style="color:#1976d2; text-decoration:underline; cursor:pointer; font-weight:600; font-size:14px; transition:background 0.15s;">${nb.notebook_name ?? nb.kernelVersionId}</a>
-          </td>
+          <td style="padding:8px 12px; border-bottom:1px solid #eee; font-weight:500; color:#333;">${nb.notebook_name ?? nb.kernelVersionId}</td>
         </tr>`;
       }).join('');
     } else {
@@ -1399,9 +1464,7 @@ export class DetailSidebar extends Widget {
       notebookListHtml = filteredData.map(nb => {
         return `<tr class="overview-notebook-item" data-notebook-index="${nb.globalIndex}" style="cursor:pointer; transition:background-color 0.15s;">
           <td style="padding:8px 12px; border-bottom:1px solid #eee; text-align:center; color:#888; font-size:12px; width:40px;">${nb.globalIndex}</td>
-          <td style="padding:8px 12px; border-bottom:1px solid #eee; font-weight:500; color:#333;">
-            <a href="#" class="dsb-nb-kernel-link" data-idx="${nb.globalIndex}" data-global-idx="${nb.globalIndex}" style="color:#1976d2; text-decoration:underline; cursor:pointer; font-weight:600; font-size:14px; transition:background 0.15s;">${nb.notebook_name ?? nb.kernelVersionId}</a>
-          </td>
+          <td style="padding:8px 12px; border-bottom:1px solid #eee; font-weight:500; color:#333;">${nb.notebook_name ?? nb.kernelVersionId}</td>
         </tr>`;
       }).join('');
     }
@@ -1468,25 +1531,27 @@ export class DetailSidebar extends Widget {
         </div>
       </div>
     `;
-          // 绑定 kernelVersionId 跳转事件和悬停效果
+          // 绑定 notebook 行点击事件和悬停效果
       setTimeout(() => {
-        const links = this.node.querySelectorAll('.dsb-nb-kernel-link');
-        links.forEach(link => {
-          link.addEventListener('mouseenter', () => {
-            (link as HTMLElement).style.background = '#e3eaf3';
-          });
-          link.addEventListener('mouseleave', () => {
-            (link as HTMLElement).style.background = '';
-          });
-          link.addEventListener('click', (e) => {
-            e.preventDefault();
-            const globalIdx = parseInt((link as HTMLElement).getAttribute('data-global-idx') || '0', 10);
-            if (this._allData && this._allData[globalIdx]) {
+        const notebookItems = this.node.querySelectorAll('.overview-notebook-item');
+        notebookItems.forEach((item) => {
+          const globalIdx = parseInt((item as HTMLElement).getAttribute('data-notebook-index') || '0', 10);
+          
+          item.addEventListener('click', () => {
+            if (this._allData && this._allData[globalIdx - 1]) { // globalIndex从1开始，所以需要减1
               window.dispatchEvent(new CustomEvent('galaxy-notebook-selected', {
-                detail: { notebook: { ...this._allData[globalIdx], index: globalIdx } }
+                detail: { notebook: { ...this._allData[globalIdx - 1], index: globalIdx - 1 } }
               }));
-              this.setNotebookDetail(this._allData[globalIdx]);
+              this.setNotebookDetail(this._allData[globalIdx - 1], true); // 跳过事件派发，避免循环
             }
+          });
+          
+          // 添加悬停效果
+          item.addEventListener('mouseenter', () => {
+            (item as HTMLElement).style.backgroundColor = '#f0f8ff';
+          });
+          item.addEventListener('mouseleave', () => {
+            (item as HTMLElement).style.backgroundColor = '';
           });
         });
         
@@ -1521,7 +1586,7 @@ export class DetailSidebar extends Widget {
             window.dispatchEvent(new CustomEvent('galaxy-notebook-selected', {
               detail: { notebook: { ...this._allData[globalIdx], index: globalIdx } }
             }));
-            this.setNotebookDetail(this._allData[globalIdx]);
+            this.setNotebookDetail(this._allData[globalIdx], true); // 跳过事件派发，避免循环
           }
         });
       });
@@ -1542,7 +1607,7 @@ export class DetailSidebar extends Widget {
             window.dispatchEvent(new CustomEvent('galaxy-notebook-selected', {
               detail: { notebook: { ...this._allData[globalIdx], index: globalIdx } }
             }));
-            this.setNotebookDetail(this._allData[globalIdx]);
+            this.setNotebookDetail(this._allData[globalIdx], true); // 跳过事件派发，避免循环
           }
         });
       });
@@ -1556,8 +1621,8 @@ export class DetailSidebar extends Widget {
           e.preventDefault();
           const stage = (link as HTMLElement).getAttribute('data-stage');
           if (stage) {
-            // 可以在这里添加stage点击的处理逻辑
-            console.log('Stage clicked:', stage);
+            // 触发stage选中效果，与选中block相同
+            this.setFilter({ type: 'stage', stage });
           }
         });
       });
@@ -1567,8 +1632,12 @@ export class DetailSidebar extends Widget {
           e.preventDefault();
           const flow = (link as HTMLElement).getAttribute('data-flow');
           if (flow) {
-            // 可以在这里添加flow点击的处理逻辑
-            console.log('Flow clicked:', flow);
+            // 解析flow字符串，格式为 "from→to" 或 "from->to"
+            const [from, to] = flow.split(/→|->/);
+            if (from && to) {
+              // 触发flow选中效果，与选中flow相同
+              this.setFilter({ type: 'flow', from, to });
+            }
           }
         });
       });
@@ -1787,7 +1856,7 @@ export class DetailSidebar extends Widget {
       if (this.currentNotebook) {
         // 确保notebook detail视图下没有选中状态
         this._currentSelection = null;
-        this.setNotebookDetail(this.currentNotebook);
+        this.setNotebookDetail(this.currentNotebook, true); // 跳过事件派发，避免循环
       } else if (this.filter) {
         this.setSummary(this._allData, this._mostFreqStage, this._mostFreqFlow);
       } else {

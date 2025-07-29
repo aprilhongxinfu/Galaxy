@@ -77,7 +77,7 @@ function activate(
         app.shell.add(flowChartWidget, 'left');
         app.shell.activateById(flowChartWidget.id);
       }
-      detailSidebar?.setNotebookDetail(nb);
+      detailSidebar?.setNotebookDetail(nb, true); // 跳过事件派发，避免循环
       if (detailSidebar) {
         app.shell.add(detailSidebar, 'right');
         app.shell.activateById(detailSidebar.id);
@@ -286,19 +286,19 @@ function activate(
           const { stage, tabId } = e.detail;
           currentSelection = { type: 'stage', stage, tabId };
           matrixWidget?.setFilter(currentSelection);
-          detailSidebar?.setFilter(currentSelection);
+          detailSidebar?.setFilter(currentSelection, true); // 跳过事件派发，避免循环
         });
         window.addEventListener('galaxy-flow-selected', (e: any) => {
           const { from, to, tabId } = e.detail;
           currentSelection = { type: 'flow', from, to, tabId };
           matrixWidget?.setFilter(currentSelection);
-          detailSidebar?.setFilter(currentSelection);
+          detailSidebar?.setFilter(currentSelection, true); // 跳过事件派发，避免循环
         });
         window.addEventListener('galaxy-selection-cleared', (e: any) => {
           // const tabId = e.detail?.tabId;
           currentSelection = null;
           matrixWidget?.setFilter(null);
-          detailSidebar?.setFilter(null);
+          detailSidebar?.setFilter(null, true); // 跳过事件派发，避免循环
         });
 
         // 只注册一次 notebook 详情切换监听器
@@ -331,7 +331,7 @@ function activate(
 
             // 右侧 sidebar 只显示该 notebook 信息，清除之前的filter状态
             detailSidebar?.setFilter(null);
-            detailSidebar?.setNotebookDetail(nb);
+            detailSidebar?.setNotebookDetail(nb, true); // 跳过事件派发，避免循环
 
             // 只关闭左侧 flow-chart-widget（overview），不关闭 matrix-widget
             const oldLeft = app.shell.widgets('left');

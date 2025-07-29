@@ -111,11 +111,19 @@ export class MatrixWidget extends Widget {
         this.sortButton.innerHTML = this.getSortIcon();
         this.sortButton.onclick = () => {
             if (this.sortState === 3) return; // similarity模式下禁用
+            
+            // 保存当前的filter状态
+            const currentFilter = this.filter;
+            
             this.sortState = (this.sortState + 1) % 3;
             this.updateNotebookOrder();
             this.sortButton.innerHTML = this.getSortIcon();
             this.similaritySortButton.classList.remove('active');
             this.updateSortButtonState();
+            
+            // 恢复filter状态（在updateNotebookOrder之后）
+            this.filter = currentFilter;
+            
             this.saveFilterState();
             this.drawMatrix();
             const filteredNotebooks = this.getFilteredNotebooks();
@@ -132,6 +140,9 @@ export class MatrixWidget extends Widget {
         this.similaritySortButton.style.fontSize = '18px';
         this.similaritySortButton.innerHTML = this.getSimilaritySortIcon();
         this.similaritySortButton.onclick = () => {
+            // 保存当前的filter状态
+            const currentFilter = this.filter;
+            
             if (this.sortState === 3) {
                 this.sortState = 0;
                 this.similaritySortButton.classList.remove('active');
@@ -143,6 +154,10 @@ export class MatrixWidget extends Widget {
             this.sortButton.innerHTML = this.getSortIcon();
             this.similaritySortButton.innerHTML = this.getSimilaritySortIcon();
             this.updateSortButtonState();
+            
+            // 恢复filter状态（在updateNotebookOrder之后）
+            this.filter = currentFilter;
+            
             this.saveFilterState();
             this.drawMatrix();
             const filteredNotebooks = this.getFilteredNotebooks();

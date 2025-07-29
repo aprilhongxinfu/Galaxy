@@ -157,16 +157,32 @@ export class LeftSidebar extends Widget {
             document.body.appendChild(tooltip);
         }
 
-        window.addEventListener('galaxy-selection-cleared', () => {
-            this.selection = null;
-            this.saveFilterState();
-            this.render();
+        window.addEventListener('galaxy-selection-cleared', (e: any) => {
+            const { tabId } = e.detail || {};
+            // 只处理当前tab的事件
+            if (!tabId || tabId === this.getTabId()) {
+                this.selection = null;
+                this.saveFilterState();
+                this.render();
+            }
+        });
+        // 新增：监听 stage 选中事件（按tab隔离）
+        window.addEventListener('galaxy-stage-selected', (e: any) => {
+            const { stage, tabId } = e.detail;
+            const currentTabId = this.getTabId();
+            // 只处理当前tab的事件
+            if (tabId === currentTabId) {
+                this.selection = { type: 'stage', stage };
+                this.saveFilterState();
+                this.render();
+            }
         });
         // 新增：监听 flow 选中事件（按tab隔离）
         window.addEventListener('galaxy-flow-selected', (e: any) => {
             const { from, to, tabId } = e.detail;
+            const currentTabId = this.getTabId();
             // 只处理当前tab的事件
-            if (tabId === this.getTabId()) {
+            if (tabId === currentTabId) {
                 this.selection = { type: 'flow', from, to };
                 this.saveFilterState();
                 this.render();
@@ -176,6 +192,12 @@ export class LeftSidebar extends Widget {
         window.addEventListener('galaxy-matrix-filtered', (e: any) => {
             const filteredData = e.detail?.notebooks ?? [];
             this.setData(filteredData, this.colorMap);
+        });
+        
+        // 新增：监听 notebook 排序变化事件，保持 selection 状态
+        window.addEventListener('galaxy-notebook-order-changed', (e: any) => {
+            // 重新渲染以应用视觉效果
+            this.render();
         });
 
         this.render();
@@ -1045,7 +1067,8 @@ export class LeftSidebar extends Widget {
     setData(data: Notebook[], colorMap: Map<string, string>) {
         this.data = data;
         this.colorMap = colorMap;
-        this.selection = null;
+        // 保持当前的selection状态，不清除
+        // this.selection = null;
         // 重新初始化 stageData 和 initialStageOrder
         const stageStats = new Map<string, { positions: number[]; firstPositions: number[]; count: number }>();
         this.data.forEach((nb) => {
