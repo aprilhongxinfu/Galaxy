@@ -24,8 +24,10 @@ export class MatrixWidget extends Widget {
     private notebookOrder: number[] = [];
     private sortButton: HTMLButtonElement;
     private similaritySortButton: HTMLButtonElement;
+    private cellHeightButton: HTMLButtonElement; // 新增：cell高度模式按钮
     private filter: any = null;
     private similarityGroups: any[];
+    private cellHeightMode: 'fixed' | 'dynamic' = 'fixed'; // 新增：cell高度模式
 
     constructor(data: Notebook[], colorScale: (label: string) => string, similarityGroups?: any[]) {
         super();
@@ -147,6 +149,23 @@ export class MatrixWidget extends Widget {
             window.dispatchEvent(new CustomEvent('galaxy-matrix-filtered', { detail: { notebooks: filteredNotebooks } }));
         };
         sortBar.appendChild(this.similaritySortButton);
+
+        // cell高度模式按钮
+        this.cellHeightButton = document.createElement('button');
+        this.cellHeightButton.title = 'Toggle cell height mode';
+        this.cellHeightButton.style.background = 'none';
+        this.cellHeightButton.style.border = 'none';
+        this.cellHeightButton.style.cursor = 'pointer';
+        this.cellHeightButton.style.fontSize = '18px';
+        this.cellHeightButton.style.marginLeft = '8px';
+        this.cellHeightButton.innerHTML = this.getCellHeightIcon();
+        this.cellHeightButton.onclick = () => {
+            this.cellHeightMode = this.cellHeightMode === 'fixed' ? 'dynamic' : 'fixed';
+            this.cellHeightButton.innerHTML = this.getCellHeightIcon();
+            this.saveFilterState();
+            this.drawMatrix();
+        };
+        sortBar.appendChild(this.cellHeightButton);
         this.node.appendChild(sortBar);
         this.updateSortButtonState();
 
@@ -192,6 +211,23 @@ export class MatrixWidget extends Widget {
 </svg>`;
         }
     }
+
+    private getCellHeightIcon(): string {
+        // cell高度模式icon：固定高度（等号）和动态高度（波浪线）
+        if (this.cellHeightMode === 'fixed') {
+            // 固定高度模式：等号图标
+            return `<svg width="18" height="18" viewBox="0 0 20 20">
+  <path d="M4 8h12M4 12h12" stroke="#555" stroke-width="2" stroke-linecap="round"/>
+</svg>`;
+        } else {
+            // 动态高度模式：波浪线图标
+            return `<svg width="18" height="18" viewBox="0 0 20 20">
+  <path d="M3 8c1-1 2-1 3 0s2 1 3 0 2-1 3 0 2 1 3 0 2-1 3 0 2 1 3 0 2-1 3 0" stroke="#4caf50" stroke-width="2" stroke-linecap="round" fill="none"/>
+  <path d="M3 12c1-1 2-1 3 0s2 1 3 0 2-1 3 0 2 1 3 0 2-1 3 0 2 1 3 0 2-1 3 0" stroke="#4caf50" stroke-width="2" stroke-linecap="round" fill="none"/>
+</svg>`;
+        }
+    }
+
     private updateNotebookOrder() {
         if (this.sortState === 0) {
             this.notebookOrder = this.data.map((_, i) => i);
@@ -407,12 +443,46 @@ export class MatrixWidget extends Widget {
             return matchAssignment && matchStudent;
         });
 
-        const cellHeight = 5;
+        const baseCellHeight = 5;
         const cellWidth = 20;
         const rowPadding = 1;
         const svgWidth = Math.max(1000, notebookOrder.length * (cellWidth + rowPadding) + 100);
+        
+        // 计算动态高度
+        let totalHeight = 0;
+        const cellHeights: number[][] = [];
+        const cellYPositions: number[][] = [];
+        
+        notebookOrder.forEach((row, colIdx) => {
+            const nb = notebooks[row];
+            const sortedCells = nb.cells.sort((a, b) => a.cellId - b.cellId);
+            const heights: number[] = [];
+            const yPositions: number[] = [];
+            let currentY = 0;
+            
+            sortedCells.forEach((cell, i) => {
+                let cellHeight: number;
+                if (this.cellHeightMode === 'fixed') {
+                    cellHeight = baseCellHeight;
+                } else {
+                    // 动态高度：基于代码行数
+                    const code = (cell as any).source ?? (cell as any).code ?? '';
+                    const lineCount = code.split(/\r?\n/).length;
+                    // 最小高度为3，最大高度为20，基于行数映射
+                    cellHeight = Math.max(3, Math.min(20, 3 + lineCount * 0.8));
+                }
+                heights.push(cellHeight);
+                yPositions.push(currentY);
+                currentY += cellHeight + 1; // 1是cell间距
+            });
+            
+            cellHeights.push(heights);
+            cellYPositions.push(yPositions);
+            totalHeight = Math.max(totalHeight, currentY);
+        });
+        
         // 计算内容高度
-        const contentHeight = notebookOrder.length * (cellHeight + rowPadding) + 100;
+        const contentHeight = totalHeight + 100;
         // 获取容器高度（如为0可用默认值）
         const minHeight = this.node.clientHeight || 400;
         const svgHeight = Math.max(contentHeight, minHeight);
@@ -453,11 +523,14 @@ export class MatrixWidget extends Widget {
                     transitionClass = `pair-from-${prevStage}-to-${currClass}`;
                 }
 
+                const cellHeight = cellHeights[colIdx][i];
+                const cellY = cellYPositions[colIdx][i];
+
                 const base = g
                     .append('rect')
                     .datum({ ...cell, kernelVersionId: (nb as any).kernelVersionId, notebook_name: (nb as any).notebook_name })
                     .attr('x', colIdx * (cellWidth + rowPadding) + 1)
-                    .attr('y', i * cellHeight + 1)
+                    .attr('y', cellY + 1)
                     .attr('width', cellWidth - 2)
                     .attr('height', cellHeight - 2)
                     .attr('fill', cell.cellType === 'code' ? color(currStage) : 'white')
@@ -488,10 +561,13 @@ export class MatrixWidget extends Widget {
                             tooltip.style.zIndex = '9999';
                             document.body.appendChild(tooltip);
                         }
+                        const code = (d as any).source ?? (d as any).code ?? '';
+                        const lineCount = code.split(/\r?\n/).length;
                         tooltip.innerHTML = `Stage: ${typeof LABEL_MAP !== 'undefined' ? (LABEL_MAP[String(d["1st-level label"] ?? "None")] ?? d["1st-level label"] ?? "None") : (d["1st-level label"] ?? "None")}` +
                             `<br>Notebook: ${(d as any).notebook_name ?? (d as any).kernelVersionId}` +
                             `<br>cellId: ${d.cellId}` +
-                            `<br>cellType: ${d.cellType}`;
+                            `<br>cellType: ${d.cellType}` +
+                            `<br>Lines: ${lineCount}`;
                         // 新增：如果有 similarityGroups，显示 group_id, similarity, label_integers
                         if (self.similarityGroups && self.similarityGroups.length > 0) {
                             const kernelId = (d as any).kernelVersionId?.toString();
@@ -618,7 +694,8 @@ export class MatrixWidget extends Widget {
             sortState: this.sortState,
             notebookOrder: this.notebookOrder,
             assignmentFilter: (this as any)._assignmentFilter,
-            studentFilter: (this as any)._studentFilter
+            studentFilter: (this as any)._studentFilter,
+            cellHeightMode: this.cellHeightMode
         };
     }
 
@@ -651,10 +728,12 @@ export class MatrixWidget extends Widget {
             this.notebookOrder = savedState.notebookOrder || this.data.map((_, i) => i);
             (this as any)._assignmentFilter = savedState.assignmentFilter || '';
             (this as any)._studentFilter = savedState.studentFilter || '';
+            this.cellHeightMode = savedState.cellHeightMode || 'fixed';
             
             // 更新按钮状态
             this.sortButton.innerHTML = this.getSortIcon();
             this.similaritySortButton.innerHTML = this.getSimilaritySortIcon();
+            this.cellHeightButton.innerHTML = this.getCellHeightIcon();
             this.updateSortButtonState();
             
             // 恢复assignment和student筛选器的值
@@ -669,10 +748,12 @@ export class MatrixWidget extends Widget {
             this.notebookOrder = this.data.map((_, i) => i);
             (this as any)._assignmentFilter = '';
             (this as any)._studentFilter = '';
+            this.cellHeightMode = 'fixed';
             
             // 更新按钮状态
             this.sortButton.innerHTML = this.getSortIcon();
             this.similaritySortButton.innerHTML = this.getSimilaritySortIcon();
+            this.cellHeightButton.innerHTML = this.getCellHeightIcon();
             this.updateSortButtonState();
             
             // 重置筛选器
