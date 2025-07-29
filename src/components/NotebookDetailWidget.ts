@@ -62,8 +62,20 @@ export class NotebookDetailWidget extends Widget {
   private transitionHoverHandler: (event: Event) => void;
   private clearCellSelectionHandler: () => void;
   private notebookSelectedHandler: (event: Event) => void;
+  private selectionClearedHandler: (event: Event) => void;
   private rendermime: RenderMimeRegistry;
   private codeMirrorFactory: CodeMirrorEditorFactory;
+
+  // 新增：获取当前tab ID
+  private getTabId(): string {
+    // 基于当前显示的内容生成唯一标识
+    // 如果是notebook detail模式，使用notebook的ID
+    if (this.notebook && (this.notebook as any).globalIndex !== undefined) {
+      return `notebook_${(this.notebook as any).globalIndex}`;
+    }
+    // 如果是overview模式，使用overview标识
+    return 'overview';
+  }
 
   constructor(notebook: any) {
     super();
@@ -81,6 +93,16 @@ export class NotebookDetailWidget extends Widget {
     this.stageHoverHandler = this.handleStageHover.bind(this);
     this.transitionHoverHandler = this.handleTransitionHover.bind(this);
     this.clearCellSelectionHandler = this.handleClearCellSelection.bind(this);
+    this.selectionClearedHandler = (e: Event) => {
+      const tabId = (e as CustomEvent).detail?.tabId;
+      // 只处理当前tab的事件
+      if (tabId === this.getTabId()) {
+        console.log('[NotebookDetailWidget] selectionClearedHandler called for tab:', tabId);
+        this.selectedCellIdx = null;
+        this.render();
+        console.log('[NotebookDetailWidget] render completed after selection cleared');
+      }
+    };
 
     this.render();
 
@@ -131,6 +153,15 @@ export class NotebookDetailWidget extends Widget {
     window.addEventListener('galaxy-stage-hover', this.stageHoverHandler);
     window.addEventListener('galaxy-transition-hover', this.transitionHoverHandler);
     window.addEventListener('galaxy-clear-cell-selection', this.clearCellSelectionHandler);
+
+    // 监听选中状态清除事件
+    window.addEventListener('galaxy-selection-cleared', this.selectionClearedHandler);
+
+            // 监听筛选状态变化，重新渲染以显示跳转控件
+        window.addEventListener('galaxy-flow-selection-changed', () => {
+          // console.log('[NotebookDetailWidget] Flow selection changed, re-rendering...');
+          this.render();
+        });
   }
 
   onBeforeDetach(): void {
@@ -139,17 +170,32 @@ export class NotebookDetailWidget extends Widget {
     window.removeEventListener('galaxy-transition-hover', this.transitionHoverHandler);
     window.removeEventListener('galaxy-clear-cell-selection', this.clearCellSelectionHandler);
     window.removeEventListener('galaxy-notebook-selected', this.notebookSelectedHandler);
+    // 移除选中状态清除事件监听器
+    window.removeEventListener('galaxy-selection-cleared', this.selectionClearedHandler);
   }
 
   private handleStageHover(event: Event): void {
     const stage = (event as CustomEvent).detail.stage;
     // 记录当前 flow chart 悬浮 stage
     (window as any)._galaxyFlowHoverStage = stage;
+    // 清除flow信息（当stage筛选时）
+    if (!stage) {
+      (window as any)._galaxyFlowHoverInfo = null;
+    }
     const minimapSvg = this.node.querySelector('svg');
     if (!minimapSvg) return;
     // 检查是否来自 minimap 内部的 hover
     const isFromMinimap = (event as any).detail?.source === 'minimap';
     const hoveredIdx = (event as any).detail?.cellIdx;
+    
+    // 检查是否有选中状态，如果有则不添加高亮
+    const tabId = this.getTabId();
+    const flowSelectionKey = `_galaxyFlowSelection_${tabId}`;
+    const stageSelectionKey = `_galaxyStageSelection_${tabId}`;
+    const hasSelection = (window as any)[flowSelectionKey] || (window as any)[stageSelectionKey];
+    
+
+    
     minimapSvg.querySelectorAll('rect').forEach((r) => {
       const rectStage = r.getAttribute('data-stage');
       const rectIdx = parseInt(r.getAttribute('data-idx') || '0');
@@ -160,20 +206,34 @@ export class NotebookDetailWidget extends Widget {
         } else {
           r.classList.remove('minimap-highlight');
         }
-      } else if (stage) {
+      } else if (stage && !hasSelection) {
+        // 只有在没有选中状态时才添加高亮
         // flow chart 悬浮时高亮所有同 stage 的 cell
+        // console.log('[NotebookDetailWidget] stage:', stage, 'rectStage:', rectStage, 'hasSelection:', hasSelection);
         if (rectStage === stage) {
           r.classList.add('minimap-highlight');
         } else {
           r.classList.remove('minimap-highlight');
         }
-      } else {
-        // 没有 flow chart 悬浮时，只给 selected cell 加 minimap-highlight
-        if (this.selectedCellIdx === rectIdx) {
-          r.classList.add('minimap-highlight');
-        } else {
-          r.classList.remove('minimap-highlight');
+
+        // 高亮包含该stage的transition（即使中间有markdown cell）
+        const cells = this.notebook.cells ?? [];
+        for (let i = 0; i < cells.length - 1; i++) {
+          const currStage = String(cells[i]["1st-level label"] ?? 'None');
+          const nextStage = String(cells[i + 1]["1st-level label"] ?? 'None');
+          if ((currStage === stage || nextStage === stage) && currStage !== nextStage) {
+            // 找到对应的minimap rect并高亮
+            const currRect = minimapSvg.querySelector(`rect[data-idx="${i}"]`);
+            const nextRect = minimapSvg.querySelector(`rect[data-idx="${i + 1}"]`);
+            if (currRect && nextRect) {
+              currRect.classList.add('minimap-highlight');
+              nextRect.classList.add('minimap-highlight');
+            }
+          }
         }
+      } else {
+        // 没有 flow chart 悬浮时，清除所有高亮
+        r.classList.remove('minimap-highlight');
       }
     });
   }
@@ -182,10 +242,24 @@ export class NotebookDetailWidget extends Widget {
     const { from, to } = (event as CustomEvent).detail;
     // 记录 flow chart 悬浮
     (window as any)._galaxyFlowHoverStage = from && to ? '__flow_transition__' : null;
+    // 设置全局flow信息
+    if (from && to) {
+      (window as any)._galaxyFlowHoverInfo = { from, to };
+    } else {
+      (window as any)._galaxyFlowHoverInfo = null;
+    }
     const minimapSvg = this.node.querySelector('svg');
     if (!minimapSvg) return;
 
-    if (from && to) {
+    // 检查是否有选中状态，如果有则不添加高亮
+    const tabId = this.getTabId();
+    const flowSelectionKey = `_galaxyFlowSelection_${tabId}`;
+    const stageSelectionKey = `_galaxyStageSelection_${tabId}`;
+    const hasSelection = (window as any)[flowSelectionKey] || (window as any)[stageSelectionKey];
+
+
+
+    if (from && to && !hasSelection) {
       // 先重置所有高亮
       minimapSvg.querySelectorAll('rect').forEach((r) => {
         r.classList.remove('minimap-highlight');
@@ -199,40 +273,47 @@ export class NotebookDetailWidget extends Widget {
         }
       });
 
-      // 找到所有 from→to 的相邻转换并高亮
+      // 找到所有 from→to 的转换并高亮（包括跨越markdown cell的）
       const cells = this.notebook.cells ?? [];
-      for (let i = 0; i < cells.length - 1; i++) {
+      const transitionPairs: number[][] = [];
+
+      // 查找所有符合transition的cell对（忽略中间的markdown cell）
+      for (let i = 0; i < cells.length; i++) {
         const currStage = String(cells[i]["1st-level label"] ?? 'None');
-        const nextStage = String(cells[i + 1]["1st-level label"] ?? 'None');
-
-        if (currStage === from && nextStage === to) {
-          // 向前找连续的 from
-          let i0 = i;
-          while (i0 > 0 && String(cells[i0 - 1]["1st-level label"] ?? 'None') === from) i0--;
-
-          // 向后找连续的 to
-          let i1 = i + 1;
-          while (i1 + 1 < cells.length && String(cells[i1 + 1]["1st-level label"] ?? 'None') === to) i1++;
-
-          // 高亮 from 段
-          for (let j = i0; j <= i; j++) {
-            const rect = minimapSvg.querySelector(`rect[data-idx="${j}"]`) as SVGElement;
-            if (rect) {
-              const cell = cells[j];
-              const stageColor = cell && cell.cellType === 'code' ? (colorMap.get(String(cell["1st-level label"] ?? 'None')) || '#bbb') : '#ccc';
-              rect.setAttribute('stroke', stageColor);
-              rect.setAttribute('stroke-width', '1');
-              rect.classList.add('minimap-highlight');
-              if (rect.parentNode) rect.parentNode.appendChild(rect);
+        if (currStage === from) {
+          // 向后查找下一个to stage的cell（跳过markdown cell）
+          for (let j = i + 1; j < cells.length; j++) {
+            const nextStage = String(cells[j]["1st-level label"] ?? 'None');
+            if (nextStage === to) {
+              transitionPairs.push([i, j]);
+              break; // 找到第一个匹配的就停止
+            } else if (nextStage !== 'None') {
+              // 如果遇到其他stage，停止搜索
+              break;
             }
+            // 如果是markdown cell或None，继续搜索
           }
+        }
+      }
 
-          // 高亮 to 段
-          for (let j = i + 1; j <= i1; j++) {
-            const rect = minimapSvg.querySelector(`rect[data-idx="${j}"]`) as SVGElement;
-            if (rect) {
-              const cell = cells[j];
-              const stageColor = cell && cell.cellType === 'code' ? (colorMap.get(String(cell["1st-level label"] ?? 'None')) || '#bbb') : '#ccc';
+      // 高亮所有找到的transition pairs
+      transitionPairs.forEach(([fromIdx, toIdx]) => {
+        // 向前找连续的 from
+        let i0 = fromIdx;
+        while (i0 > 0 && String(cells[i0 - 1]["1st-level label"] ?? 'None') === from) i0--;
+
+        // 向后找连续的 to
+        let i1 = toIdx;
+        while (i1 + 1 < cells.length && String(cells[i1 + 1]["1st-level label"] ?? 'None') === to) i1++;
+
+        // 高亮完整的transition中的所有code cell（从from段开始到to段结束）
+        for (let j = i0; j <= i1; j++) {
+          const rect = minimapSvg.querySelector(`rect[data-idx="${j}"]`) as SVGElement;
+          if (rect) {
+            const cell = cells[j];
+            // 只高亮code cell
+            if (cell.cellType === 'code') {
+              const stageColor = colorMap.get(String(cell["1st-level label"] ?? 'None')) || '#bbb';
               rect.setAttribute('stroke', stageColor);
               rect.setAttribute('stroke-width', '1');
               rect.classList.add('minimap-highlight');
@@ -240,7 +321,7 @@ export class NotebookDetailWidget extends Widget {
             }
           }
         }
-      }
+      });
     } else {
       // 取消高亮，还原所有状态
       this.handleStageHover({ detail: { stage: null } } as CustomEvent);
@@ -249,8 +330,13 @@ export class NotebookDetailWidget extends Widget {
 
   private handleClearCellSelection() {
     this.selectedCellIdx = null;
+    // 清除全局筛选状态
+    (window as any)._galaxyFlowHoverStage = null;
+    (window as any)._galaxyFlowHoverInfo = null;
     this.render();
   }
+
+
 
   private scrollToSelectedCell() {
     setTimeout(() => {
@@ -282,6 +368,88 @@ export class NotebookDetailWidget extends Widget {
     } else if (nb.index !== undefined) {
       nbIdx = String(nb.index + 1);
     }
+    // 获取当前筛选状态（优先使用选中状态，其次使用hover状态）
+    const tabId = this.getTabId();
+    const flowSelectionKey = `_galaxyFlowSelection_${tabId}`;
+    const stageSelectionKey = `_galaxyStageSelection_${tabId}`;
+    const currentFlowSelection = (window as any)[flowSelectionKey];
+    const currentStageSelection = (window as any)[stageSelectionKey];
+    const currentFlowHoverStage = (window as any)._galaxyFlowHoverStage;
+    const currentFlowHoverInfo = (window as any)._galaxyFlowHoverInfo;
+
+    // 计算筛选的cell索引
+    let filteredCellIndices: number[] = [];
+
+    // 添加调试信息
+    console.log('[NotebookDetailWidget] currentFlowSelection:', currentFlowSelection);
+    console.log('[NotebookDetailWidget] currentStageSelection:', currentStageSelection);
+    console.log('[NotebookDetailWidget] currentFlowHoverStage:', currentFlowHoverStage);
+    console.log('[NotebookDetailWidget] currentFlowHoverInfo:', currentFlowHoverInfo);
+
+    // 优先使用选中状态，如果没有选中状态则使用hover状态
+    if (currentStageSelection) {
+      // stage 选中筛选
+      const cells = nb.cells ?? [];
+      cells.forEach((cell: any, i: number) => {
+        const stage = String(cell["1st-level label"] ?? 'None');
+        if (stage === currentStageSelection) {
+          filteredCellIndices.push(i);
+        }
+      });
+      // console.log('[NotebookDetailWidget] stage selection, filtered indices:', filteredCellIndices);
+    } else if (currentFlowSelection && currentFlowSelection.from && currentFlowSelection.to) {
+      // flow 选中筛选 - 添加所有transition的第一个cell（考虑markdown cell隔开的情况）
+      const cells = nb.cells ?? [];
+      // 构建stage序列，忽略markdown cell
+      const stageSeq: { stage: string; cellIndex: number }[] = [];
+      cells.forEach((cell: any, i: number) => {
+        if (cell.cellType === 'code') {
+          const stage = String(cell["1st-level label"] ?? 'None');
+          stageSeq.push({ stage, cellIndex: i });
+        }
+      });
+      // 在stage序列中查找transition
+      for (let i = 0; i < stageSeq.length - 1; i++) {
+        const currStage = stageSeq[i].stage;
+        const nextStage = stageSeq[i + 1].stage;
+        if (currStage === currentFlowSelection.from && nextStage === currentFlowSelection.to) {
+          filteredCellIndices.push(stageSeq[i].cellIndex); // 添加每个transition的第一个cell
+        }
+      }
+      console.log('[NotebookDetailWidget] flow selection, filtered indices:', filteredCellIndices);
+    } else if (currentFlowHoverStage && currentFlowHoverStage !== '__flow_transition__') {
+      // stage hover筛选
+      const cells = nb.cells ?? [];
+      cells.forEach((cell: any, i: number) => {
+        const stage = String(cell["1st-level label"] ?? 'None');
+        if (stage === currentFlowHoverStage) {
+          filteredCellIndices.push(i);
+        }
+      });
+      // console.log('[NotebookDetailWidget] stage hover, filtered indices:', filteredCellIndices);
+    } else if (currentFlowHoverStage === '__flow_transition__' && currentFlowHoverInfo) {
+      // flow hover筛选
+      const cells = nb.cells ?? [];
+      for (let i = 0; i < cells.length - 1; i++) {
+        const currStage = String(cells[i]["1st-level label"] ?? 'None');
+        const nextStage = String(cells[i + 1]["1st-level label"] ?? 'None');
+        if (currStage === currentFlowHoverInfo.from && nextStage === currentFlowHoverInfo.to) {
+          filteredCellIndices.push(i);
+          filteredCellIndices.push(i + 1);
+        }
+      }
+      // console.log('[NotebookDetailWidget] flow hover, filtered indices:', filteredCellIndices);
+    }
+
+    console.log('[NotebookDetailWidget] final filtered indices:', filteredCellIndices);
+
+    // 计算当前在筛选cell中的位置
+    let currentFilteredIndex = -1;
+    if (filteredCellIndices.length > 0 && this.selectedCellIdx !== null) {
+      currentFilteredIndex = filteredCellIndices.indexOf(this.selectedCellIdx);
+    }
+    console.log('[NotebookDetailWidget] currentFilteredIndex:', currentFilteredIndex, 'selectedCellIdx:', this.selectedCellIdx, 'filteredCellIndices:', filteredCellIndices);
+
     // 先渲染主结构和cell列表容器
     this.node.innerHTML = `
       <div style="padding:24px; max-width:900px; margin:0 auto; height:100%; box-sizing:border-box; display:flex; flex-direction:column;">
@@ -290,6 +458,22 @@ export class NotebookDetailWidget extends Widget {
           <span style="margin:0 8px; color:#888;">/</span>
           <span style="color:#222;">notebook ${nbIdx || ''}</span>
         </div>-->
+        ${(() => {
+        console.log('[NotebookDetailWidget] filteredCellIndices.length:', filteredCellIndices.length);
+        console.log('[NotebookDetailWidget] should show nav control:', filteredCellIndices.length > 0);
+        return filteredCellIndices.length > 0 ? `
+        <!-- 筛选导航控件 -->
+        <div style="position:fixed; bottom:20px; left:50%; transform:translateX(-50%); z-index:1000;">
+          <div style="display:flex; align-items:center; background:rgba(255,255,255,0.95); backdrop-filter:blur(10px); border:1px solid #e0e0e0; border-radius:20px; padding:8px 12px; box-shadow:0 4px 12px rgba(0,0,0,0.15);">
+            <button id="nbd-nav-prev" style="background:none; border:none; cursor:pointer; color:#666; font-size:14px; padding:4px; margin-right:8px; border-radius:4px; transition:all 0.2s; min-width:24px; height:24px; display:flex; align-items:center; justify-content:center;" ${(currentFilteredIndex <= 0 || currentFilteredIndex === -1) ? 'disabled' : ''}>‹</button>
+            <span style="color:#333; font-size:12px; font-weight:500; margin:0 8px; min-width:40px; text-align:center;">${currentFilteredIndex >= 0 ? currentFilteredIndex + 1 : 0} / ${filteredCellIndices.length}</span>
+            <button id="nbd-nav-next" style="background:none; border:none; cursor:pointer; color:#666; font-size:14px; padding:4px; margin-left:8px; border-radius:4px; transition:all 0.2s; min-width:24px; height:24px; display:flex; align-items:center; justify-content:center;" ${(currentFilteredIndex >= filteredCellIndices.length - 1 && currentFilteredIndex !== -1) ? 'disabled' : ''}>›</button>
+            <div style="width:1px; height:16px; background:#e0e0e0; margin:0 8px;"></div>
+            <button id="nbd-nav-clear" style="background:none; border:none; cursor:pointer; color:#999; font-size:12px; padding:4px; border-radius:4px; transition:all 0.2s; min-width:24px; height:24px; display:flex; align-items:center; justify-content:center;" title="清除筛选">✕</button>
+          </div>
+        </div>
+        ` : '';
+      })()}
         <div style="flex:1 1 auto; min-height:0; display:flex; flex-direction:row; align-items:flex-start; gap:0;">
           <!-- Mini map -->
           <div style="width:20px; margin-right:14px; display:flex; flex-direction:column; justify-content:center; align-self:center; max-height:600px;">
@@ -469,13 +653,55 @@ export class NotebookDetailWidget extends Widget {
     setTimeout(() => {
       const minimapSvg = this.node.querySelector('svg');
       if (!minimapSvg) return;
-      minimapSvg.querySelectorAll('rect').forEach((r, i) => {
-        // 选中 cell 永远高亮
-        if (this.selectedCellIdx === i) {
-          r.classList.add('minimap-highlight');
-        } else {
-          r.classList.remove('minimap-highlight');
-        }
+              minimapSvg.querySelectorAll('rect').forEach((r, i) => {
+          // 选中 cell 永远高亮
+          if (this.selectedCellIdx === i) {
+            r.classList.add('minimap-highlight');
+          } else {
+            // 检查是否应该保持来自flowchart的筛选高亮（但不添加高亮类）
+            // const rectStage = r.getAttribute('data-stage');
+            // let shouldKeepVisible = false;
+
+            // 优先使用选中状态，其次使用hover状态
+            if (currentStageSelection) {
+              // 来自stage选中筛选
+              // shouldKeepVisible = rectStage === currentStageSelection;
+            } else if (currentFlowSelection && currentFlowSelection.from && currentFlowSelection.to) {
+              // 来自flow选中筛选
+              const cells = this.notebook.cells ?? [];
+              if (i < cells.length - 1) {
+                const currStage = String(cells[i]["1st-level label"] ?? 'None');
+                const nextStage = String(cells[i + 1]["1st-level label"] ?? 'None');
+                if (currStage === currentFlowSelection.from && nextStage === currentFlowSelection.to) {
+                  // shouldKeepVisible = true;
+                }
+              }
+            } else if (currentFlowHoverStage && currentFlowHoverStage !== '__flow_transition__') {
+              // 来自stage hover筛选
+              // shouldKeepVisible = rectStage === currentFlowHoverStage;
+            } else if (currentFlowHoverStage === '__flow_transition__') {
+              // 来自flow hover筛选，需要检查当前cell是否在flow中
+              const flowHoverInfo = (window as any)._galaxyFlowHoverInfo;
+              if (flowHoverInfo && flowHoverInfo.from && flowHoverInfo.to) {
+                const cells = this.notebook.cells ?? [];
+                if (i < cells.length - 1) {
+                  const currStage = String(cells[i]["1st-level label"] ?? 'None');
+                  const nextStage = String(cells[i + 1]["1st-level label"] ?? 'None');
+                  if (currStage === flowHoverInfo.from && nextStage === flowHoverInfo.to) {
+                    // shouldKeepVisible = true;
+                  }
+                }
+              }
+            }
+
+            // 点击选中后不添加高亮类，只有hover时才高亮
+            r.classList.remove('minimap-highlight');
+            
+            // 调试信息
+            // if (shouldKeepVisible) {
+            //   console.log('[setTimeout] cell', i, 'shouldKeepVisible:', shouldKeepVisible, 'currentStageSelection:', currentStageSelection, 'currentFlowSelection:', currentFlowSelection);
+            // }
+          }
         // 点击选中
         r.addEventListener('click', () => {
           this.selectedCellIdx = i;
@@ -529,6 +755,156 @@ export class NotebookDetailWidget extends Widget {
         cellList.scrollTop = prevScrollTop;
       }
     }, 0);
+
+    // 绑定导航按钮事件
+    const navPrev = this.node.querySelector('#nbd-nav-prev') as HTMLButtonElement;
+    const navNext = this.node.querySelector('#nbd-nav-next') as HTMLButtonElement;
+    const navClear = this.node.querySelector('#nbd-nav-clear') as HTMLButtonElement;
+
+    if (navPrev && navNext) {
+      // 重新计算筛选的cell索引（使用与渲染时相同的逻辑）
+      const tabId = this.getTabId();
+      const flowSelectionKey = `_galaxyFlowSelection_${tabId}`;
+      const stageSelectionKey = `_galaxyStageSelection_${tabId}`;
+      const currentFlowSelection = (window as any)[flowSelectionKey];
+      const currentStageSelection = (window as any)[stageSelectionKey];
+      const currentFlowHoverStage = (window as any)._galaxyFlowHoverStage;
+      const currentFlowHoverInfo = (window as any)._galaxyFlowHoverInfo;
+
+      let filteredCellIndices: number[] = [];
+      // 优先使用选中状态，如果没有选中状态则使用hover状态
+      if (currentStageSelection) {
+        // stage 选中筛选
+        const cells = this.notebook.cells ?? [];
+        cells.forEach((cell: any, i: number) => {
+          const stage = String(cell["1st-level label"] ?? 'None');
+          if (stage === currentStageSelection) {
+            filteredCellIndices.push(i);
+          }
+        });
+      } else if (currentFlowSelection && currentFlowSelection.from && currentFlowSelection.to) {
+        // flow 选中筛选 - 添加所有transition的第一个cell（考虑markdown cell隔开的情况）
+        const cells = this.notebook.cells ?? [];
+        // 构建stage序列，忽略markdown cell
+        const stageSeq: { stage: string; cellIndex: number }[] = [];
+        cells.forEach((cell: any, i: number) => {
+          if (cell.cellType === 'code') {
+            const stage = String(cell["1st-level label"] ?? 'None');
+            stageSeq.push({ stage, cellIndex: i });
+          }
+        });
+        // 在stage序列中查找transition
+        for (let i = 0; i < stageSeq.length - 1; i++) {
+          const currStage = stageSeq[i].stage;
+          const nextStage = stageSeq[i + 1].stage;
+          if (currStage === currentFlowSelection.from && nextStage === currentFlowSelection.to) {
+            filteredCellIndices.push(stageSeq[i].cellIndex); // 添加每个transition的第一个cell
+          }
+        }
+      } else if (currentFlowHoverStage && currentFlowHoverStage !== '__flow_transition__') {
+        // stage hover筛选
+        const cells = this.notebook.cells ?? [];
+        cells.forEach((cell: any, i: number) => {
+          const stage = String(cell["1st-level label"] ?? 'None');
+          if (stage === currentFlowHoverStage) {
+            filteredCellIndices.push(i);
+          }
+        });
+      } else if (currentFlowHoverStage === '__flow_transition__' && currentFlowHoverInfo) {
+        // flow hover筛选
+        const cells = this.notebook.cells ?? [];
+        for (let i = 0; i < cells.length - 1; i++) {
+          const currStage = String(cells[i]["1st-level label"] ?? 'None');
+          const nextStage = String(cells[i + 1]["1st-level label"] ?? 'None');
+          if (currStage === currentFlowHoverInfo.from && nextStage === currentFlowHoverInfo.to) {
+            filteredCellIndices.push(i);
+            filteredCellIndices.push(i + 1);
+          }
+        }
+      }
+
+      navPrev.addEventListener('click', () => {
+        if (filteredCellIndices.length > 0) {
+          let currentIndex = filteredCellIndices.indexOf(this.selectedCellIdx ?? -1);
+          // 如果没有选中具体cell，选中第一个
+          if (currentIndex === -1) {
+            currentIndex = 0;
+            this.selectedCellIdx = filteredCellIndices[0];
+          } else if (currentIndex <= 0) {
+            currentIndex = filteredCellIndices.length - 1; // 循环到最后一个
+          } else {
+            currentIndex--;
+          }
+          this.selectedCellIdx = filteredCellIndices[currentIndex];
+          this.render();
+          this.scrollToSelectedCell();
+        }
+      });
+
+      navNext.addEventListener('click', () => {
+        if (filteredCellIndices.length > 0) {
+          let currentIndex = filteredCellIndices.indexOf(this.selectedCellIdx ?? -1);
+          // 如果没有选中具体cell，选中第一个
+          if (currentIndex === -1) {
+            currentIndex = 0;
+            this.selectedCellIdx = filteredCellIndices[0];
+          } else if (currentIndex < 0 || currentIndex >= filteredCellIndices.length - 1) {
+            currentIndex = 0; // 循环到第一个
+          } else {
+            currentIndex++;
+          }
+          this.selectedCellIdx = filteredCellIndices[currentIndex];
+          this.render();
+          this.scrollToSelectedCell();
+        }
+      });
+
+      // 添加hover效果
+      navPrev.addEventListener('mouseenter', () => {
+        if (!navPrev.disabled) {
+          navPrev.style.background = '#f5f5f5';
+          navPrev.style.color = '#333';
+        }
+      });
+      navPrev.addEventListener('mouseleave', () => {
+        navPrev.style.background = 'none';
+        navPrev.style.color = '#666';
+      });
+      navNext.addEventListener('mouseenter', () => {
+        if (!navNext.disabled) {
+          navNext.style.background = '#f5f5f5';
+          navNext.style.color = '#333';
+        }
+      });
+      navNext.addEventListener('mouseleave', () => {
+        navNext.style.background = 'none';
+        navNext.style.color = '#666';
+      });
+
+              // 清除筛选按钮事件
+        if (navClear) {
+          navClear.addEventListener('click', () => {
+            // console.log('[NotebookDetailWidget] Clear filter clicked');
+            // 清除选中状态
+            this.selectedCellIdx = null;
+            // 触发清除事件，让所有组件回到默认状态
+            window.dispatchEvent(new CustomEvent('galaxy-selection-cleared'));
+            // 重新渲染，隐藏导航控件
+            this.render();
+          });
+
+        // 清除按钮hover效果
+        navClear.addEventListener('mouseenter', () => {
+          navClear.style.background = '#ffebee';
+          navClear.style.color = '#d32f2f';
+        });
+        navClear.addEventListener('mouseleave', () => {
+          navClear.style.background = 'none';
+          navClear.style.color = '#999';
+        });
+      }
+    }
+
     // 顶部 Overview 点击返回
     const overview = this.node.querySelector('.nbd-breadcrumb') as HTMLSpanElement;
     if (overview) {

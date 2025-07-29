@@ -49,3 +49,19 @@
 .matrix-cell:hover {
   cursor: pointer;
 }
+
+/* 选中状态的高亮样式 */
+.stage-rect.selected {
+  stroke: #000 !important;
+  stroke-width: 3px !important;
+}
+
+.flow-link.selected {
+  opacity: 1 !important;
+  /* stroke-width: 4px !important; 移除这行，让JavaScript控制线宽 */
+}
+
+/* Detail sidebar 内部标题样式 */
+#detail-sidebar-title {
+  color: inherit;
+}

@@ -30,16 +30,45 @@ function getStageIdByName(name: string): string | undefined {
 
 export class DetailSidebar extends Widget {
   private colorMap: Map<string, string>;
-  // private notebookOrder: number[];
+  private notebookOrder: number[] = []; // 保存notebook的原始排序
   private filter: any = null;
   private _allData: any[] = [];
   private _mostFreqStage: string | undefined;
   private _mostFreqFlow: string | undefined;
   private _hiddenStages?: Set<string>;
   private currentNotebook: any = null; // 新增：保存当前 notebook detail
+  private _currentTitle: string = 'Notebook Overview'; // 新增：跟踪当前标题
+  private _currentSelection: any = null; // 新增：跟踪当前选中状态
+  
+  private _getTitleStyle(): string {
+    if (!this._currentSelection) return 'color: #222';
+    if (this._currentSelection.type === 'stage') {
+      let color = this.colorMap.get(this._currentSelection.stage) || '#222';
+      // 确保颜色格式正确（移除alpha通道）
+      if (color.length === 9 && color.startsWith('#')) {
+        color = color.substring(0, 7);
+      }
+      return `color: ${color}`;
+    } else if (this._currentSelection.type === 'flow') {
+      // 对于flow，使用渐变CSS
+      let fromColor = this.colorMap.get(this._currentSelection.from) || '#222';
+      let toColor = this.colorMap.get(this._currentSelection.to) || '#222';
+      // 确保颜色格式正确（移除alpha通道）
+      if (fromColor.length === 9 && fromColor.startsWith('#')) {
+        fromColor = fromColor.substring(0, 7);
+      }
+      if (toColor.length === 9 && toColor.startsWith('#')) {
+        toColor = toColor.substring(0, 7);
+      }
+      return `background: linear-gradient(90deg, ${fromColor}, ${toColor}); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; display: inline; word-break: break-word;`;
+    }
+    return 'color: #222';
+  }
+  
   constructor(colorMap: Map<string, string>, notebookOrder: number[], hiddenStages?: Set<string>) {
     super();
     this.colorMap = colorMap;
+    this.notebookOrder = notebookOrder || []; // 保存notebook的原始排序
     this.id = 'galaxy-detail-sidebar';
     this.title.label = 'Details';
     this.title.closable = true;
@@ -68,9 +97,15 @@ export class DetailSidebar extends Widget {
         this.setSummary(filteredData, this._mostFreqStage, this._mostFreqFlow);
       }
     });
+    // 新增：监听 notebook order 变化事件
+    window.addEventListener('galaxy-notebook-order-changed', (e: any) => {
+      this.notebookOrder = e.detail?.notebookOrder ?? [];
+    });
   }
 
   onAfterAttach() {
+    // 恢复之前的筛选状态
+    this.restoreDetailFilterState();
     window.addEventListener('galaxy-cell-detail', this._cellDetailHandler);
   }
   onBeforeDetach() {
@@ -81,39 +116,63 @@ export class DetailSidebar extends Widget {
     this.setCellDetail(cell);
   };
 
+
+
   setDefault() {
+    this.currentNotebook = null; // 重置notebook状态
+    this._currentSelection = null; // 重置选择状态
     this.node.innerHTML = `<div style="padding:16px; color:#888;">请选择一个 notebook 或 cell 查看详情。</div>`;
   }
 
   setNotebookDetail(nb: any) {
     this.currentNotebook = nb; // 新增：保存当前 notebook
+    // 在notebook detail视图下，不改变标题颜色
+    this._currentSelection = null;
     // 确保 nb 有 index 字段
     if (nb && nb.index === undefined) {
       nb.index = 0;
     }
-    // 只用未被隐藏的 cell
-    const cells = (nb.cells ?? []).filter((c: any) => !(this._hiddenStages ?? new Set(['1', '9'])).has(String(c["1st-level label"] ?? "None")));
+    
+    // 设置notebook的默认标题
+    this._currentTitle = nb.notebook_name ?? nb.kernelVersionId ?? `Notebook ${nb.globalIndex || nb.index || 0}`;
+    this.saveDetailFilterState();
+    
+    // 使用所有cell，与LeftSidebar保持一致
+    const cells = nb.cells ?? [];
     const total = cells.length;
     const codeCount = cells.filter((c: any) => c.cellType === 'code').length;
     const mdCount = cells.filter((c: any) => c.cellType === 'markdown').length;
     // 统计最常见stage和flow（与flowchart一致）
     const stageFreq: Record<string, number> = {};
     const transitions: Record<string, number> = {};
-    for (let i = 0; i < cells.length; i++) {
-      const stage = String(cells[i]["1st-level label"] ?? 'None');
+    
+    // 只考虑code cell，与LeftSidebar保持一致
+    const codeCells = cells.filter((c: any) => c.cellType === 'code');
+    
+    // 统计stage频率
+    for (let i = 0; i < codeCells.length; i++) {
+      const stage = String(codeCells[i]["1st-level label"] ?? 'None');
       if (stage !== 'None') {
         stageFreq[stage] = (stageFreq[stage] || 0) + 1;
       }
-      if (i < cells.length - 1) {
-        const from = String(cells[i]["1st-level label"] ?? 'None');
-        const to = String(cells[i + 1]["1st-level label"] ?? 'None');
-        if (from !== 'None' && to !== 'None' && from !== to) {
-          // 只统计未被隐藏的 flow
-          if (!(this._hiddenStages ?? new Set(['1', '9'])).has(from) && !(this._hiddenStages ?? new Set(['1', '9'])).has(to)) {
-            const key = `${from}->${to}`;
-            transitions[key] = (transitions[key] || 0) + 1;
-          }
-        }
+    }
+    
+    // 构建stage序列（连续的相同stage合并）
+    const stageSeq: string[] = [];
+    for (let i = 0; i < codeCells.length; i++) {
+      const stage = String(codeCells[i]["1st-level label"] ?? 'None');
+      if (stageSeq.length === 0 || stageSeq[stageSeq.length - 1] !== stage) {
+        stageSeq.push(stage);
+      }
+    }
+    
+    // 计算stage序列中的transitions
+    for (let i = 0; i < stageSeq.length - 1; i++) {
+      const from = stageSeq[i];
+      const to = stageSeq[i + 1];
+      if (from !== 'None' && to !== 'None') {
+        const key = `${from}->${to}`;
+        transitions[key] = (transitions[key] || 0) + 1;
       }
     }
     // 找到所有频率最高的stage和transition
@@ -208,10 +267,106 @@ export class DetailSidebar extends Widget {
       </g>
     </svg>`;
 
+    // 计算选中stage和transition的统计信息
+    let selectedStageInfo = '';
+    let selectedTransitionInfo = '';
+    
+    if (this.filter && this.filter.type === 'stage') {
+      const stageCells = cells.filter((cell: any) => {
+        const stage = String(cell["1st-level label"] ?? 'None');
+        return stage === this.filter.stage;
+      });
+      const selectedStageCount = stageCells.length;
+      const selectedStageCodeCells = stageCells.filter((cell: any) => cell.cellType === 'code');
+      let selectedStageAvgLines = 0;
+      if (selectedStageCodeCells.length > 0) {
+        const totalLines = selectedStageCodeCells.reduce((sum: number, cell: any) => {
+          const code = cell.source ?? cell.code ?? '';
+          return sum + code.split(/\r?\n/).length;
+        }, 0);
+        selectedStageAvgLines = totalLines / selectedStageCodeCells.length;
+      }
+      const stageColor = this.colorMap.get(this.filter.stage) || '#1976d2';
+      const stageLabel = LABEL_MAP[this.filter.stage] ?? this.filter.stage;
+      selectedStageInfo = `
+        <div style="margin-bottom:16px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; color:#555;">
+            <span style="font-weight:500;">Selected Stage: <span style="color:${stageColor}; font-weight:600;">${stageLabel}</span></span>
+          </div>
+          <div style="display:flex; flex-direction:row; gap:18px;">
+            <div style="flex:1;">
+              <div style="font-size:13px; color:#888;">Occurrences</div>
+              <div style="font-size:20px; font-weight:600;">${selectedStageCount}</div>
+            </div>
+            <div style="flex:1;">
+              <div style="font-size:13px; color:#888;">Avg Lines</div>
+              <div style="font-size:20px; font-weight:600;">${selectedStageAvgLines.toFixed(1)}</div>
+            </div>
+          </div>
+        </div>
+      `;
+    } else if (this.filter && this.filter.type === 'flow') {
+      let flowCount = 0;
+      let totalLines = 0;
+      let codeCellCount = 0;
+      
+      // 先构建stage序列（连续的相同stage合并）
+      const stageSeq: string[] = [];
+      // 只考虑code cell，与LeftSidebar保持一致
+      const codeCells = cells.filter((c: any) => c.cellType === 'code');
+      for (let i = 0; i < codeCells.length; i++) {
+        const stage = String(codeCells[i]["1st-level label"] ?? 'None');
+        if (stageSeq.length === 0 || stageSeq[stageSeq.length - 1] !== stage) {
+          stageSeq.push(stage);
+        }
+      }
+      
+      // 计算stage序列中的transitions
+      for (let i = 0; i < stageSeq.length - 1; i++) {
+        const from = stageSeq[i];
+        const to = stageSeq[i + 1];
+        if (from === this.filter.from && to === this.filter.to) {
+          flowCount++;
+        }
+      }
+      
+      // 单独计算from stage的code cells平均行数
+      for (let i = 0; i < cells.length; i++) {
+        const cellStage = String(cells[i]["1st-level label"] ?? 'None');
+        if (cellStage === this.filter.from && cells[i].cellType === 'code') {
+          const code = cells[i].source ?? cells[i].code ?? '';
+          totalLines += code.split(/\r?\n/).length;
+          codeCellCount++;
+        }
+      }
+      const avgLines = codeCellCount > 0 ? totalLines / codeCellCount : 0;
+      const fromColor = this.colorMap.get(this.filter.from) || '#1976d2';
+      const toColor = this.colorMap.get(this.filter.to) || '#42a5f5';
+      const fromLabel = LABEL_MAP[this.filter.from] ?? this.filter.from;
+      const toLabel = LABEL_MAP[this.filter.to] ?? this.filter.to;
+      selectedTransitionInfo = `
+        <div style="margin-bottom:16px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; color:#555;">
+            <span style="font-weight:500;">Selected Transition: <span style="background: linear-gradient(90deg, ${fromColor}, ${toColor}); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; color: transparent; font-weight:600;">${fromLabel} → ${toLabel}</span></span>
+          </div>
+          <div style="display:flex; flex-direction:row; gap:18px;">
+            <div style="flex:1;">
+              <div style="font-size:13px; color:#888;">Occurrences</div>
+              <div style="font-size:20px; font-weight:600;">${flowCount}</div>
+            </div>
+            <div style="flex:1;">
+              <div style="font-size:13px; color:#888;">Avg Lines</div>
+              <div style="font-size:20px; font-weight:600;">${avgLines.toFixed(1)}</div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+    
     // 插入内容
     this.node.innerHTML = `
       <div style="padding:28px 18px 18px 18px; font-size:15px; color:#222; max-width:420px; margin:0 auto;">
-        <div style="font-size:20px; font-weight:700; margin-bottom:18px; line-height:1.2; word-break:break-all;">${nb.notebook_name ?? nb.kernelVersionId}</div>
+        <div style="font-size:20px; font-weight:700; margin-bottom:18px; line-height:1.2; word-break:break-all;" id="detail-sidebar-title"><span style="${this._getTitleStyle()}">${nb.notebook_name ?? nb.kernelVersionId}</span></div>
         <div style="display:flex; flex-direction:row; gap:18px; margin-bottom:18px;">
           <div style="flex:1;">
             <div style="font-size:13px; color:#888;">Total Cells</div>
@@ -239,6 +394,9 @@ export class DetailSidebar extends Widget {
         <div style="margin:18px 0 8px 0; font-weight:600; font-size:15px;">Stage Frequency Distribution</div>
         <div style="height:16px;"></div>
         <div style="margin: 8px 0 12px 0; width:100%; max-width:600px; margin-left:auto; margin-right:auto;">${barChart}</div>
+        
+        ${selectedStageInfo}
+        ${selectedTransitionInfo}
       </div>
     `;
 
@@ -345,7 +503,13 @@ export class DetailSidebar extends Widget {
     }, 0);
   }
 
+
+
   setCellDetail(cell: any) {
+    this.currentNotebook = cell.notebook; // 新增：保存当前 notebook
+    // 在cell detail视图下，不改变标题颜色
+    this._currentSelection = null;
+    this.saveDetailFilterState();
     // Show cell details in English, including stage name
     const code = cell.source ?? cell.code ?? '';
     const codeLines = code.split(/\r?\n/);
@@ -547,10 +711,12 @@ export class DetailSidebar extends Widget {
     </div>
     <div class="galaxy-tab-content" data-tab-content="second" style="display:none;"></div>`;
     this.node.innerHTML = `<div style="padding:24px 18px 18px 18px; margin:18px 0; width:100%; font-size:15px; color:#222; box-sizing:border-box;">
-      <div style="font-size:17px; font-weight:600; margin-bottom:12px; color:#1976d2; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+      <div style="font-size:17px; font-weight:600; margin-bottom:12px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;" id="detail-sidebar-title">
+        <span style="${this._getTitleStyle()}">
         <span class="dsb-nb-link" style="color:#3182bd; cursor:pointer; text-decoration:underline;">Notebook${nbIdx ? + nbIdx : ''}</span>
         ${cellIdx ? `<span style='color:#888; font-size:14px;'>/ Cell ${cellIdx}</span>` : ''}
         ${cellTypeLabel}
+        </span>
       </div>
       ${tabHeader}
       ${tabContent}
@@ -718,7 +884,40 @@ export class DetailSidebar extends Widget {
 
   setFilter(selection: any) {
     this.filter = selection;
-    this.setSummary(this._allData, this._mostFreqStage, this._mostFreqFlow);
+    this._currentSelection = selection; // 更新当前选中状态
+    
+    // 设置全局筛选状态，供NotebookDetailWidget使用
+    if (selection) {
+      if (selection.type === 'stage') {
+        (window as any)._galaxyFlowSelection = { type: 'stage', stage: selection.stage };
+        const stageName = LABEL_MAP[selection.stage] || selection.stage;
+        this._currentTitle = stageName;
+        console.log('Setting stage title:', stageName);
+      } else if (selection.type === 'flow') {
+        (window as any)._galaxyFlowSelection = { type: 'flow', from: selection.from, to: selection.to };
+        const fromName = LABEL_MAP[selection.from] || selection.from;
+        const toName = LABEL_MAP[selection.to] || selection.to;
+        const flowName = `${fromName} → ${toName}`;
+        this._currentTitle = flowName;
+        console.log('Setting flow title:', flowName);
+      }
+    } else {
+      (window as any)._galaxyFlowSelection = null;
+      this._currentTitle = this.currentNotebook ? 'Notebook Detail' : 'Notebook Overview';
+    }
+    
+    this.saveDetailFilterState();
+    
+    // 触发筛选状态变化事件，通知NotebookDetailWidget重新渲染
+    window.dispatchEvent(new CustomEvent('galaxy-flow-selection-changed', { detail: selection }));
+    
+    // 根据当前状态调用相应的方法
+    if (this.currentNotebook) {
+      // 在notebook detail状态下，重新渲染notebook detail
+      this.setNotebookDetail(this.currentNotebook);
+    } else {
+      this.setSummary(this._allData, this._mostFreqStage, this._mostFreqFlow);
+    }
   }
 
   setSummary(data: any[], mostFreqStage?: string, mostFreqFlow?: string, notebookOrder?: number[]) {
@@ -731,6 +930,10 @@ export class DetailSidebar extends Widget {
       this._allData.forEach((nb, i) => {
         if (typeof nb.globalIndex !== 'number') nb.globalIndex = i + 1;
       });
+    }
+    // 更新notebookOrder
+    if (notebookOrder && notebookOrder.length > 0) {
+      this.notebookOrder = notebookOrder;
     }
     this._mostFreqStage = mostFreqStage;
     this._mostFreqFlow = mostFreqFlow;
@@ -771,6 +974,280 @@ export class DetailSidebar extends Widget {
     }
     // 统计
     const notebookCount = filteredData.length;
+    
+    // 根据是否有filter显示不同的统计信息
+    if (this.filter) {
+      // 有filter时：显示选中stage/flow的统计
+      let totalOccurrences = 0;
+      let containingNotebooks = 0;
+      let avgPerNotebook = 0;
+      
+      if (this.filter.type === 'stage') {
+        // 统计选中的stage
+        filteredData.forEach(nb => {
+          let stageCount = 0;
+          nb.cells?.forEach((cell: any) => {
+            const stage = String(cell["1st-level label"] ?? 'None');
+            if (stage === this.filter.stage) {
+              stageCount++;
+            }
+          });
+          if (stageCount > 0) {
+            containingNotebooks++;
+            totalOccurrences += stageCount;
+          }
+        });
+        avgPerNotebook = containingNotebooks > 0 ? (totalOccurrences / containingNotebooks) : 0;
+      } else if (this.filter.type === 'flow') {
+        // 统计选中的flow
+        filteredData.forEach(nb => {
+          let flowCount = 0;
+          const cells = nb.cells ?? [];
+          for (let i = 0; i < cells.length - 1; i++) {
+            const from = String(cells[i]["1st-level label"] ?? 'None');
+            const to = String(cells[i + 1]["1st-level label"] ?? 'None');
+            if (from === this.filter.from && to === this.filter.to) {
+              flowCount++;
+            }
+          }
+          if (flowCount > 0) {
+            containingNotebooks++;
+            totalOccurrences += flowCount;
+          }
+        });
+        avgPerNotebook = containingNotebooks > 0 ? (totalOccurrences / containingNotebooks) : 0;
+      }
+      
+      // 按原始顺序排序filteredData
+      const sortedFilteredData = [...filteredData].sort((a, b) => {
+        const aIndex = this.notebookOrder.indexOf(a.globalIndex - 1);
+        const bIndex = this.notebookOrder.indexOf(b.globalIndex - 1);
+        return aIndex - bIndex;
+      });
+      
+      // 渲染选中项的统计信息和筛选后的列表
+      const notebookTableHtml = sortedFilteredData.map((nb, index) => {
+        let occurrenceCount = 0;
+        if (this.filter.type === 'stage') {
+          nb.cells?.forEach((cell: any) => {
+            const stage = String(cell["1st-level label"] ?? 'None');
+            if (stage === this.filter.stage) {
+              occurrenceCount++;
+            }
+          });
+        } else if (this.filter.type === 'flow') {
+          const cells = nb.cells ?? [];
+          for (let i = 0; i < cells.length - 1; i++) {
+            const from = String(cells[i]["1st-level label"] ?? 'None');
+            const to = String(cells[i + 1]["1st-level label"] ?? 'None');
+            if (from === this.filter.from && to === this.filter.to) {
+              occurrenceCount++;
+            }
+          }
+        }
+        
+        const globalIndex = nb.globalIndex || (index + 1);
+        return `
+          <tr class="filtered-notebook-item" data-notebook-index="${index}" style="cursor:pointer; transition:background-color 0.15s;">
+            <td style="padding:8px 12px; border-bottom:1px solid #eee; text-align:center; color:#888; font-size:12px; width:40px;">${globalIndex}</td>
+            <td style="padding:8px 12px; border-bottom:1px solid #eee; font-weight:500; color:#333;">${nb.notebook_name ?? nb.kernelVersionId ?? `Notebook ${globalIndex}`}</td>
+            <td style="padding:8px 12px; border-bottom:1px solid #eee; text-align:right; color:#666;">${occurrenceCount}</td>
+          </tr>`;
+      }).join('');
+      
+      this.node.innerHTML = `
+        <div style="padding:20px 18px 18px 18px; font-size:14px; line-height:1.7; color:#222;">
+          <div style="font-size:18px; font-weight:600; margin-bottom:14px;" id="detail-sidebar-title"><span style="${this._getTitleStyle()}">${this._currentTitle}</span></div>
+          <table style="width:100%; border-collapse:collapse; margin-bottom:16px;">
+            <tr><td style="font-weight:500;">Total Occurrences</td><td style="text-align:right;"><b>${totalOccurrences}</b></td></tr>
+            <tr><td style="font-weight:500;">Containing Notebooks</td><td style="text-align:right;"><b>${containingNotebooks}</b></td></tr>
+            <tr><td style="font-weight:500;">Avg per Notebook</td><td style="text-align:right;"><b>${avgPerNotebook.toFixed(1)}</b></td></tr>
+          </table>
+          <div style="margin-top:16px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+              <div style="font-weight:600; color:#333;">Filtered Notebooks (${filteredData.length})</div>
+              <div style="display:flex; align-items:center; gap:4px;">
+                <span style="font-size:12px; color:#666;">Sort by:</span>
+                <button id="sort-occurrences-btn" style="background:none; border:none; cursor:pointer; padding:4px; border-radius:4px; transition:background-color 0.15s;" title="Original order (click for occurrences desc)">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M3 12h18" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <div style="max-height:300px; overflow-y:auto;">
+              <table style="width:100%; border-collapse:collapse; font-size:13px;">
+                <thead>
+                  <tr style="background:#f5f5f5;">
+                    <th style="padding:8px 12px; text-align:center; font-weight:600; color:#333; border-bottom:2px solid #ddd; width:40px;">#</th>
+                    <th style="padding:8px 12px; text-align:left; font-weight:600; color:#333; border-bottom:2px solid #ddd;">Notebook</th>
+                    <th style="padding:8px 12px; text-align:right; font-weight:600; color:#333; border-bottom:2px solid #ddd;">Occurrences</th>
+                  </tr>
+                </thead>
+                <tbody id="filtered-notebooks-tbody">
+                  ${notebookTableHtml}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>`;
+      
+      // 绑定点击事件和悬停效果
+      setTimeout(() => {
+        const notebookItems = this.node.querySelectorAll('.filtered-notebook-item');
+        notebookItems.forEach((item, index) => {
+          item.addEventListener('click', () => {
+            const notebook = sortedFilteredData[index];
+            if (notebook) {
+              this.setNotebookDetail(notebook);
+            }
+          });
+          
+          // 添加悬停效果
+          item.addEventListener('mouseenter', () => {
+            (item as HTMLElement).style.backgroundColor = '#f0f8ff';
+          });
+          item.addEventListener('mouseleave', () => {
+            (item as HTMLElement).style.backgroundColor = '';
+          });
+        });
+        
+        // 绑定排序按钮事件
+        const sortBtn = this.node.querySelector('#sort-occurrences-btn');
+        if (sortBtn) {
+          let sortMode = 'original'; // 'original', 'desc', 'asc'
+          
+          sortBtn.addEventListener('click', () => {
+            // 切换排序模式：original -> desc -> asc -> original
+            if (sortMode === 'original') {
+              sortMode = 'desc';
+            } else if (sortMode === 'desc') {
+              sortMode = 'asc';
+            } else {
+              sortMode = 'original';
+            }
+            
+            // 更新图标和提示文本
+            const svg = sortBtn.querySelector('svg');
+            if (svg) {
+              if (sortMode === 'original') {
+                // 原始顺序：使用横线图标
+                svg.innerHTML = '<path d="M3 12h18" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>';
+                (sortBtn as HTMLButtonElement).title = 'Original order (click for occurrences desc)';
+              } else if (sortMode === 'desc') {
+                // 降序：向下箭头
+                svg.innerHTML = '<path d="M7 10l5 5 5-5" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>';
+                (sortBtn as HTMLButtonElement).title = 'Occurrences descending (click for ascending)';
+              } else {
+                // 升序：向上箭头
+                svg.innerHTML = '<path d="M7 14l5-5 5 5" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>';
+                (sortBtn as HTMLButtonElement).title = 'Occurrences ascending (click for original order)';
+              }
+            }
+            
+            // 重新排序数据
+            let sortedData;
+            if (sortMode === 'original') {
+              // 按原始顺序排序
+              sortedData = [...filteredData].sort((a, b) => {
+                const aIndex = this.notebookOrder.indexOf(a.globalIndex - 1);
+                const bIndex = this.notebookOrder.indexOf(b.globalIndex - 1);
+                return aIndex - bIndex;
+              });
+            } else {
+              // 按occurrences排序
+              sortedData = [...filteredData].sort((a, b) => {
+                let aCount = 0, bCount = 0;
+                
+                if (this.filter.type === 'stage') {
+                  a.cells?.forEach((cell: any) => {
+                    const stage = String(cell["1st-level label"] ?? 'None');
+                    if (stage === this.filter.stage) aCount++;
+                  });
+                  b.cells?.forEach((cell: any) => {
+                    const stage = String(cell["1st-level label"] ?? 'None');
+                    if (stage === this.filter.stage) bCount++;
+                  });
+                } else if (this.filter.type === 'flow') {
+                  const aCells = a.cells ?? [];
+                  const bCells = b.cells ?? [];
+                  for (let i = 0; i < aCells.length - 1; i++) {
+                    const from = String(aCells[i]["1st-level label"] ?? 'None');
+                    const to = String(aCells[i + 1]["1st-level label"] ?? 'None');
+                    if (from === this.filter.from && to === this.filter.to) aCount++;
+                  }
+                  for (let i = 0; i < bCells.length - 1; i++) {
+                    const from = String(bCells[i]["1st-level label"] ?? 'None');
+                    const to = String(bCells[i + 1]["1st-level label"] ?? 'None');
+                    if (from === this.filter.from && to === this.filter.to) bCount++;
+                  }
+                }
+                
+                return sortMode === 'desc' ? bCount - aCount : aCount - bCount;
+              });
+            }
+            
+            // 重新生成表格HTML
+            const newTableHtml = sortedData.map((nb, index) => {
+              let occurrenceCount = 0;
+              if (this.filter.type === 'stage') {
+                nb.cells?.forEach((cell: any) => {
+                  const stage = String(cell["1st-level label"] ?? 'None');
+                  if (stage === this.filter.stage) {
+                    occurrenceCount++;
+                  }
+                });
+              } else if (this.filter.type === 'flow') {
+                const cells = nb.cells ?? [];
+                for (let i = 0; i < cells.length - 1; i++) {
+                  const from = String(cells[i]["1st-level label"] ?? 'None');
+                  const to = String(cells[i + 1]["1st-level label"] ?? 'None');
+                  if (from === this.filter.from && to === this.filter.to) {
+                    occurrenceCount++;
+                  }
+                }
+              }
+              
+              return `
+                <tr class="filtered-notebook-item" data-notebook-index="${index}" style="cursor:pointer; transition:background-color 0.15s;">
+                  <td style="padding:8px 12px; border-bottom:1px solid #eee; text-align:center; color:#888; font-size:12px; width:40px;">${nb.globalIndex}</td>
+                  <td style="padding:8px 12px; border-bottom:1px solid #eee; font-weight:500; color:#333;">${nb.notebook_name ?? nb.kernelVersionId ?? `Notebook ${nb.globalIndex}`}</td>
+                  <td style="padding:8px 12px; border-bottom:1px solid #eee; text-align:right; color:#666;">${occurrenceCount}</td>
+                </tr>`;
+            }).join('');
+            
+            // 更新表格内容
+            const tbody = this.node.querySelector('#filtered-notebooks-tbody');
+            if (tbody) {
+              tbody.innerHTML = newTableHtml;
+              
+              // 重新绑定点击事件
+              const newNotebookItems = tbody.querySelectorAll('.filtered-notebook-item');
+              newNotebookItems.forEach((item, index) => {
+                item.addEventListener('click', () => {
+                  const notebook = sortedData[index];
+                  if (notebook) {
+                    this.setNotebookDetail(notebook);
+                  }
+                });
+                
+                // 重新绑定悬停效果
+                item.addEventListener('mouseenter', () => {
+                  (item as HTMLElement).style.backgroundColor = '#f0f8ff';
+                });
+                item.addEventListener('mouseleave', () => {
+                  (item as HTMLElement).style.backgroundColor = '';
+                });
+              });
+            }
+          });
+        }
+      }, 0);
+      
+      return;
+    }
+    
+    // 没有filter时：显示原来的统计信息
     // 统计真实cell数并保留全局globalIndex
     const cellCountsWithIndex = data.map(nb => {
       const orig = this._allData.find(item =>
@@ -910,12 +1387,22 @@ export class DetailSidebar extends Widget {
       notebookListHtml = notebookOrder.map(idx => {
         const nb = filteredData[idx];
         if (!nb) return '';
-        return `<tr><td style=\"color:#888;\">${nb.globalIndex + 1}</td><td><a href=\"#\" class=\"dsb-nb-kernel-link\" data-idx=\"${nb.globalIndex}\" data-global-idx=\"${nb.globalIndex}\" style=\"color:#1976d2; text-decoration:underline; cursor:pointer; font-weight:600; font-size:14px; padding:2px 8px; border-radius:4px; transition:background 0.15s;\">${nb.notebook_name ?? nb.kernelVersionId}</a></td></tr>`;
+        return `<tr class="overview-notebook-item" data-notebook-index="${nb.globalIndex}" style="cursor:pointer; transition:background-color 0.15s;">
+          <td style="padding:8px 12px; border-bottom:1px solid #eee; text-align:center; color:#888; font-size:12px; width:40px;">${nb.globalIndex}</td>
+          <td style="padding:8px 12px; border-bottom:1px solid #eee; font-weight:500; color:#333;">
+            <a href="#" class="dsb-nb-kernel-link" data-idx="${nb.globalIndex}" data-global-idx="${nb.globalIndex}" style="color:#1976d2; text-decoration:underline; cursor:pointer; font-weight:600; font-size:14px; transition:background 0.15s;">${nb.notebook_name ?? nb.kernelVersionId}</a>
+          </td>
+        </tr>`;
       }).join('');
     } else {
       // 有筛选时保持filteredData顺序
       notebookListHtml = filteredData.map(nb => {
-        return `<tr><td style=\"color:#888;\">${nb.globalIndex + 1}</td><td><a href=\"#\" class=\"dsb-nb-kernel-link\" data-idx=\"${nb.globalIndex}\" data-global-idx=\"${nb.globalIndex}\" style=\"color:#1976d2; text-decoration:underline; cursor:pointer; font-weight:600; font-size:14px; padding:2px 8px; border-radius:4px; transition:background 0.15s;\">${nb.notebook_name ?? nb.kernelVersionId}</a></td></tr>`;
+        return `<tr class="overview-notebook-item" data-notebook-index="${nb.globalIndex}" style="cursor:pointer; transition:background-color 0.15s;">
+          <td style="padding:8px 12px; border-bottom:1px solid #eee; text-align:center; color:#888; font-size:12px; width:40px;">${nb.globalIndex}</td>
+          <td style="padding:8px 12px; border-bottom:1px solid #eee; font-weight:500; color:#333;">
+            <a href="#" class="dsb-nb-kernel-link" data-idx="${nb.globalIndex}" data-global-idx="${nb.globalIndex}" style="color:#1976d2; text-decoration:underline; cursor:pointer; font-weight:600; font-size:14px; transition:background 0.15s;">${nb.notebook_name ?? nb.kernelVersionId}</a>
+          </td>
+        </tr>`;
       }).join('');
     }
 
@@ -937,7 +1424,7 @@ export class DetailSidebar extends Widget {
     // 渲染
     this.node.innerHTML = `
       <div style="padding:20px 18px 18px 18px; font-size:14px; line-height:1.7; color:#222;">
-        <div style="font-size:18px; font-weight:600; margin-bottom:14px;">Notebook Overview</div>
+        <div style="font-size:18px; font-weight:600; margin-bottom:14px;" id="detail-sidebar-title"><span style="${this._getTitleStyle()}">${this._currentTitle}</span></div>
         <table style="width:100%; border-collapse:collapse;">
           <tr><td style="font-weight:500;">Total Notebooks</td><td style="text-align:right;"><b>${notebookCount}</b></td></tr>
           <tr><td style="font-weight:500;">Total Cells</td><td style="text-align:right;"><b>${totalCellCount}</b></td></tr>
@@ -966,33 +1453,53 @@ export class DetailSidebar extends Widget {
         <div style="margin: 8px 0 12px 0; width:100%; max-width:600px; margin-left:auto; margin-right:auto;">${stageBarChart}</div>
         <hr style="margin:16px 0 10px 0; border:none; border-top:1px solid #eee;">
         <div style="font-size:16px; font-weight:600; margin:24px 0 10px 0;">Notebook List</div>
-        <table style="width:100%; font-size:13px; color:#555;">
-          <tr><th style="text-align:left; color:#888; font-weight:400;">#</th><th style="text-align:left; color:#888; font-weight:400;">Notebook Title</th></tr>
-          ${notebookListHtml}
-        </table>
+        <div style="max-height:300px; overflow-y:auto;">
+          <table style="width:100%; border-collapse:collapse; font-size:13px;">
+            <thead>
+              <tr style="background:#f5f5f5;">
+                <th style="padding:8px 12px; text-align:center; font-weight:600; color:#333; border-bottom:2px solid #ddd; width:40px;">#</th>
+                <th style="padding:8px 12px; text-align:left; font-weight:600; color:#333; border-bottom:2px solid #ddd;">Notebook</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${notebookListHtml}
+            </tbody>
+          </table>
+        </div>
       </div>
     `;
-    // 绑定 kernelVersionId 跳转事件
-    setTimeout(() => {
-      const links = this.node.querySelectorAll('.dsb-nb-kernel-link');
-      links.forEach(link => {
-        link.addEventListener('mouseenter', () => {
-          (link as HTMLElement).style.background = '#e3eaf3';
+          // 绑定 kernelVersionId 跳转事件和悬停效果
+      setTimeout(() => {
+        const links = this.node.querySelectorAll('.dsb-nb-kernel-link');
+        links.forEach(link => {
+          link.addEventListener('mouseenter', () => {
+            (link as HTMLElement).style.background = '#e3eaf3';
+          });
+          link.addEventListener('mouseleave', () => {
+            (link as HTMLElement).style.background = '';
+          });
+          link.addEventListener('click', (e) => {
+            e.preventDefault();
+            const globalIdx = parseInt((link as HTMLElement).getAttribute('data-global-idx') || '0', 10);
+            if (this._allData && this._allData[globalIdx]) {
+              window.dispatchEvent(new CustomEvent('galaxy-notebook-selected', {
+                detail: { notebook: { ...this._allData[globalIdx], index: globalIdx } }
+              }));
+              this.setNotebookDetail(this._allData[globalIdx]);
+            }
+          });
         });
-        link.addEventListener('mouseleave', () => {
-          (link as HTMLElement).style.background = '';
+        
+        // 添加表格行的悬停效果
+        const overviewItems = this.node.querySelectorAll('.overview-notebook-item');
+        overviewItems.forEach(item => {
+          item.addEventListener('mouseenter', () => {
+            (item as HTMLElement).style.backgroundColor = '#f0f8ff';
+          });
+          item.addEventListener('mouseleave', () => {
+            (item as HTMLElement).style.backgroundColor = '';
+          });
         });
-        link.addEventListener('click', (e) => {
-          e.preventDefault();
-          const globalIdx = parseInt((link as HTMLElement).getAttribute('data-global-idx') || '0', 10);
-          if (this._allData && this._allData[globalIdx]) {
-            window.dispatchEvent(new CustomEvent('galaxy-notebook-selected', {
-              detail: { notebook: { ...this._allData[globalIdx], index: globalIdx } }
-            }));
-            this.setNotebookDetail(this._allData[globalIdx]);
-          }
-        });
-      });
 
       // 绑定最长和最短notebook跳转事件
       const longestLinks = this.node.querySelectorAll('.dsb-nb-longest-link');
@@ -1222,5 +1729,71 @@ export class DetailSidebar extends Widget {
       ${currLineSvg}
       ${axisSvg}
     </svg>`;
+  }
+
+  // 新增：获取当前tab ID
+  private getTabId(): string {
+    // 基于当前显示的内容生成唯一标识
+    // 如果是notebook detail模式，使用notebook的ID
+    if (this.currentNotebook && (this.currentNotebook as any).globalIndex !== undefined) {
+      return `notebook_${(this.currentNotebook as any).globalIndex}`;
+    }
+    // 如果是overview模式，使用overview标识
+    return 'overview';
+  }
+
+  // 新增：保存DetailSidebar筛选状态到全局变量（按tab隔离）
+  private saveDetailFilterState() {
+    const tabId = this.getTabId();
+    const stateKey = `_galaxyDetailSidebarFilterState_${tabId}`;
+    (window as any)[stateKey] = {
+      filter: this.filter,
+      currentNotebook: this.currentNotebook,
+      currentTitle: this._currentTitle,
+      currentSelection: this._currentSelection
+    };
+  }
+
+  // 新增：隐藏所有tooltip
+  private hideAllTooltips() {
+    // 隐藏galaxy-tooltip
+    const galaxyTooltip = document.getElementById('galaxy-tooltip');
+    if (galaxyTooltip) {
+      galaxyTooltip.style.display = 'none';
+    }
+    // 隐藏tooltip
+    const tooltip = document.getElementById('tooltip');
+    if (tooltip) {
+      tooltip.style.opacity = '0';
+    }
+  }
+
+  // 新增：从全局变量恢复DetailSidebar筛选状态（按tab隔离）
+  private restoreDetailFilterState() {
+    // 切换tab时隐藏所有tooltip
+    this.hideAllTooltips();
+    
+    const tabId = this.getTabId();
+    const stateKey = `_galaxyDetailSidebarFilterState_${tabId}`;
+    const savedState = (window as any)[stateKey];
+    
+    if (savedState) {
+      this.filter = savedState.filter;
+      this.currentNotebook = savedState.currentNotebook;
+      this._currentTitle = savedState.currentTitle;
+      this._currentSelection = savedState.currentSelection;
+      
+      // 恢复状态后重新渲染
+      if (this.currentNotebook) {
+        // 确保notebook detail视图下没有选中状态
+        this._currentSelection = null;
+        this.setNotebookDetail(this.currentNotebook);
+      } else if (this.filter) {
+        this.setSummary(this._allData, this._mostFreqStage, this._mostFreqFlow);
+      } else {
+        this.setSummary(this._allData, this._mostFreqStage, this._mostFreqFlow);
+      }
+    }
+    // 如果没有保存的状态，不进行任何操作，保持当前状态
   }
 } 

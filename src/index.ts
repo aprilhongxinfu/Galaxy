@@ -280,19 +280,22 @@ function activate(
           detailSidebar?.setSummary(result1, mostFreqStage, mostFreqFlow, matrixWidget?.getNotebookOrder?.());
         });
 
-        // 统一管理 flowchart/matrix/detail 的筛选联动
+        // 统一管理 flowchart/matrix/detail 的筛选联动（按tab隔离）
         let currentSelection: any = null;
         window.addEventListener('galaxy-stage-selected', (e: any) => {
-          currentSelection = { type: 'stage', stage: e.detail.stage };
+          const { stage, tabId } = e.detail;
+          currentSelection = { type: 'stage', stage, tabId };
           matrixWidget?.setFilter(currentSelection);
           detailSidebar?.setFilter(currentSelection);
         });
         window.addEventListener('galaxy-flow-selected', (e: any) => {
-          currentSelection = { type: 'flow', from: e.detail.from, to: e.detail.to };
+          const { from, to, tabId } = e.detail;
+          currentSelection = { type: 'flow', from, to, tabId };
           matrixWidget?.setFilter(currentSelection);
           detailSidebar?.setFilter(currentSelection);
         });
-        window.addEventListener('galaxy-selection-cleared', () => {
+        window.addEventListener('galaxy-selection-cleared', (e: any) => {
+          // const tabId = e.detail?.tabId;
           currentSelection = null;
           matrixWidget?.setFilter(null);
           detailSidebar?.setFilter(null);
@@ -326,7 +329,8 @@ function activate(
               console.log('SingleLeftSidebar expanded and activated (setTimeout)');
             }, 0);
 
-            // 右侧 sidebar 只显示该 notebook 信息
+            // 右侧 sidebar 只显示该 notebook 信息，清除之前的filter状态
+            detailSidebar?.setFilter(null);
             detailSidebar?.setNotebookDetail(nb);
 
             // 只关闭左侧 flow-chart-widget（overview），不关闭 matrix-widget
@@ -360,7 +364,8 @@ function activate(
               app.shell.add(flowChartWidget!, 'left');
               app.shell.activateById(flowChartWidget!.id);
               // matrix-widget 保持不变
-              // 恢复 summary 视图
+              // 恢复 summary 视图，清除filter状态
+              detailSidebar?.setFilter(null);
               detailSidebar?.setSummary(result1, mostFreqStage, mostFreqFlow, matrixWidget?.getNotebookOrder?.());
               window.removeEventListener('galaxy-notebook-detail-back', handleBack);
             };
@@ -451,6 +456,7 @@ function activate(
             app.shell.activateById(flowChartWidget.id);
             
             const { mostFreqStage, mostFreqFlow } = flowChartWidget.getMostFrequentStageAndFlow();
+            detailSidebar.setFilter(null);
             detailSidebar.setSummary(result1, mostFreqStage, mostFreqFlow, matrixWidget.getNotebookOrder());
             app.shell.add(detailSidebar, 'right');
             app.shell.activateById(detailSidebar.id);

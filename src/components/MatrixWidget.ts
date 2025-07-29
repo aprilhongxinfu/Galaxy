@@ -74,12 +74,14 @@ export class MatrixWidget extends Widget {
         // Listen for changes
         assignmentSelect.onchange = () => {
             (this as any)._assignmentFilter = assignmentSelect.value;
+            this.saveFilterState();
             this.drawMatrix();
             const filteredNotebooks = this.getFilteredNotebooks();
             window.dispatchEvent(new CustomEvent('galaxy-matrix-filtered', { detail: { notebooks: filteredNotebooks } }));
         };
         studentSelect.onchange = () => {
             (this as any)._studentFilter = studentSelect.value;
+            this.saveFilterState();
             this.drawMatrix();
             const filteredNotebooks = this.getFilteredNotebooks();
             window.dispatchEvent(new CustomEvent('galaxy-matrix-filtered', { detail: { notebooks: filteredNotebooks } }));
@@ -112,6 +114,7 @@ export class MatrixWidget extends Widget {
             this.sortButton.innerHTML = this.getSortIcon();
             this.similaritySortButton.classList.remove('active');
             this.updateSortButtonState();
+            this.saveFilterState();
             this.drawMatrix();
             const filteredNotebooks = this.getFilteredNotebooks();
             window.dispatchEvent(new CustomEvent('galaxy-matrix-filtered', { detail: { notebooks: filteredNotebooks } }));
@@ -138,6 +141,7 @@ export class MatrixWidget extends Widget {
             this.sortButton.innerHTML = this.getSortIcon();
             this.similaritySortButton.innerHTML = this.getSimilaritySortIcon();
             this.updateSortButtonState();
+            this.saveFilterState();
             this.drawMatrix();
             const filteredNotebooks = this.getFilteredNotebooks();
             window.dispatchEvent(new CustomEvent('galaxy-matrix-filtered', { detail: { notebooks: filteredNotebooks } }));
@@ -219,70 +223,155 @@ export class MatrixWidget extends Widget {
             detail: { notebookOrder: this.notebookOrder }
         });
         window.dispatchEvent(event);
+        // 保存筛选状态
+        this.saveFilterState();
     }
 
     onAfterAttach(): void {
+        // 恢复之前的筛选状态
+        this.restoreFilterState();
         this.updateNotebookOrder();
         this.drawMatrix();
         window.addEventListener('galaxy-stage-hover', this.handleStageHover);
         window.addEventListener('galaxy-transition-hover', this.handleTransitionHover);
+        window.addEventListener('galaxy-stage-selected', this.handleStageSelected);
+        window.addEventListener('galaxy-flow-selected', this.handleFlowSelected);
+        window.addEventListener('galaxy-selection-cleared', this.handleSelectionCleared);
     }
 
     onBeforeDetach(): void {
         window.removeEventListener('galaxy-stage-hover', this.handleStageHover);
         window.removeEventListener('galaxy-transition-hover', this.handleTransitionHover);
+        window.removeEventListener('galaxy-stage-selected', this.handleStageSelected);
+        window.removeEventListener('galaxy-flow-selected', this.handleFlowSelected);
+        window.removeEventListener('galaxy-selection-cleared', this.handleSelectionCleared);
+    }
+
+    private handleStageSelected = (event: Event) => {
+        const stage = (event as CustomEvent).detail.stage;
+        // 设置全局选中状态
+        (window as any)._galaxyStageSelection = stage;
+        (window as any)._galaxyFlowSelection = null;
+        
+        // 筛选包含该stage的notebook
+        this.filter = { type: 'stage', stage };
+        this.saveFilterState();
+        this.drawMatrix();
+    }
+
+    private handleFlowSelected = (event: Event) => {
+        const { from, to } = (event as CustomEvent).detail;
+        // 设置全局选中状态
+        (window as any)._galaxyFlowSelection = { from, to };
+        (window as any)._galaxyStageSelection = null;
+        
+        // 筛选包含该flow的notebook
+        this.filter = { type: 'flow', from, to };
+        this.saveFilterState();
+        this.drawMatrix();
+    }
+
+    private handleSelectionCleared = () => {
+        // 清除全局选中状态
+        (window as any)._galaxyStageSelection = null;
+        (window as any)._galaxyFlowSelection = null;
+        // 清除筛选
+        this.filter = null;
+        this.saveFilterState();
+        this.drawMatrix();
     }
 
     private handleStageHover = (event: Event) => {
         const stage = (event as CustomEvent).detail.stage;
         console.log(stage);
-        d3.selectAll('.matrix-cell')
-            .classed('matrix-highlight', false)
-            .classed('matrix-dim', !!stage);
-        if (stage) {
-            d3.selectAll(`.matrix-cell-${stage}`)
-                .classed('matrix-highlight', true)
-                .classed('matrix-dim', false);
+        
+        // 检查是否有选中的stage
+        const hasStageSelection = (window as any)._galaxyStageSelection;
+        
+        // 只有在没有选中状态时才应用hover效果
+        if (!hasStageSelection) {
+            if (!stage) {
+                d3.selectAll('.matrix-cell')
+                    .classed('matrix-highlight', false)
+                    .classed('matrix-dim', false);
+            } else {
+                d3.selectAll('.matrix-cell')
+                    .classed('matrix-highlight', false)
+                    .classed('matrix-dim', true);
+                d3.selectAll(`.matrix-cell-${stage}`)
+                    .classed('matrix-highlight', true)
+                    .classed('matrix-dim', false);
+            }
         }
     }
 
     private handleTransitionHover = (event: Event) => {
         const { from, to } = (event as CustomEvent).detail;
         const root = d3.select(this.node);
-        root.selectAll('.matrix-cell')
-            .classed('matrix-highlight', false)
-            .classed('matrix-dim', !!from && !!to);
+        
+        // 检查是否有选中的flow
+        const hasFlowSelection = (window as any)._galaxyFlowSelection;
+        
+        // 只有在没有选中状态时才应用hover效果
+        if (!hasFlowSelection) {
+            if (!from || !to) {
+                root.selectAll('.matrix-cell')
+                    .classed('matrix-highlight', false)
+                    .classed('matrix-dim', false);
+            } else {
+                root.selectAll('.matrix-cell')
+                    .classed('matrix-highlight', false)
+                    .classed('matrix-dim', true);
 
-        if (from && to) {
-            // 遍历所有 notebook
-            this.notebookOrder.forEach((row, colIdx) => {
-                const nb = this.data[row];
-                const sortedCells = nb.cells.sort((a, b) => a.cellId - b.cellId);
-                for (let i = 0; i < sortedCells.length - 1; i++) {
-                    const a = String(sortedCells[i]["1st-level label"] ?? "None");
-                    const b = String(sortedCells[i + 1]["1st-level label"] ?? "None");
-                    if (a === from && b === to) {
+                // 遍历所有 notebook
+                this.notebookOrder.forEach((row, colIdx) => {
+                    const nb = this.data[row];
+                    const sortedCells = nb.cells.sort((a, b) => a.cellId - b.cellId);
+                    
+                    // 找到所有符合transition的cell对（忽略中间的markdown cell）
+                    const transitionPairs: number[][] = [];
+                    for (let i = 0; i < sortedCells.length; i++) {
+                        const currStage = String(sortedCells[i]["1st-level label"] ?? "None");
+                        if (currStage === from) {
+                            // 向后查找下一个to stage的cell（跳过markdown cell）
+                            for (let j = i + 1; j < sortedCells.length; j++) {
+                                const nextStage = String(sortedCells[j]["1st-level label"] ?? "None");
+                                if (nextStage === to) {
+                                    transitionPairs.push([i, j]);
+                                    break; // 找到第一个匹配的就停止
+                                } else if (nextStage !== "None") {
+                                    // 如果遇到其他stage，停止搜索
+                                    break;
+                                }
+                                // 如果是markdown cell或None，继续搜索
+                            }
+                        }
+                    }
+                    
+                    // 高亮所有找到的transition pairs
+                    transitionPairs.forEach(([fromIdx, toIdx]) => {
                         // 向前找连续 from
-                        let i0 = i;
+                        let i0 = fromIdx;
                         while (i0 > 0 && String(sortedCells[i0 - 1]["1st-level label"] ?? "None") === from) i0--;
                         // 向后找连续 to
-                        let i1 = i + 1;
+                        let i1 = toIdx;
                         while (i1 + 1 < sortedCells.length && String(sortedCells[i1 + 1]["1st-level label"] ?? "None") === to) i1++;
+                        
                         // 高亮 from 段
-                        for (let j = i0; j <= i; j++) {
+                        for (let j = i0; j <= fromIdx; j++) {
                             root.select(`.matrix-cell[data-row="${row}"][data-index="${j}"]`)
                                 .classed('matrix-highlight', true)
                                 .classed('matrix-dim', false);
                         }
                         // 高亮 to 段
-                        for (let j = i + 1; j <= i1; j++) {
+                        for (let j = toIdx; j <= i1; j++) {
                             root.select(`.matrix-cell[data-row="${row}"][data-index="${j}"]`)
                                 .classed('matrix-highlight', true)
                                 .classed('matrix-dim', false);
                         }
-                    }
-                }
-            });
+                    });
+                });
+            }
         }
     }
 
@@ -511,6 +600,89 @@ export class MatrixWidget extends Widget {
             this.sortButton.style.opacity = '1';
             this.sortButton.style.cursor = 'pointer';
             this.sortButton.disabled = false;
+        }
+    }
+
+    // 新增：获取当前tab ID
+    private getTabId(): string {
+        // MatrixWidget总是显示overview，所以使用overview标识
+        return 'overview';
+    }
+
+    // 新增：保存筛选状态到全局变量（按tab隔离）
+    private saveFilterState() {
+        const tabId = this.getTabId();
+        const stateKey = `_galaxyMatrixFilterState_${tabId}`;
+        (window as any)[stateKey] = {
+            filter: this.filter,
+            sortState: this.sortState,
+            notebookOrder: this.notebookOrder,
+            assignmentFilter: (this as any)._assignmentFilter,
+            studentFilter: (this as any)._studentFilter
+        };
+    }
+
+    // 新增：隐藏所有tooltip
+    private hideAllTooltips() {
+        // 隐藏galaxy-tooltip
+        const galaxyTooltip = document.getElementById('galaxy-tooltip');
+        if (galaxyTooltip) {
+            galaxyTooltip.style.display = 'none';
+        }
+        // 隐藏tooltip
+        const tooltip = document.getElementById('tooltip');
+        if (tooltip) {
+            tooltip.style.opacity = '0';
+        }
+    }
+
+    // 新增：从全局变量恢复筛选状态（按tab隔离）
+    private restoreFilterState() {
+        // 切换tab时隐藏所有tooltip
+        this.hideAllTooltips();
+        
+        const tabId = this.getTabId();
+        const stateKey = `_galaxyMatrixFilterState_${tabId}`;
+        const savedState = (window as any)[stateKey];
+        
+        if (savedState) {
+            this.filter = savedState.filter;
+            this.sortState = savedState.sortState;
+            this.notebookOrder = savedState.notebookOrder || this.data.map((_, i) => i);
+            (this as any)._assignmentFilter = savedState.assignmentFilter || '';
+            (this as any)._studentFilter = savedState.studentFilter || '';
+            
+            // 更新按钮状态
+            this.sortButton.innerHTML = this.getSortIcon();
+            this.similaritySortButton.innerHTML = this.getSimilaritySortIcon();
+            this.updateSortButtonState();
+            
+            // 恢复assignment和student筛选器的值
+            const assignmentSelect = this.node.querySelector('select') as HTMLSelectElement;
+            const studentSelect = this.node.querySelectorAll('select')[1] as HTMLSelectElement;
+            if (assignmentSelect) assignmentSelect.value = (this as any)._assignmentFilter;
+            if (studentSelect) studentSelect.value = (this as any)._studentFilter;
+        } else {
+            // 如果没有保存的状态，使用默认状态
+            this.filter = null;
+            this.sortState = 0;
+            this.notebookOrder = this.data.map((_, i) => i);
+            (this as any)._assignmentFilter = '';
+            (this as any)._studentFilter = '';
+            
+            // 更新按钮状态
+            this.sortButton.innerHTML = this.getSortIcon();
+            this.similaritySortButton.innerHTML = this.getSimilaritySortIcon();
+            this.updateSortButtonState();
+            
+            // 重置筛选器
+            const assignmentSelect = this.node.querySelector('select') as HTMLSelectElement;
+            const studentSelect = this.node.querySelectorAll('select')[1] as HTMLSelectElement;
+            if (assignmentSelect) assignmentSelect.value = '';
+            if (studentSelect) studentSelect.value = '';
+            
+            // 重新绘制矩阵
+            this.drawMatrix();
         }
     }
 }

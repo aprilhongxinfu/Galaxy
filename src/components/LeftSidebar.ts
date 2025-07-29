@@ -159,13 +159,18 @@ export class LeftSidebar extends Widget {
 
         window.addEventListener('galaxy-selection-cleared', () => {
             this.selection = null;
+            this.saveFilterState();
             this.render();
         });
-        // 新增：监听 flow 选中事件
+        // 新增：监听 flow 选中事件（按tab隔离）
         window.addEventListener('galaxy-flow-selected', (e: any) => {
-            const { from, to } = e.detail;
-            this.selection = { type: 'flow', from, to };
-            this.render();
+            const { from, to, tabId } = e.detail;
+            // 只处理当前tab的事件
+            if (tabId === this.getTabId()) {
+                this.selection = { type: 'flow', from, to };
+                this.saveFilterState();
+                this.render();
+            }
         });
         // 新增：监听 matrix 筛选事件，flow chart 跟随筛选
         window.addEventListener('galaxy-matrix-filtered', (e: any) => {
@@ -194,17 +199,26 @@ export class LeftSidebar extends Widget {
                 (LABEL_MAP[this.selection.to] ?? this.selection.to) +
                 '</b>';
         } else {
-            nav.innerHTML = 'Overview';
+            nav.innerHTML = '<span class="galaxy-breadcrumb-overview">Overview</span>';
         }
-        // 只在有 selection 时，Overview 可点击
+        // Overview 始终可点击
         const overviewSpan = nav.querySelector('.galaxy-breadcrumb-overview') as HTMLSpanElement;
         if (overviewSpan) {
             overviewSpan.style.cursor = 'pointer';
             overviewSpan.style.textDecoration = 'underline';
             overviewSpan.onclick = (e) => {
                 this.selection = null;
+                // 清除全局选中状态（按tab隔离）
+                const tabId = this.getTabId();
+                const flowSelectionKey = `_galaxyFlowSelection_${tabId}`;
+                const stageSelectionKey = `_galaxyStageSelection_${tabId}`;
+                (window as any)[stageSelectionKey] = null;
+                (window as any)[flowSelectionKey] = null;
+                // 清除hover状态
+                (window as any)._galaxyFlowHoverStage = null;
+                (window as any)._galaxyFlowHoverInfo = null;
+                window.dispatchEvent(new CustomEvent('galaxy-selection-cleared', { detail: { tabId: this.getTabId() } }));
                 this.render();
-                window.dispatchEvent(new CustomEvent('galaxy-selection-cleared'));
             };
         }
 
@@ -252,10 +266,10 @@ export class LeftSidebar extends Widget {
                 }
             });
         });
-        console.log('None cells count:', noneCells.length);
-        if (noneCells.length > 0) {
-            console.log('Example None cell:', noneCells[0]);
-        }
+        // console.log('None cells count:', noneCells.length);
+        // if (noneCells.length > 0) {
+        //     console.log('Example None cell:', noneCells[0]);
+        // }
 
         this.data.forEach((nb) => {
             // 只保留 code cell
@@ -278,12 +292,16 @@ export class LeftSidebar extends Widget {
                 }
             });
 
-            // flow 统计：只考虑 code cell，忽略 markdown cell
-            for (let i = 0; i < codeCells.length - 1; i++) {
-                const a = String(codeCells[i]["1st-level label"] ?? "None");
-                const b = String(codeCells[i + 1]["1st-level label"] ?? "None");
-                const key = `${a}->${b}`;
-                transitions.set(key, (transitions.get(key) || 0) + 1);
+            // flow 统计：使用已经构建好的stageSeq计算transitions
+            for (let i = 0; i < stageSeq.length - 1; i++) {
+                const from = stageSeq[i];
+                const to = stageSeq[i + 1];
+                if (from !== "None" && to !== "None") {
+                    const key = `${from}->${to}`;
+                    transitions.set(key, (transitions.get(key) || 0) + 1);
+                    // 调试输出
+                    // console.log(`Found transition: ${key} in notebook ${(nb as any).notebook_name || (nb as any).kernelVersionId || 'unknown'}`);
+                }
             }
         });
 
@@ -338,6 +356,22 @@ export class LeftSidebar extends Widget {
         const svg = this.svg;
         const defs = svg.append("defs");
         const g = svg.append("g").attr("transform", "translate(200, 50)");
+        
+        // 添加SVG背景点击事件，用于清除selection
+        svg.on("click", (event) => {
+            // 如果点击的是SVG背景（不是具体的元素），则清除selection
+            if (event.target === svg.node()) {
+                this.selection = null;
+                // 清除全局选中状态（按tab隔离）
+                const tabId = this.getTabId();
+                const flowSelectionKey = `_galaxyFlowSelection_${tabId}`;
+                const stageSelectionKey = `_galaxyStageSelection_${tabId}`;
+                (window as any)[stageSelectionKey] = null;
+                (window as any)[flowSelectionKey] = null;
+                this.render();
+                window.dispatchEvent(new CustomEvent('galaxy-selection-cleared', { detail: { tabId: this.getTabId() } }));
+            }
+        });
         // const legendG = svg.append("g").attr("transform", "translate(0, 740)");
 
         // 过滤掉隐藏的 stage 和 count=0 的 stage
@@ -400,7 +434,13 @@ export class LeftSidebar extends Widget {
                     }
                 } else {
                     this.selection = { type: 'stage', stage: d.stage };
-                    console.log('set selection', d.stage);
+                    // 设置全局选中状态（按tab隔离）
+                    const tabId = this.getTabId();
+                    const flowSelectionKey = `_galaxyFlowSelection_${tabId}`;
+                    const stageSelectionKey = `_galaxyStageSelection_${tabId}`;
+                    (window as any)[stageSelectionKey] = d.stage;
+                    (window as any)[flowSelectionKey] = null;
+                    // console.log('set selection', d.stage);
                 }
                 // 关键：短暂延迟后重置 isDragging，保证 pointerup 能正确识别
                 setTimeout(() => { isDragging = false; }, 0);
@@ -479,14 +519,17 @@ export class LeftSidebar extends Widget {
                 .attr("opacity", 0.7)
                 .attr("class", (d) => `flow-link link-from-${from} link-to-${to}` + (this.selection && this.selection.type === 'flow' && this.selection.from === from && this.selection.to === to ? ' selected' : ''))
                 .on("mouseover", (event) => {
-                    d3.selectAll(".flow-link").attr("opacity", 0.05);
-                    d3.selectAll(`.link-from-${from}.link-to-${to}`).attr("opacity", 1);
-                    d3.selectAll(".stage-rect").attr("stroke-width", 0);
-                    d3.selectAll(`.stage-${from}, .stage-${to}`)
-                        .attr("stroke", "#000")
-                        .attr("stroke-width", 2);
-                    // 联动高亮 matrix pattern
-                    window.dispatchEvent(new CustomEvent('galaxy-transition-hover', { detail: { from, to } }));
+                    // 只有在没有选中状态时才应用hover效果
+                    if (!this.selection) {
+                        d3.selectAll(".flow-link").attr("opacity", 0.05);
+                        d3.selectAll(`.link-from-${from}.link-to-${to}`).attr("opacity", 1);
+                        d3.selectAll(".stage-rect").attr("stroke-width", 0);
+                        d3.selectAll(`.stage-${from}, .stage-${to}`)
+                            .attr("stroke", "#000")
+                            .attr("stroke-width", 2);
+                        // 联动高亮 matrix pattern
+                        window.dispatchEvent(new CustomEvent('galaxy-transition-hover', { detail: { from, to } }));
+                    }
                     // tooltip
                     const tooltip = document.getElementById('galaxy-tooltip');
                     tooltip!.innerHTML = `${LABEL_MAP[from] ?? from} → ${LABEL_MAP[to] ?? to}<br>Count: ${count}`;
@@ -498,19 +541,47 @@ export class LeftSidebar extends Widget {
                     tooltip!.style.top = event.clientY + 12 + 'px';
                 })
                 .on("mouseout", () => {
-                    d3.selectAll(".flow-link").attr("opacity", 0.7);
-                    d3.selectAll(".stage-rect")
-                        .attr("stroke", "none")
-                        .attr("stroke-width", 0);
-                    // 取消联动高亮
-                    window.dispatchEvent(new CustomEvent('galaxy-transition-hover', { detail: { from: null, to: null } }));
+                    // 只有在没有选中状态时才恢复默认样式
+                    if (!this.selection) {
+                        d3.selectAll(".flow-link").attr("opacity", 0.7);
+                        d3.selectAll(".stage-rect")
+                            .attr("stroke", "none")
+                            .attr("stroke-width", 0);
+                        // 取消联动高亮
+                        window.dispatchEvent(new CustomEvent('galaxy-transition-hover', { detail: { from: null, to: null } }));
+                    } else {
+                        // 如果有选中状态，直接应用选中效果
+                        if (this.selection.type === 'flow') {
+                            d3.selectAll(".flow-link").attr("opacity", 0.05);
+                            d3.selectAll(`.link-from-${this.selection.from}.link-to-${this.selection.to}`).attr("opacity", 1);
+                            d3.selectAll(".stage-rect").attr("stroke-width", 0);
+                            d3.selectAll(`.stage-${this.selection.from}, .stage-${this.selection.to}`)
+                                .attr("stroke", "#000")
+                                .attr("stroke-width", 2);
+                        } else if (this.selection.type === 'stage') {
+                            d3.selectAll(".flow-link").attr("opacity", 0.05);
+                            d3.selectAll(`.link-from-${this.selection.stage}, .link-to-${this.selection.stage}`).attr("opacity", 0.9);
+                            d3.selectAll(`.stage-rect`).attr("stroke-width", 0);
+                            d3.selectAll(`.stage-${this.selection.stage}`)
+                                .attr("stroke", "#000")
+                                .attr("stroke-width", 3);
+                        }
+                    }
                     // tooltip
                     const tooltip = document.getElementById('galaxy-tooltip');
                     tooltip!.style.display = 'none';
                 })
                 .on("click", (event) => {
-                    window.dispatchEvent(new CustomEvent('galaxy-flow-selected', { detail: { from, to } }));
-                    console.log('flow clicked', from, to);
+                    this.selection = { type: 'flow', from, to };
+                    // 设置全局选中状态（按tab隔离）
+                    const tabId = this.getTabId();
+                    const flowSelectionKey = `_galaxyFlowSelection_${tabId}`;
+                    const stageSelectionKey = `_galaxyStageSelection_${tabId}`;
+                    (window as any)[flowSelectionKey] = { from, to };
+                    (window as any)[stageSelectionKey] = null;
+                    this.render();
+                    window.dispatchEvent(new CustomEvent('galaxy-flow-selected', { detail: { from, to, tabId: this.getTabId() } }));
+                    // console.log('flow clicked', from, to);
                 });
         });
         // === END transition ===
@@ -526,41 +597,73 @@ export class LeftSidebar extends Widget {
             .attr('height', (d) => sizeScale(d.count))
             .attr('fill', (d) => colorMap.get(d.stage) || '#ccc')
             .attr('class', (d) => `stage-rect stage-${d.stage}` + (this.selection && this.selection.type === 'stage' && this.selection.stage === d.stage ? ' selected' : ''))
-            .on("mouseover", (event, d) => {
-                const stage = d.stage;
-                d3.selectAll(".flow-link").attr("opacity", 0.05);
-                d3.selectAll(`.link-from-${stage}, .link-to-${stage}`).attr("opacity", 0.9);
-                d3.selectAll(`.stage-rect`).attr("stroke-width", 0);
-                d3.selectAll(`.stage-${stage}`)
-                    .attr("stroke", "#000")
-                    .attr("stroke-width", 2);
-                // 联动高亮
-                window.dispatchEvent(new CustomEvent('galaxy-stage-hover', { detail: { stage } }));
-                // tooltip
-                const tooltip = document.getElementById('galaxy-tooltip');
-                tooltip!.innerHTML = `${LABEL_MAP[stage] ?? stage}<br>Count: ${d.count}`;
-                tooltip!.style.display = 'block';
-            })
+                            .on("mouseover", (event, d) => {
+                    const stage = d.stage;
+                    // 只有在没有选中状态时才应用hover效果
+                    if (!this.selection) {
+                        d3.selectAll(".flow-link").attr("opacity", 0.05);
+                        d3.selectAll(`.link-from-${stage}, .link-to-${stage}`).attr("opacity", 0.9);
+                        d3.selectAll(`.stage-rect`).attr("stroke-width", 0);
+                        d3.selectAll(`.stage-${stage}`)
+                            .attr("stroke", "#000")
+                            .attr("stroke-width", 2);
+                        // 联动高亮
+                        window.dispatchEvent(new CustomEvent('galaxy-stage-hover', { detail: { stage } }));
+                    } else {
+                        // 如果有选中状态，不触发hover事件，避免minimap高亮
+                    }
+                    // tooltip
+                    const tooltip = document.getElementById('galaxy-tooltip');
+                    tooltip!.innerHTML = `${LABEL_MAP[stage] ?? stage}<br>Count: ${d.count}`;
+                    tooltip!.style.display = 'block';
+                })
             .on("mousemove", (event) => {
                 const tooltip = document.getElementById('galaxy-tooltip');
                 tooltip!.style.left = event.clientX + 12 + 'px';
                 tooltip!.style.top = event.clientY + 12 + 'px';
             })
-            .on("mouseout", () => {
-                d3.selectAll(".flow-link").attr("opacity", 0.7);
-                d3.selectAll(`.stage-rect`).attr("stroke", "none").attr("stroke-width", 0);
-                // 联动高亮取消
-                window.dispatchEvent(new CustomEvent('galaxy-stage-hover', { detail: { stage: null } }));
-                // tooltip
-                const tooltip = document.getElementById('galaxy-tooltip');
-                tooltip!.style.display = 'none';
-            })
+                            .on("mouseout", (event, d) => {
+                    // 只有在没有选中状态时才恢复默认样式
+                    if (!this.selection) {
+                        d3.selectAll(".flow-link").attr("opacity", 0.7);
+                        d3.selectAll(`.stage-rect`).attr("stroke", "none").attr("stroke-width", 0);
+                        // 联动高亮取消
+                        window.dispatchEvent(new CustomEvent('galaxy-stage-hover', { detail: { stage: null } }));
+                    } else {
+                        // 如果有选中状态，直接应用选中效果
+                        if (this.selection.type === 'flow') {
+                            d3.selectAll(".flow-link").attr("opacity", 0.05);
+                            d3.selectAll(`.link-from-${this.selection.from}.link-to-${this.selection.to}`).attr("opacity", 1);
+                            d3.selectAll(".stage-rect").attr("stroke-width", 0);
+                            d3.selectAll(`.stage-${this.selection.from}, .stage-${this.selection.to}`)
+                                .attr("stroke", "#000")
+                                .attr("stroke-width", 2);
+                        } else if (this.selection.type === 'stage') {
+                            d3.selectAll(".flow-link").attr("opacity", 0.05);
+                            d3.selectAll(`.link-from-${this.selection.stage}, .link-to-${this.selection.stage}`).attr("opacity", 0.9);
+                            d3.selectAll(`.stage-rect`).attr("stroke-width", 0);
+                            d3.selectAll(`.stage-${this.selection.stage}`)
+                                .attr("stroke", "#000")
+                                .attr("stroke-width", 3);
+                        }
+                    }
+                    // tooltip
+                    const tooltip = document.getElementById('galaxy-tooltip');
+                    tooltip!.style.display = 'none';
+                })
             .on("pointerup", (event, d) => {
                 if (isDragging) return;
                 this.selection = { type: 'stage', stage: d.stage };
+                // 设置全局选中状态（按tab隔离）
+                const tabId = this.getTabId();
+                const flowSelectionKey = `_galaxyFlowSelection_${tabId}`;
+                const stageSelectionKey = `_galaxyStageSelection_${tabId}`;
+                (window as any)[stageSelectionKey] = d.stage;
+                (window as any)[flowSelectionKey] = null;
+                this.saveFilterState();
                 this.render();
-                console.log('set selection', d.stage);
-                window.dispatchEvent(new CustomEvent('galaxy-stage-selected', { detail: { stage: d.stage } }));
+                // console.log('set selection', d.stage);
+                window.dispatchEvent(new CustomEvent('galaxy-stage-selected', { detail: { stage: d.stage, tabId: this.getTabId() } }));
             })
             .call(drag);
         // === END block rect ===
@@ -631,6 +734,7 @@ export class LeftSidebar extends Widget {
                     window.dispatchEvent(new CustomEvent('galaxy-hidden-stages-changed', {
                         detail: { hiddenStages: Array.from(this.hiddenStages) }
                     }));
+                    this.saveFilterState();
                     this.render();
                 };
                 col.appendChild(item);
@@ -806,7 +910,53 @@ export class LeftSidebar extends Widget {
         this.transitions = transitions;
         this.stageFreq = stageFreq;
 
-        console.log('breadcrumb selection', this.selection);
+        // 根据selection状态应用高亮效果
+        if (this.selection) {
+            if (this.selection.type === 'stage') {
+                // 高亮选中的stage
+                d3.selectAll(".flow-link").attr("opacity", 0.05);
+                d3.selectAll(`.link-from-${this.selection.stage}, .link-to-${this.selection.stage}`).attr("opacity", 0.9);
+                d3.selectAll(`.stage-rect`).attr("stroke-width", 0);
+                d3.selectAll(`.stage-${this.selection.stage}`)
+                    .attr("stroke", "#000")
+                    .attr("stroke-width", 3);
+            } else if (this.selection.type === 'flow') {
+                // 高亮选中的flow
+                d3.selectAll(".flow-link").attr("opacity", 0.05);
+                d3.selectAll(`.link-from-${this.selection.from}.link-to-${this.selection.to}`).attr("opacity", 1);
+                d3.selectAll(".stage-rect").attr("stroke-width", 0);
+                d3.selectAll(`.stage-${this.selection.from}, .stage-${this.selection.to}`)
+                    .attr("stroke", "#000")
+                    .attr("stroke-width", 2);
+                
+                // 确保选中的transition保持原有的线宽
+                const selectedTransition = this.transitions.get(`${this.selection.from}->${this.selection.to}`);
+                if (selectedTransition !== undefined) {
+                    // 重新计算stroke-width，与渲染时保持一致
+                    const countValues = Array.from(this.transitions.values());
+                    const maxFlowCount = d3.max(countValues) || 1;
+                    const minFlowCount = d3.min(countValues) || 0;
+                    const minWidth = 2;
+                    const maxWidth = 26;
+                    
+                    const strokeScale = (count: number) => {
+                        if (count <= 0) return 0;
+                        if (maxFlowCount <= 5) {
+                            return [0, 2, 4][count] || 5;
+                        }
+                        const t = (count - minFlowCount) / (maxFlowCount - minFlowCount);
+                        return minWidth + Math.pow(t, 0.4) * (maxWidth - minWidth);
+                    };
+                    
+                    d3.selectAll(`.link-from-${this.selection.from}.link-to-${this.selection.to}`)
+                        .attr("stroke-width", strokeScale(selectedTransition));
+                }
+            }
+        }
+
+        // 选中状态下不触发hover事件，避免minimap高亮
+
+        // console.log('breadcrumb selection', this.selection);
     }
 
     getMostFrequentStageAndFlow() {
@@ -838,6 +988,9 @@ export class LeftSidebar extends Widget {
     }
 
     onAfterAttach(msg: any): void {
+        // 恢复之前的筛选状态
+        this.restoreFilterState();
+        
         // 先断开旧的 observer 和定时器
         if (this._resizeObserver) {
             this._resizeObserver.disconnect();
@@ -918,5 +1071,103 @@ export class LeftSidebar extends Widget {
         this.stageData = Array.from(stageStats.keys()).map(stage => ({ stage: String(stage), avg_pos: 0, avg_first: 0, count: 0 }));
         this.initialStageOrder = this.stageData.map(d => d.stage);
         this.render();
+    }
+
+    // 新增：获取当前tab ID
+    private getTabId(): string {
+        // 基于当前显示的内容生成唯一标识
+        // 如果是notebook detail模式，使用notebook的ID
+        if (this.data && this.data.length === 1 && (this.data[0] as any).globalIndex !== undefined) {
+            return `notebook_${(this.data[0] as any).globalIndex}`;
+        }
+        // 如果是overview模式，使用overview标识
+        return 'overview';
+    }
+
+    // 新增：保存筛选状态到全局变量（按tab隔离）
+    private saveFilterState() {
+        const tabId = this.getTabId();
+        const stateKey = `_galaxyLeftSidebarFilterState_${tabId}`;
+        const flowSelectionKey = `_galaxyFlowSelection_${tabId}`;
+        const stageSelectionKey = `_galaxyStageSelection_${tabId}`;
+        
+        // 保存到按tab隔离的全局变量
+        if (this.selection) {
+            if (this.selection.type === 'stage') {
+                (window as any)[stageSelectionKey] = this.selection.stage;
+                (window as any)[flowSelectionKey] = null;
+            } else if (this.selection.type === 'flow') {
+                (window as any)[flowSelectionKey] = { from: this.selection.from, to: this.selection.to };
+                (window as any)[stageSelectionKey] = null;
+            }
+        } else {
+            (window as any)[stageSelectionKey] = null;
+            (window as any)[flowSelectionKey] = null;
+        }
+        
+        // 保存到原有的状态对象
+        (window as any)[stateKey] = {
+            selection: this.selection,
+            hiddenStages: Array.from(this.hiddenStages),
+            stageData: this.stageData
+        };
+    }
+
+    // 新增：隐藏所有tooltip
+    private hideAllTooltips() {
+        // 隐藏galaxy-tooltip
+        const galaxyTooltip = document.getElementById('galaxy-tooltip');
+        if (galaxyTooltip) {
+            galaxyTooltip.style.display = 'none';
+        }
+        // 隐藏tooltip
+        const tooltip = document.getElementById('tooltip');
+        if (tooltip) {
+            tooltip.style.opacity = '0';
+        }
+    }
+
+    // 新增：从全局变量恢复筛选状态（按tab隔离）
+    private restoreFilterState() {
+        // 切换tab时隐藏所有tooltip
+        this.hideAllTooltips();
+        
+        const tabId = this.getTabId();
+        const stateKey = `_galaxyLeftSidebarFilterState_${tabId}`;
+        const flowSelectionKey = `_galaxyFlowSelection_${tabId}`;
+        const stageSelectionKey = `_galaxyStageSelection_${tabId}`;
+        const savedState = (window as any)[stateKey];
+        
+        if (savedState) {
+            this.selection = savedState.selection;
+            this.hiddenStages = new Set(savedState.hiddenStages || ['1', '9']);
+            if (savedState.stageData) {
+                this.stageData = savedState.stageData;
+            }
+            
+            // 恢复按tab隔离的全局变量
+            if (this.selection) {
+                if (this.selection.type === 'stage') {
+                    (window as any)[stageSelectionKey] = this.selection.stage;
+                    (window as any)[flowSelectionKey] = null;
+                } else if (this.selection.type === 'flow') {
+                    (window as any)[flowSelectionKey] = { from: this.selection.from, to: this.selection.to };
+                    (window as any)[stageSelectionKey] = null;
+                }
+            } else {
+                (window as any)[stageSelectionKey] = null;
+                (window as any)[flowSelectionKey] = null;
+            }
+            
+            // 恢复状态后重新渲染
+            this.render();
+        } else {
+            // 如果没有保存的状态，使用默认状态（无选中状态）
+            this.selection = null;
+            this.hiddenStages = new Set(['1', '9']); // 默认隐藏的stages
+            (window as any)[stageSelectionKey] = null;
+            (window as any)[flowSelectionKey] = null;
+            this.render();
+        }
     }
 }
