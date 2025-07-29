@@ -2,55 +2,17 @@ import { Widget } from '@lumino/widgets';
 // import { LABEL_MAP } from './labelMap';
 import { colorMap } from './colorMap';
 import { RenderMimeRegistry, standardRendererFactories } from '@jupyterlab/rendermime';
-import { CodeMirrorEditorFactory } from '@jupyterlab/codemirror';
-import { CodeEditor } from '@jupyterlab/codeeditor';
-// import '@jupyterlab/codemirror/style/index.css';
-// import '@jupyterlab/theme-light-extension/style/theme.css'; // 或 dark 主题
 
-// function highlightPython(code: string): string {
-//   // 简单高亮，支持常见关键字
-//   const keywords = [
-//     'import', 'from', 'as', 'def', 'class', 'return', 'for', 'if', 'else', 'elif', 'with', 'try', 'except', 'while', 'print', 'in', 'is', 'not', 'and', 'or', 'True', 'False', 'None'
-//   ];
-//   let html = code
-//     .replace(/(&)/g, '&amp;')
-//     .replace(/</g, '&lt;')
-//     .replace(/>/g, '&gt;');
-//   for (const kw of keywords) {
-//     html = html.replace(new RegExp('(?<=^|\W)(' + kw + ')(?=\W|$)', 'g'), '<span class="nbd-kw">$1</span>');
-//   }
-//   // 字符串
-//   html = html.replace(/('[^']*'|"[^"]*")/g, '<span class="nbd-str">$1</span>');
-//   // 注释
-//   html = html.replace(/(#.*)/g, '<span class="nbd-cmt">$1</span>');
-//   return html;
-// }
 
-// function simpleMarkdown(md: string): string {
-//   // 支持 # ## ###、**bold**、*italic*、[text](url)、换行
-//   let html = md
-//     .replace(/&/g, '&amp;')
-//     .replace(/</g, '&lt;')
-//     .replace(/>/g, '&gt;');
-//   html = html.replace(/^### (.*)$/gm, '<h3>$1</h3>');
-//   html = html.replace(/^## (.*)$/gm, '<h2>$1</h2>');
-//   html = html.replace(/^# (.*)$/gm, '<h1>$1</h1>');
-//   html = html.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
-//   html = html.replace(/\*(.*?)\*/g, '<i>$1</i>');
-//   html = html.replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank">$1</a>');
-//   html = html.replace(/\n/g, '<br>');
-//   return html;
-// }
-
-// 动态插入 JupyterLab CodeMirror 样式（只插入一次）
-function ensureJupyterlabCodeMirrorStyle() {
-  const styleId = 'jupyterlab-codemirror-style';
+// 动态插入 JupyterLab 主题样式（只插入一次）
+function ensureJupyterlabThemeStyle() {
+  const styleId = 'jupyterlab-theme-style';
   if (!document.getElementById(styleId)) {
     const link = document.createElement('link');
     link.id = styleId;
     link.rel = 'stylesheet';
-    // 如有本地静态资源可替换为本地路径
-    link.href = 'https://unpkg.com/@jupyterlab/codemirror/style/index.css';
+    // 使用light主题
+    link.href = 'https://unpkg.com/@jupyterlab/theme-light-extension/style/theme.css';
     document.head.appendChild(link);
   }
 }
@@ -64,7 +26,7 @@ export class NotebookDetailWidget extends Widget {
   private notebookSelectedHandler: (event: Event) => void;
   private selectionClearedHandler: (event: Event) => void;
   private rendermime: RenderMimeRegistry;
-  private codeMirrorFactory: CodeMirrorEditorFactory;
+  private prismLoaded: boolean = false; // 新增标志，用于判断 Prism.js 是否加载完成
 
   // 新增：获取当前tab ID
   private getTabId(): string {
@@ -86,8 +48,25 @@ export class NotebookDetailWidget extends Widget {
     this.title.label = 'Notebook Detail';
     this.title.closable = true;
     this.addClass('notebook-detail-widget');
-    this.rendermime = new RenderMimeRegistry({ initialFactories: standardRendererFactories });
-    this.codeMirrorFactory = new CodeMirrorEditorFactory();
+    this.rendermime = new RenderMimeRegistry({
+      initialFactories: standardRendererFactories
+    });
+
+    // 加载 Prism.js
+    this.loadPrismJS();
+
+    // 确保markdown渲染器可用
+    console.log('Available renderers:', this.rendermime.mimeTypes);
+    console.log('Markdown renderer available:', this.rendermime.mimeTypes.includes('text/markdown'));
+    console.log('Python renderer available:', this.rendermime.mimeTypes.includes('text/x-python'));
+
+    // 检查是否有text/x-python渲染器
+    if (!this.rendermime.mimeTypes.includes('text/x-python')) {
+      console.log('text/x-python renderer not available, will use text/plain with syntax highlighting');
+    }
+
+    // 初始化时不选中任何cell
+    this.selectedCellIdx = null;
 
     // 绑定事件处理器
     this.stageHoverHandler = this.handleStageHover.bind(this);
@@ -99,12 +78,10 @@ export class NotebookDetailWidget extends Widget {
       if (tabId === this.getTabId()) {
         console.log('[NotebookDetailWidget] selectionClearedHandler called for tab:', tabId);
         this.selectedCellIdx = null;
-        this.render();
+        this.render(); // 在清除选择后重新渲染
         console.log('[NotebookDetailWidget] render completed after selection cleared');
       }
     };
-
-    this.render();
 
     // 监听 matrix 跳转事件
     window.addEventListener('galaxy-notebook-detail-jump', (e: Event) => {
@@ -157,11 +134,15 @@ export class NotebookDetailWidget extends Widget {
     // 监听选中状态清除事件
     window.addEventListener('galaxy-selection-cleared', this.selectionClearedHandler);
 
-            // 监听筛选状态变化，重新渲染以显示跳转控件
-        window.addEventListener('galaxy-flow-selection-changed', () => {
-          // console.log('[NotebookDetailWidget] Flow selection changed, re-rendering...');
-          this.render();
-        });
+    // 监听筛选状态变化，重新渲染以显示跳转控件
+    window.addEventListener('galaxy-flow-selection-changed', () => {
+      // console.log('[NotebookDetailWidget] Flow selection changed, re-rendering...');
+      this.render();
+    });
+    // 如果 Prism.js 已经加载完成，立即渲染
+    if (this.prismLoaded) {
+      this.render();
+    }
   }
 
   onBeforeDetach(): void {
@@ -187,15 +168,15 @@ export class NotebookDetailWidget extends Widget {
     // 检查是否来自 minimap 内部的 hover
     const isFromMinimap = (event as any).detail?.source === 'minimap';
     const hoveredIdx = (event as any).detail?.cellIdx;
-    
+
     // 检查是否有选中状态，如果有则不添加高亮
     const tabId = this.getTabId();
     const flowSelectionKey = `_galaxyFlowSelection_${tabId}`;
     const stageSelectionKey = `_galaxyStageSelection_${tabId}`;
     const hasSelection = (window as any)[flowSelectionKey] || (window as any)[stageSelectionKey];
-    
 
-    
+
+
     minimapSvg.querySelectorAll('rect').forEach((r) => {
       const rectStage = r.getAttribute('data-stage');
       const rectIdx = parseInt(r.getAttribute('data-idx') || '0');
@@ -354,6 +335,113 @@ export class NotebookDetailWidget extends Widget {
     }, 40);
   }
 
+  private simpleMarkdownRender(md: string): string {
+    // 支持 # ## ###、**bold**、*italic*、[text](url)、换行
+    let html = md
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+    html = html.replace(/^### (.*)$/gm, '<h3>$1</h3>');
+    html = html.replace(/^## (.*)$/gm, '<h2>$1</h2>');
+    html = html.replace(/^# (.*)$/gm, '<h1>$1</h1>');
+    html = html.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
+    html = html.replace(/\*(.*?)\*/g, '<i>$1</i>');
+    html = html.replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank">$1</a>');
+    html = html.replace(/\n/g, '<br>');
+    return html;
+  }
+
+  private activatePrismLineNumbers() {
+    const Prism = (window as any).Prism;
+    console.log('Attempting to activate Prism Line Numbers.');
+    if (!Prism) {
+      console.warn('Prism object not found.');
+      return;
+    }
+    if (!Prism.plugins || !Prism.plugins.lineNumbers) {
+      console.warn('Prism.js lineNumbers plugin not found on Prism.plugins.');
+      console.log('Prism.plugins (missing lineNumbers):', Prism.plugins);
+      return;
+    }
+    console.log('Prism and lineNumbers plugin are present.');
+    console.log('Details of Prism.plugins.lineNumbers:', Prism.plugins.lineNumbers); // 仍然保留此行用于调试
+  
+    // **关键更改：只需调用 highlightAll。**
+    // 如果行号插件已正确加载并与此 Prism 版本关联，
+    // highlightAll() 在处理 <pre class="line-numbers"> 时应自动添加行号。
+    Prism.highlightAll();
+    console.log('Prism.highlightAll() called.');
+  
+    const blocks = document.querySelectorAll('pre.line-numbers');
+    console.log(`Found ${blocks.length} pre.line-numbers blocks. Highlighted.`);
+  
+    // 如果需要，您可以保留 render() 中的 `scrollToSelectedCell()` 调用
+    // 此处不再需要显式的循环或 _hook 调用来添加行号。
+  }
+
+  private loadPrismJS() {
+    const prismCSS = document.createElement('link');
+    prismCSS.rel = 'stylesheet';
+    prismCSS.href = 'https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css';
+    document.head.appendChild(prismCSS);
+
+    // 加载 Prism 行号插件 CSS
+    const lineNumbersCSS = document.createElement('link');
+    lineNumbersCSS.rel = 'stylesheet';
+    lineNumbersCSS.href = 'https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-numbers/prism-line-numbers.css';
+    document.head.appendChild(lineNumbersCSS);
+
+    const prismJS = document.createElement('script');
+    prismJS.src = 'https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js';
+    prismJS.onload = () => {
+      // 加载 Python 语言支持
+      const pythonScript = document.createElement('script');
+      pythonScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js';
+      pythonScript.onload = () => {
+        // 加载行号插件
+        const lineNumbersJS = document.createElement('script');
+        lineNumbersJS.src = 'https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-numbers/prism-line-numbers.min.js';
+        lineNumbersJS.onload = () => {
+          // 只有当所有插件都加载完成后再 render
+          this.prismLoaded = true; // 设置加载完成标志
+          this.render(); // 首次渲染
+        };
+        document.head.appendChild(lineNumbersJS);
+      };
+      document.head.appendChild(pythonScript);
+    };
+    document.head.appendChild(prismJS);
+  }
+
+  private markdownToHtml(md: string): string {
+    // 更完整的markdown转HTML，用于JupyterLab HTML渲染器
+    let html = md
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+
+    // 标题
+    html = html.replace(/^### (.*)$/gm, '<h3>$1</h3>');
+    html = html.replace(/^## (.*)$/gm, '<h2>$1</h2>');
+    html = html.replace(/^# (.*)$/gm, '<h1>$1</h1>');
+
+    // 粗体和斜体
+    html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
+
+    // 链接
+    html = html.replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank">$1</a>');
+
+    // 代码块
+    html = html.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
+    html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+    // 换行
+    html = html.replace(/\n/g, '<br>');
+
+    return html;
+  }
+
   private render() {
     // 记录滚动位置
     let prevScrollTop = 0;
@@ -362,12 +450,12 @@ export class NotebookDetailWidget extends Widget {
       prevScrollTop = prevCellList.scrollTop;
     }
     const nb = this.notebook;
-    let nbIdx = '';
-    if (nb.path && /\d+/.test(nb.path)) {
-      nbIdx = nb.path.match(/\d+/)![0];
-    } else if (nb.index !== undefined) {
-      nbIdx = String(nb.index + 1);
-    }
+    // let nbIdx = '';
+    // if (nb.path && /\d+/.test(nb.path)) {
+    //   nbIdx = nb.path.match(/\d+/)![0];
+    // } else if (nb.index !== undefined) {
+    //   nbIdx = String(nb.index + 1);
+    // }
     // 获取当前筛选状态（优先使用选中状态，其次使用hover状态）
     const tabId = this.getTabId();
     const flowSelectionKey = `_galaxyFlowSelection_${tabId}`;
@@ -453,16 +541,10 @@ export class NotebookDetailWidget extends Widget {
     // 先渲染主结构和cell列表容器
     this.node.innerHTML = `
       <div style="padding:24px; max-width:900px; margin:0 auto; height:100%; box-sizing:border-box; display:flex; flex-direction:column;">
-        <!--<div style="display:flex; align-items:center; font-size:15px; font-weight:500; margin-bottom:18px; margin-top:8px;">
-          <span class="nbd-breadcrumb" style="color:#3182bd; cursor:pointer; text-decoration:underline;">Overview</span>
-          <span style="margin:0 8px; color:#888;">/</span>
-          <span style="color:#222;">notebook ${nbIdx || ''}</span>
-        </div>-->
         ${(() => {
         console.log('[NotebookDetailWidget] filteredCellIndices.length:', filteredCellIndices.length);
         console.log('[NotebookDetailWidget] should show nav control:', filteredCellIndices.length > 0);
         return filteredCellIndices.length > 0 ? `
-        <!-- 筛选导航控件 -->
         <div style="position:fixed; bottom:20px; left:50%; transform:translateX(-50%); z-index:1000;">
           <div style="display:flex; align-items:center; background:rgba(255,255,255,0.95); backdrop-filter:blur(10px); border:1px solid #e0e0e0; border-radius:20px; padding:8px 12px; box-shadow:0 4px 12px rgba(0,0,0,0.15);">
             <button id="nbd-nav-prev" style="background:none; border:none; cursor:pointer; color:#666; font-size:14px; padding:4px; margin-right:8px; border-radius:4px; transition:all 0.2s; min-width:24px; height:24px; display:flex; align-items:center; justify-content:center;" ${(currentFilteredIndex <= 0 || currentFilteredIndex === -1) ? 'disabled' : ''}>‹</button>
@@ -475,7 +557,6 @@ export class NotebookDetailWidget extends Widget {
         ` : '';
       })()}
         <div style="flex:1 1 auto; min-height:0; display:flex; flex-direction:row; align-items:flex-start; gap:0;">
-          <!-- Mini map -->
           <div style="width:20px; margin-right:14px; display:flex; flex-direction:column; justify-content:center; align-self:center; max-height:600px;">
             ${(function () {
         const cells = nb.cells ?? [];
@@ -513,7 +594,6 @@ export class NotebookDetailWidget extends Widget {
         return `<svg width="${minimapSvgWidth}" height="${svgHeight}" viewBox="${viewBox}" style="${style}" preserveAspectRatio="none">${rects}</svg>`;
       })()}
           </div>
-          <!-- Cell 列表 -->
           <div style="flex:1 1 auto; min-height:0; display:flex; flex-direction:column; gap:18px; overflow-y:auto; height:100%;" id="nbd-cell-list-scroll"></div>
         </div>
       </div>
@@ -551,6 +631,12 @@ export class NotebookDetailWidget extends Widget {
         .nbd-md-area b { font-weight: bold; }
         .nbd-md-area i { font-style: italic; }
         .nbd-md-area code { font-family: var(--jp-code-font-family, monospace); background: #f7f7fa; padding: 0 2px; border-radius: 2px; }
+        
+        /* 覆盖Prism.js的line-height，使用默认值 */
+        pre.line-numbers,
+        pre.line-numbers code {
+          line-height: normal !important;
+        }
       </style>
     `;
     // 渲染cell内容（JupyterLab渲染器）
@@ -597,6 +683,51 @@ export class NotebookDetailWidget extends Widget {
         idxDiv.style.alignItems = 'flex-end';
         idxDiv.textContent = `[${i + 1}]`;
         left.appendChild(idxDiv);
+
+        // 为code cell添加放大镜图标
+        if (cell.cellType === 'code') {
+          const detailIcon = document.createElement('div');
+          detailIcon.innerHTML = '🔍';
+          detailIcon.style.fontSize = '12px';
+          detailIcon.style.color = '#999';
+          detailIcon.style.cursor = 'pointer';
+          detailIcon.style.marginTop = '2px';
+          detailIcon.style.textAlign = 'right';
+          detailIcon.style.transition = 'color 0.2s';
+          detailIcon.title = '查看详情';
+
+          // 添加hover效果
+          detailIcon.addEventListener('mouseenter', () => {
+            detailIcon.style.color = '#1976d2';
+          });
+          detailIcon.addEventListener('mouseleave', () => {
+            detailIcon.style.color = '#999';
+          });
+
+          // 点击显示详情
+          detailIcon.addEventListener('click', (e) => {
+            // 设置选中状态
+            if (this.selectedCellIdx !== i) {
+              this.selectedCellIdx = i;
+              this.render();
+            }
+
+            const cell = this.notebook.cells[i];
+            window.dispatchEvent(new CustomEvent('galaxy-cell-detail', {
+              detail: {
+                cell: {
+                  ...cell,
+                  notebookIndex: this.notebook.index,
+                  cellIndex: i,
+                  _notebookDetail: this.notebook
+                }
+              }
+            }));
+            e.stopPropagation();
+          });
+
+          left.appendChild(detailIcon);
+        }
         // cell内容区
         const cellDiv = document.createElement('div');
         cellDiv.className = 'nbd-cell';
@@ -621,24 +752,62 @@ export class NotebookDetailWidget extends Widget {
         contentDiv.style.minWidth = '0';
         // 渲染内容
         if (cell.cellType === 'markdown') {
-          const mdWidget = this.rendermime.createRenderer('text/markdown');
-          const model = this.rendermime.createModel({
-            data: { 'text/markdown': content },
-            metadata: {},
-            trusted: true
-          });
-          mdWidget.renderModel(model);
-          contentDiv.appendChild(mdWidget.node);
+          console.log('Rendering markdown cell:', i, 'content:', content);
+          try {
+            // 确保JupyterLab样式已加载
+            ensureJupyterlabThemeStyle();
+
+            // 尝试使用HTML渲染器而不是markdown渲染器
+            const htmlWidget = this.rendermime.createRenderer('text/html');
+            console.log('Created HTML widget:', htmlWidget);
+
+            // 先将markdown转换为HTML
+            const htmlContent = this.markdownToHtml(content);
+            console.log('Converted HTML content:', htmlContent);
+
+            const model = this.rendermime.createModel({
+              data: { 'text/html': htmlContent },
+              metadata: {},
+              trusted: true
+            });
+            console.log('Created model:', model);
+
+            // 确保渲染器正确初始化
+            if (htmlWidget && htmlWidget.node) {
+              htmlWidget.renderModel(model);
+              console.log('Widget node after render:', htmlWidget.node);
+              contentDiv.appendChild(htmlWidget.node);
+              console.log('HTML rendered successfully for cell:', i);
+            } else {
+              throw new Error('HTML widget not properly initialized');
+            }
+          } catch (error) {
+            console.error('HTML rendering failed for cell:', i, 'error:', error);
+            // 如果JupyterLab渲染器失败，使用简单的HTML渲染
+            const fallbackDiv = document.createElement('div');
+            fallbackDiv.className = 'nbd-md-area';
+            fallbackDiv.innerHTML = this.simpleMarkdownRender(content);
+            contentDiv.appendChild(fallbackDiv);
+            console.log('Using fallback renderer for cell:', i);
+          }
         } else if (cell.cellType === 'code') {
-          ensureJupyterlabCodeMirrorStyle();
-          const host = document.createElement('div');
-          const model = new CodeEditor.Model();
-          model.sharedModel.setSource(content);
-          model.mimeType = 'text/x-python';
-          const editor = this.codeMirrorFactory.newInlineEditor({ host, model });
-          editor.setOption('readOnly', true);
-          host.style.pointerEvents = 'none'; // 禁止所有交互
-          contentDiv.appendChild(host);
+          // 创建代码内容 - 使用 Prism.js 官方行号插件
+          const preElement = document.createElement('pre');
+          preElement.classList.add('line-numbers');
+          preElement.style.margin = '0';
+          // preElement.style.padding = '8px 12px'; // 给行号留出空间
+          preElement.style.background = 'transparent';
+          preElement.style.border = 'none';
+          preElement.style.fontFamily = 'var(--jp-code-font-family, "SF Mono", "Monaco", "Consolas", monospace)';
+          preElement.style.fontSize = '13px';
+          // preElement.style.lineHeight = '1.2';
+
+          const codeElement = document.createElement('code');
+          codeElement.className = 'language-python';
+          codeElement.textContent = content;
+
+          preElement.appendChild(codeElement);
+          contentDiv.appendChild(preElement);
         } else {
           // 其它类型直接显示
           contentDiv.textContent = content;
@@ -653,55 +822,55 @@ export class NotebookDetailWidget extends Widget {
     setTimeout(() => {
       const minimapSvg = this.node.querySelector('svg');
       if (!minimapSvg) return;
-              minimapSvg.querySelectorAll('rect').forEach((r, i) => {
-          // 选中 cell 永远高亮
-          if (this.selectedCellIdx === i) {
-            r.classList.add('minimap-highlight');
-          } else {
-            // 检查是否应该保持来自flowchart的筛选高亮（但不添加高亮类）
-            // const rectStage = r.getAttribute('data-stage');
-            // let shouldKeepVisible = false;
+      minimapSvg.querySelectorAll('rect').forEach((r, i) => {
+        // 选中 cell 永远高亮
+        if (this.selectedCellIdx === i) {
+          r.classList.add('minimap-highlight');
+        } else {
+          // 检查是否应该保持来自flowchart的筛选高亮（但不添加高亮类）
+          // const rectStage = r.getAttribute('data-stage');
+          // let shouldKeepVisible = false;
 
-            // 优先使用选中状态，其次使用hover状态
-            if (currentStageSelection) {
-              // 来自stage选中筛选
-              // shouldKeepVisible = rectStage === currentStageSelection;
-            } else if (currentFlowSelection && currentFlowSelection.from && currentFlowSelection.to) {
-              // 来自flow选中筛选
+          // 优先使用选中状态，其次使用hover状态
+          if (currentStageSelection) {
+            // 来自stage选中筛选
+            // shouldKeepVisible = rectStage === currentStageSelection;
+          } else if (currentFlowSelection && currentFlowSelection.from && currentFlowSelection.to) {
+            // 来自flow选中筛选
+            const cells = this.notebook.cells ?? [];
+            if (i < cells.length - 1) {
+              const currStage = String(cells[i]["1st-level label"] ?? 'None');
+              const nextStage = String(cells[i + 1]["1st-level label"] ?? 'None');
+              if (currStage === currentFlowSelection.from && nextStage === currentFlowSelection.to) {
+                // shouldKeepVisible = true;
+              }
+            }
+          } else if (currentFlowHoverStage && currentFlowHoverStage !== '__flow_transition__') {
+            // 来自stage hover筛选
+            // shouldKeepVisible = rectStage === currentFlowHoverStage;
+          } else if (currentFlowHoverStage === '__flow_transition__') {
+            // 来自flow hover筛选，需要检查当前cell是否在flow中
+            const flowHoverInfo = (window as any)._galaxyFlowHoverInfo;
+            if (flowHoverInfo && flowHoverInfo.from && flowHoverInfo.to) {
               const cells = this.notebook.cells ?? [];
               if (i < cells.length - 1) {
                 const currStage = String(cells[i]["1st-level label"] ?? 'None');
                 const nextStage = String(cells[i + 1]["1st-level label"] ?? 'None');
-                if (currStage === currentFlowSelection.from && nextStage === currentFlowSelection.to) {
+                if (currStage === flowHoverInfo.from && nextStage === flowHoverInfo.to) {
                   // shouldKeepVisible = true;
                 }
               }
-            } else if (currentFlowHoverStage && currentFlowHoverStage !== '__flow_transition__') {
-              // 来自stage hover筛选
-              // shouldKeepVisible = rectStage === currentFlowHoverStage;
-            } else if (currentFlowHoverStage === '__flow_transition__') {
-              // 来自flow hover筛选，需要检查当前cell是否在flow中
-              const flowHoverInfo = (window as any)._galaxyFlowHoverInfo;
-              if (flowHoverInfo && flowHoverInfo.from && flowHoverInfo.to) {
-                const cells = this.notebook.cells ?? [];
-                if (i < cells.length - 1) {
-                  const currStage = String(cells[i]["1st-level label"] ?? 'None');
-                  const nextStage = String(cells[i + 1]["1st-level label"] ?? 'None');
-                  if (currStage === flowHoverInfo.from && nextStage === flowHoverInfo.to) {
-                    // shouldKeepVisible = true;
-                  }
-                }
-              }
             }
-
-            // 点击选中后不添加高亮类，只有hover时才高亮
-            r.classList.remove('minimap-highlight');
-            
-            // 调试信息
-            // if (shouldKeepVisible) {
-            //   console.log('[setTimeout] cell', i, 'shouldKeepVisible:', shouldKeepVisible, 'currentStageSelection:', currentStageSelection, 'currentFlowSelection:', currentFlowSelection);
-            // }
           }
+
+          // 点击选中后不添加高亮类，只有hover时才高亮
+          r.classList.remove('minimap-highlight');
+
+          // 调试信息
+          // if (shouldKeepVisible) {
+          //   console.log('[setTimeout] cell', i, 'shouldKeepVisible:', shouldKeepVisible, 'currentStageSelection:', currentStageSelection, 'currentFlowSelection:', currentFlowSelection);
+          // }
+        }
         // 点击选中
         r.addEventListener('click', () => {
           this.selectedCellIdx = i;
@@ -733,7 +902,7 @@ export class NotebookDetailWidget extends Widget {
           }
         });
       });
-      // cell 列表点击选中
+      // cell 列表点击选中（只选中，不显示详情）
       const cellList = this.node.querySelector('#nbd-cell-list-scroll');
       if (cellList) {
         // 选中cell的外层div（display:flex; flex-direction:row; align-items:stretch;）
@@ -743,8 +912,6 @@ export class NotebookDetailWidget extends Widget {
             if (this.selectedCellIdx !== idx) {
               this.selectedCellIdx = idx;
               this.render();
-              const cell = this.notebook.cells[idx];
-              window.dispatchEvent(new CustomEvent('galaxy-cell-detail', { detail: { cell: { ...cell, notebookIndex: this.notebook.index, cellIndex: idx, _notebookDetail: this.notebook } } }));
             }
             e.stopPropagation();
           };
@@ -881,17 +1048,17 @@ export class NotebookDetailWidget extends Widget {
         navNext.style.color = '#666';
       });
 
-              // 清除筛选按钮事件
-        if (navClear) {
-          navClear.addEventListener('click', () => {
-            // console.log('[NotebookDetailWidget] Clear filter clicked');
-            // 清除选中状态
-            this.selectedCellIdx = null;
-            // 触发清除事件，让所有组件回到默认状态
-            window.dispatchEvent(new CustomEvent('galaxy-selection-cleared'));
-            // 重新渲染，隐藏导航控件
-            this.render();
-          });
+      // 清除筛选按钮事件
+      if (navClear) {
+        navClear.addEventListener('click', () => {
+          // console.log('[NotebookDetailWidget] Clear filter clicked');
+          // 清除选中状态
+          this.selectedCellIdx = null;
+          // 触发清除事件，让所有组件回到默认状态
+          window.dispatchEvent(new CustomEvent('galaxy-selection-cleared', { detail: { tabId: this.getTabId() } })); // 传递当前tabId
+          // 重新渲染，隐藏导航控件
+          this.render();
+        });
 
         // 清除按钮hover效果
         navClear.addEventListener('mouseenter', () => {
@@ -912,6 +1079,13 @@ export class NotebookDetailWidget extends Widget {
         window.dispatchEvent(new CustomEvent('galaxy-notebook-detail-back'));
       };
     }
+
+    // 延迟高亮执行,确保 DOM 完成后再运行
+    // 只有当 Prism.js 已经加载完成时才尝试激活行号
+    if (this.prismLoaded) {
+      setTimeout(() => this.activatePrismLineNumbers(), 30);
+    }
+
     this.scrollToSelectedCell();
   }
-} 
+}

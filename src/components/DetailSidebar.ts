@@ -1,23 +1,6 @@
 import { Widget } from '@lumino/widgets';
+import { RenderMimeRegistry, standardRendererFactories } from '@jupyterlab/rendermime';
 import { LABEL_MAP } from './labelMap';
-
-function highlightPython(code: string): string {
-  const keywords = [
-    'import', 'from', 'as', 'def', 'class', 'return', 'for', 'if', 'else', 'elif', 'with', 'try', 'except', 'while', 'print', 'in', 'is', 'not', 'and', 'or', 'True', 'False', 'None'
-  ];
-  let html = code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  for (const kw of keywords) {
-    html = html.replace(new RegExp('(?<=^|\\W)(' + kw + ')(?=\\W|$)', 'g'), '<span class="nbd-kw">$1</span>');
-  }
-  html = html.replace(/('[^']*'|"[^"]*")/g, '<span class="nbd-str">$1</span>');
-  html = html.replace(/(#.*)/g, '<span class="nbd-cmt">$1</span>');
-  return html;
-}
-
-// 新增：去除高亮 span 的工具函数
-function removeHighlightSpans(html: string): string {
-  return html.replace(/<span class="nbd-\w+">([^<]*)<\/span>/g, '$1');
-}
 
 // 工具函数：根据英文名或 id 找到 stage id（字符串）
 function getStageIdByName(name: string): string | undefined {
@@ -39,6 +22,7 @@ export class DetailSidebar extends Widget {
   private currentNotebook: any = null; // 新增：保存当前 notebook detail
   private _currentTitle: string = 'Notebook Overview'; // 新增：跟踪当前标题
   private _currentSelection: any = null; // 新增：跟踪当前选中状态
+  private rendermime: RenderMimeRegistry;
   
   private _getTitleStyle(): string {
     if (!this._currentSelection) return 'color: #222';
@@ -64,6 +48,64 @@ export class DetailSidebar extends Widget {
     }
     return 'color: #222';
   }
+
+  private markdownToHtml(md: string): string {
+    // 更完整的markdown转HTML，用于JupyterLab HTML渲染器
+    let html = md
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+
+    // 标题
+    html = html.replace(/^### (.*)$/gm, '<h3>$1</h3>');
+    html = html.replace(/^## (.*)$/gm, '<h2>$1</h2>');
+    html = html.replace(/^# (.*)$/gm, '<h1>$1</h1>');
+
+    // 粗体和斜体
+    html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
+
+    // 链接
+    html = html.replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank">$1</a>');
+
+    // 代码块
+    html = html.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
+    html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+    // 换行
+    html = html.replace(/\n/g, '<br>');
+
+    return html;
+  }
+
+  private simpleMarkdownRender(md: string): string {
+    // 支持 # ## ###、**bold**、*italic*、[text](url)、换行
+    let html = md
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+    html = html.replace(/^### (.*)$/gm, '<h3>$1</h3>');
+    html = html.replace(/^## (.*)$/gm, '<h2>$1</h2>');
+    html = html.replace(/^# (.*)$/gm, '<h1>$1</h1>');
+    html = html.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
+    html = html.replace(/\*(.*?)\*/g, '<i>$1</i>');
+    html = html.replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank">$1</a>');
+    html = html.replace(/\n/g, '<br>');
+    return html;
+  }
+
+  // 动态插入 JupyterLab 主题样式（只插入一次）
+  private ensureJupyterlabThemeStyle() {
+    const styleId = 'jupyterlab-theme-style';
+    if (!document.getElementById(styleId)) {
+      const link = document.createElement('link');
+      link.id = styleId;
+      link.rel = 'stylesheet';
+      // 使用light主题
+      link.href = 'https://unpkg.com/@jupyterlab/theme-light-extension/style/theme.css';
+      document.head.appendChild(link);
+    }
+  }
   
   constructor(colorMap: Map<string, string>, notebookOrder: number[], hiddenStages?: Set<string>) {
     super();
@@ -73,6 +115,9 @@ export class DetailSidebar extends Widget {
     this.title.label = 'Details';
     this.title.closable = true;
     this.addClass('galaxy-detail-sidebar');
+    this.rendermime = new RenderMimeRegistry({
+      initialFactories: standardRendererFactories
+    });
     this.setDefault();
     this.node.style.overflowY = 'auto';
     this._hiddenStages = hiddenStages ?? new Set(['1', '9']);
@@ -665,70 +710,146 @@ export class DetailSidebar extends Widget {
         ${allNotebooksArr.map((nb, i) => `<option value="${i}" ${i === currentNbIdx ? 'selected' : ''}>${nb.kernelVersionId ?? nb.path ?? 'Notebook ' + (i + 1)}</option>`).join('')}
       </select>
     </div>`;
-    // cell卡片渲染函数（NotebookDetailWidget风格）
+    // cell卡片渲染函数（完全按照NotebookDetailWidget的方式）
     const renderStageCellCards = (nb: any, stage: string) => {
       const cells = (nb.cells ?? [])
         .map((c: any, i: number) => ({ ...c, cellIndex: i }))
         .filter((c: any) => c["1st-level label"] === stage && c.cellIndex !== cell.cellIndex);
       if (!cells.length) return '<div style="color:#aaa; font-size:13px; margin-bottom:12px;">No other cells in this stage in this notebook.</div>';
-      return `<div style="display:flex; flex-direction:column; gap:14px; margin-bottom:12px;">${cells.map((c: any) => {
+      
+      // 创建容器div
+      const containerDiv = document.createElement('div');
+      containerDiv.style.display = 'flex';
+      containerDiv.style.flexDirection = 'column';
+      containerDiv.style.gap = '14px';
+      containerDiv.style.marginBottom = '12px';
+      
+      cells.forEach((c: any) => {
         const content = c.source ?? c.code ?? '';
         const cellIdx = c.cellIndex !== undefined ? c.cellIndex + 1 : '';
         const nbIdx = c.notebookIndex !== undefined ? c.notebookIndex : (nb.index !== undefined ? nb.index : 0);
-        if (c.cellType === 'code') {
-          // 简单高亮
-          const codeLines = content.split(/\r?\n/);
-          return `<div style="display:flex; flex-direction:row; align-items:stretch;">
-            <div style="position:relative; min-width:36px; margin-right:8px; height:100%; display:flex; flex-direction:column; align-items:flex-end;">
-              <div style="color:#888; font-size:15px; text-align:right; user-select:none; line-height:1.6; margin-left:8px;">[${cellIdx}]</div>
-              <span class="nbd-jump-icon" data-nb-idx="${nbIdx}" data-cell-idx="${c.cellIndex}" style="cursor:pointer; margin-top:2px; display:inline-flex; align-items:center; justify-content:center;">
-                <svg width="18" height="18" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="10" cy="10" r="7" stroke="#1976d2" stroke-width="2"/><circle cx="10" cy="10" r="2.5" fill="#1976d2"/><line x1="10" y1="3" x2="10" y2="0" stroke="#1976d2" stroke-width="1.5"/><line x1="10" y1="17" x2="10" y2="20" stroke="#1976d2" stroke-width="1.5"/><line x1="3" y1="10" x2="0" y2="10" stroke="#1976d2" stroke-width="1.5"/><line x1="17" y1="10" x2="20" y2="10" stroke="#1976d2" stroke-width="1.5"/></svg>
-              </span>
-            </div>
-            <div class="nbd-cell" style="flex:1 1 0; min-width:0; display:flex; border-radius:6px; box-shadow:0 1px 4px #0001; background:#fff;">
-              <div style="width:6px; border-radius:6px 0 0 6px; background:${stageColor}; margin-right:0;"></div>
-              <div style="flex:1; padding:14px 18px 10px 14px; min-width:0;">
-                <div class="nbd-code-area" style="background:#f7f7fa; border-radius:4px; padding:8px 0 0 0; font-size:13px; word-break:break-word; min-width:0; white-space:pre-wrap;">
-                  <table style="border-spacing:0;"><tbody>
-                    ${codeLines.map((line, i) => `<tr><td style=\"text-align:right; color:#bbb; font-size:12px; padding:0 10px 0 8px; user-select:none; white-space:nowrap; vertical-align:top;\">${i + 1}</td><td style=\"padding:0; font-family:var(--jp-code-font-family,monospace); text-align:left; vertical-align:top;\"><code class=\"nbd-code-line\" data-idx=\"${i}\">${removeHighlightSpans(highlightPython(line))}</code></td></tr>`).join('')}
-                  </tbody></table>
-                </div>
-              </div>
-            </div>
-          </div>`;
-        } else if (c.cellType === 'markdown') {
-          // markdown渲染（只允许 simpleMarkdown，不插入用户 HTML）
-          const simpleMarkdown = (md) => {
-            let html = md.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-            html = html.replace(/^### (.*)$/gm, '<h3>$1</h3>');
-            html = html.replace(/^## (.*)$/gm, '<h2>$1</h2>');
-            html = html.replace(/^# (.*)$/gm, '<h1>$1</h1>');
-            html = html.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
-            html = html.replace(/\*(.*?)\*/g, '<i>$1</i>');
-            html = html.replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank">$1</a>');
-            html = html.replace(/\n/g, '<br>');
-            return html;
-          };
-          return `<div style="display:flex; flex-direction:row; align-items:stretch; width:100%; min-width:0;">
-            <div style="position:relative; min-width:36px; margin-right:8px; height:100%; display:flex; flex-direction:column; align-items:flex-end;">
-              <div style="color:#888; font-size:15px; text-align:right; user-select:none; line-height:1.6; margin-left:8px;">[${cellIdx}]</div>
-              <span class="nbd-jump-icon" data-nb-idx="${nbIdx}" data-cell-idx="${c.cellIndex}" style="cursor:pointer; margin-top:2px; display:inline-flex; align-items:center; justify-content:center;">
-                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="10" cy="10" r="7" stroke="#1976d2" stroke-width="2"/><path d="M10 7v6M7 10h6" stroke="#1976d2" stroke-width="2" stroke-linecap="round"/></svg>
-              </span>
-            </div>
-            <div class="nbd-cell" style="flex:1 1 0; min-width:0; display:flex; border-radius:6px; box-shadow:0 1px 4px #0001; background:#fff; width:100%;">
-              <div style="width:6px; border-radius:6px 0 0 6px; background:${stageColor}; margin-right:0;"></div>
-              <div style="flex:1; padding:14px 18px 10px 14px; min-width:0; width:100%;">
-                <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;"></div>
-                <div class="nbd-md-area" style="all: initial; display: block; width: 100%; min-width: 0; word-break: break-all; white-space: pre-wrap; box-sizing: border-box; font-size:14px; color:#222; font-family:inherit; background:#fff; border-radius:4px; padding:10px 12px 10px 12px;">
-                  ${simpleMarkdown(content)}
-                </div>
-              </div>
-            </div>
-          </div>`;
+        
+        // cell外层div
+        const wrapper = document.createElement('div');
+        wrapper.style.display = 'flex';
+        wrapper.style.flexDirection = 'row';
+        wrapper.style.alignItems = 'stretch';
+        
+        // 左侧序号栏
+        const left = document.createElement('div');
+        left.style.position = 'relative';
+        left.style.minWidth = '36px';
+        left.style.marginRight = '8px';
+        left.style.height = '100%';
+        
+        const idxDiv = document.createElement('div');
+        idxDiv.style.color = '#888';
+        idxDiv.style.fontSize = '15px';
+        idxDiv.style.textAlign = 'right';
+        idxDiv.style.userSelect = 'none';
+        idxDiv.style.lineHeight = '1.6';
+        idxDiv.style.marginLeft = '8px';
+        idxDiv.style.display = 'flex';
+        idxDiv.style.flexDirection = 'column';
+        idxDiv.style.alignItems = 'flex-end';
+        idxDiv.textContent = `[${cellIdx}]`;
+        left.appendChild(idxDiv);
+        
+        // 跳转图标
+        const jumpIcon = document.createElement('div');
+        jumpIcon.className = 'nbd-jump-icon';
+        jumpIcon.setAttribute('data-nb-idx', String(nbIdx));
+        jumpIcon.setAttribute('data-cell-idx', String(c.cellIndex));
+        jumpIcon.style.cursor = 'pointer';
+        jumpIcon.style.marginTop = '2px';
+        jumpIcon.style.textAlign = 'right';
+        jumpIcon.style.fontSize = '12px';
+        jumpIcon.style.color = '#999';
+        jumpIcon.innerHTML = '<svg width="18" height="18" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="10" cy="10" r="7" stroke="#1976d2" stroke-width="2"/><circle cx="10" cy="10" r="2.5" fill="#1976d2"/><line x1="10" y1="3" x2="10" y2="0" stroke="#1976d2" stroke-width="1.5"/><line x1="10" y1="17" x2="10" y2="20" stroke="#1976d2" stroke-width="1.5"/><line x1="3" y1="10" x2="0" y2="10" stroke="#1976d2" stroke-width="1.5"/><line x1="17" y1="10" x2="20" y2="10" stroke="#1976d2" stroke-width="1.5"/></svg>';
+        left.appendChild(jumpIcon);
+        
+        // cell内容区
+        const cellDiv = document.createElement('div');
+        cellDiv.className = 'nbd-cell';
+        cellDiv.setAttribute('contenteditable', 'false');
+        cellDiv.style.flex = '1 1 0';
+        cellDiv.style.minWidth = '0';
+        cellDiv.style.display = 'flex';
+        cellDiv.style.borderRadius = '6px';
+        cellDiv.style.boxShadow = '0 1px 4px #0001';
+        cellDiv.style.background = '#fff';
+        
+        // stage色条
+        const colorBar = document.createElement('div');
+        colorBar.style.width = '6px';
+        colorBar.style.borderRadius = '6px 0 0 6px';
+        colorBar.style.background = stageColor;
+        colorBar.style.marginRight = '0';
+        cellDiv.appendChild(colorBar);
+        
+        // 内容区
+        const contentDiv = document.createElement('div');
+        contentDiv.style.flex = '1';
+        contentDiv.style.padding = '14px 18px 10px 14px';
+        contentDiv.style.minWidth = '0';
+        
+        // 渲染内容
+        if (c.cellType === 'markdown') {
+          try {
+            // 确保JupyterLab样式已加载
+            this.ensureJupyterlabThemeStyle();
+            
+            // 尝试使用HTML渲染器
+            const htmlWidget = this.rendermime.createRenderer('text/html');
+            const htmlContent = this.markdownToHtml(content);
+            const model = this.rendermime.createModel({
+              data: { 'text/html': htmlContent },
+              metadata: {},
+              trusted: true
+            });
+            
+            if (htmlWidget && htmlWidget.node) {
+              htmlWidget.renderModel(model);
+              contentDiv.appendChild(htmlWidget.node);
+            } else {
+              throw new Error('HTML widget not properly initialized');
+            }
+          } catch (error) {
+            console.error('HTML rendering failed for cell:', c.cellIndex, 'error:', error);
+            // 如果JupyterLab渲染器失败，使用简单的HTML渲染
+            const fallbackDiv = document.createElement('div');
+            fallbackDiv.className = 'nbd-md-area';
+            fallbackDiv.innerHTML = this.simpleMarkdownRender(content);
+            contentDiv.appendChild(fallbackDiv);
+          }
+        } else if (c.cellType === 'code') {
+          // 创建代码内容 - 使用 Prism.js 官方行号插件
+          const preElement = document.createElement('pre');
+          preElement.classList.add('line-numbers');
+          preElement.style.margin = '0';
+          preElement.style.background = 'transparent';
+          preElement.style.border = 'none';
+          preElement.style.fontFamily = 'var(--jp-code-font-family, "SF Mono", "Monaco", "Consolas", monospace)';
+          preElement.style.fontSize = '13px';
+
+          const codeElement = document.createElement('code');
+          codeElement.className = 'language-python';
+          codeElement.textContent = content;
+
+          preElement.appendChild(codeElement);
+          contentDiv.appendChild(preElement);
+        } else {
+          // 其它类型直接显示
+          contentDiv.textContent = content;
         }
-        return '';
-      }).join('')}</div>`;
+        
+        cellDiv.appendChild(contentDiv);
+        wrapper.appendChild(left);
+        wrapper.appendChild(cellDiv);
+        containerDiv.appendChild(wrapper);
+      });
+      
+      return containerDiv.outerHTML;
     }
     // tab content
     const tabContent = `<div class="galaxy-tab-content" data-tab-content="first">
@@ -764,7 +885,43 @@ export class DetailSidebar extends Widget {
       </div>
       ${tabHeader}
       ${tabContent}
-    </div>`;
+    </div>
+    <style>
+      .nbd-md-area {
+        all: initial;
+        font-family: var(--jp-ui-font-family, 'SF Pro', 'Segoe UI', 'Arial', sans-serif);
+        font-size: 14px;
+        color: #222;
+        background: #fff;
+        border-radius: 4px;
+        padding: 10px 12px;
+        word-break: break-word;
+        min-width: 0;
+        white-space: pre-wrap;
+        box-sizing: border-box;
+        display: block;
+      }
+      .nbd-md-area * {
+        all: unset;
+        font-family: inherit;
+        font-size: inherit;
+        color: inherit;
+        box-sizing: border-box;
+      }
+      .nbd-md-area a { color: #1976d2; text-decoration: underline; cursor: pointer; }
+      .nbd-md-area h1 { font-size: 1.5em; font-weight: bold; margin: 0.5em 0; }
+      .nbd-md-area h2 { font-size: 1.2em; font-weight: bold; margin: 0.4em 0; }
+      .nbd-md-area h3 { font-size: 1em; font-weight: bold; margin: 0.3em 0; }
+      .nbd-md-area b { font-weight: bold; }
+      .nbd-md-area i { font-style: italic; }
+      .nbd-md-area code { font-family: var(--jp-code-font-family, monospace); background: #f7f7fa; padding: 0 2px; border-radius: 2px; }
+      
+      /* 覆盖Prism.js的line-height，使用默认值 */
+      pre.line-numbers,
+      pre.line-numbers code {
+        line-height: normal !important;
+      }
+    </style>`;
     // tab 切换逻辑
     setTimeout(() => {
       const btns = this.node.querySelectorAll('.galaxy-tab-btn');
@@ -837,6 +994,14 @@ export class DetailSidebar extends Widget {
           cellListDiv.innerHTML = renderStageCellCards(allNotebooksArr[nbIdx], cell["1st-level label"] ?? "");
           // 重新绑定 jump icon 事件
           bindJumpIconEvents(cellListDiv as HTMLElement);
+          
+          // 激活Prism.js行号
+          setTimeout(() => {
+            const Prism = (window as any).Prism;
+            if (Prism && Prism.plugins && Prism.plugins.lineNumbers) {
+              Prism.highlightAll();
+            }
+          }, 50);
         });
       }
       // 初始绑定
@@ -924,6 +1089,14 @@ export class DetailSidebar extends Widget {
         });
       });
     }, 0);
+    
+    // 激活Prism.js行号
+    setTimeout(() => {
+      const Prism = (window as any).Prism;
+      if (Prism && Prism.plugins && Prism.plugins.lineNumbers) {
+        Prism.highlightAll();
+      }
+    }, 50);
   }
 
   setFilter(selection: any, skipEventDispatch: boolean = false) {
