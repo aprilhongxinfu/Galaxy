@@ -160,6 +160,14 @@ export class LeftSidebar extends Widget {
             // 只处理当前tab的事件
             if (!tabId || tabId === this.getTabId()) {
                 this.selection = null;
+                // 清除全局筛选状态变量
+                const flowSelectionKey = `_galaxyFlowSelection_${tabId}`;
+                const stageSelectionKey = `_galaxyStageSelection_${tabId}`;
+                (window as any)[stageSelectionKey] = null;
+                (window as any)[flowSelectionKey] = null;
+                // 清除hover状态
+                (window as any)._galaxyFlowHoverStage = null;
+                (window as any)._galaxyFlowHoverInfo = null;
                 this.saveFilterState();
                 this.render();
             }

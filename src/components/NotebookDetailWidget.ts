@@ -25,6 +25,8 @@ export class NotebookDetailWidget extends Widget {
   private clearCellSelectionHandler: () => void;
   private notebookSelectedHandler: (event: Event) => void;
   private selectionClearedHandler: (event: Event) => void;
+  private stageSelectedHandler: () => void;
+  private flowSelectedHandler: () => void;
   private rendermime: RenderMimeRegistry;
   private prismLoaded: boolean = false; // 用于判断 Prism.js 是否加载完成
 
@@ -75,6 +77,12 @@ export class NotebookDetailWidget extends Widget {
         this.selectedCellIdx = null;
         this.render(); // 在清除选择后重新渲染
       }
+    };
+    this.stageSelectedHandler = () => {
+      this.render();
+    };
+    this.flowSelectedHandler = () => {
+      this.render();
     };
 
     // 监听 matrix 跳转事件
@@ -132,6 +140,13 @@ export class NotebookDetailWidget extends Widget {
     window.addEventListener('galaxy-flow-selection-changed', () => {
       this.render();
     });
+
+    // 监听stage选中事件，重新渲染以显示筛选控件
+    window.addEventListener('galaxy-stage-selected', this.stageSelectedHandler);
+
+    // 监听flow选中事件，重新渲染以显示筛选控件
+    window.addEventListener('galaxy-flow-selected', this.flowSelectedHandler);
+
     // 如果 Prism.js 已经加载完成，立即渲染
     if (this.prismLoaded) {
       this.render();
@@ -146,6 +161,9 @@ export class NotebookDetailWidget extends Widget {
     window.removeEventListener('galaxy-notebook-selected', this.notebookSelectedHandler);
     // 移除选中状态清除事件监听器
     window.removeEventListener('galaxy-selection-cleared', this.selectionClearedHandler);
+    // 移除筛选事件监听器
+    window.removeEventListener('galaxy-stage-selected', this.stageSelectedHandler);
+    window.removeEventListener('galaxy-flow-selected', this.flowSelectedHandler);
   }
 
   private handleStageHover(event: Event): void {
