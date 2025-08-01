@@ -133,7 +133,7 @@ export class MatrixWidget extends Widget {
 
         // similarity排序按钮
         this.similaritySortButton = document.createElement('button');
-        this.similaritySortButton.title = 'Similarity group sort';
+        this.similaritySortButton.title = 'Group clustering by group_id';
         this.similaritySortButton.style.background = 'none';
         this.similaritySortButton.style.border = 'none';
         this.similaritySortButton.style.cursor = 'pointer';
@@ -252,20 +252,36 @@ export class MatrixWidget extends Widget {
             arr.sort((a, b) => this.sortState === 1 ? b.len - a.len : a.len - b.len);
             this.notebookOrder = arr.map(d => d.i);
         } else if (this.sortState === 3 && this.similarityGroups && this.similarityGroups.length > 0) {
-            // similarity排序 - 按文件中的原始顺序排序
-            // 先构建 kernelVersionId -> 文件中的顺序索引
-            const fileOrderMap: Record<string, number> = {};
-            this.similarityGroups.forEach((row: any, index: number) => {
-                fileOrderMap[row.kernelVersionId] = index;
-            });
-            // 按文件中的原始顺序排序
-            const arr = this.data.map((nb, i) => {
+            // Group clustering - only use group_id, ignore similarity
+            // First, group notebooks by group_id
+            const groupMap: Record<string, number[]> = {};
+            const ungroupedNotebooks: number[] = [];
+            
+            this.data.forEach((nb, i) => {
                 const kernelId = (nb as any).kernelVersionId?.toString();
-                const fileOrder = fileOrderMap[kernelId] !== undefined ? fileOrderMap[kernelId] : 999999;
-                return { i, fileOrder };
+                const simRow = this.similarityGroups.find((row: any) => row.kernelVersionId === kernelId);
+                
+                if (simRow && simRow.group_id) {
+                    if (!groupMap[simRow.group_id]) {
+                        groupMap[simRow.group_id] = [];
+                    }
+                    groupMap[simRow.group_id].push(i);
+                } else {
+                    ungroupedNotebooks.push(i);
+                }
             });
-            arr.sort((a, b) => a.fileOrder - b.fileOrder);
-            this.notebookOrder = arr.map(d => d.i);
+            
+            // Sort groups by group_id and flatten
+            const sortedGroupIds = Object.keys(groupMap).sort();
+            this.notebookOrder = [];
+            
+            // Add grouped notebooks first
+            sortedGroupIds.forEach(groupId => {
+                this.notebookOrder.push(...groupMap[groupId]);
+            });
+            
+            // Add ungrouped notebooks at the end
+            this.notebookOrder.push(...ungroupedNotebooks);
         } else {
             this.notebookOrder = this.data.map((_, i) => i);
         }
