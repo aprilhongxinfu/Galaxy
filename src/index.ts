@@ -184,13 +184,13 @@ function activate(
           console.log('Loaded JSON:', result1);
           // 读取 CSV 文件
           try {
-            const csvModel = await contentsManager.get('test-notebooks/18599_emb_clustered.csv', { type: 'file', format: 'text', content: true });
+            const csvModel = await contentsManager.get('test-notebooks/18599_emb_combined_clustered.csv', { type: 'file', format: 'text', content: true });
             similarityGroups = csvParse(csvModel.content as string);
             // 转换 similarity 为数字
             similarityGroups.forEach((d: any) => { d.similarity = +d.similarity; });
             console.log('Loaded CSV:', similarityGroups);
           } catch (e) {
-            alert('无法读取 18599_emb_clustered.csv');
+            alert('无法读取 18599_emb_combined_clustered.csv');
             similarityGroups = [];
           }
         } else if (
