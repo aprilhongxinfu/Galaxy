@@ -469,7 +469,25 @@ export class MatrixWidget extends Widget {
         const baseCellHeight = 5;
         const cellWidth = 20;
         const rowPadding = 1;
-        const svgWidth = Math.max(1000, notebookOrder.length * (cellWidth + rowPadding) + 100);
+        
+        // Calculate additional spacing for similarity groups
+        let groupSpacing = 0;
+        const groupGap = 10; // White space between groups
+        if (this.sortState === 3 && this.similarityGroups && this.similarityGroups.length > 0) {
+            // Count unique groups in the current notebook order
+            const uniqueGroups = new Set();
+            notebookOrder.forEach(idx => {
+                const nb = notebooks[idx] as any;
+                const kernelId = nb.kernelVersionId?.toString();
+                const simRow = this.similarityGroups.find((row: any) => row.kernelVersionId === kernelId);
+                if (simRow) {
+                    uniqueGroups.add(simRow.group_id);
+                }
+            });
+            groupSpacing = Math.max(0, uniqueGroups.size - 1) * groupGap;
+        }
+        
+        const svgWidth = Math.max(1000, notebookOrder.length * (cellWidth + rowPadding) + groupSpacing + 100);
         
         // 计算动态高度
         let totalHeight = 0;
@@ -538,6 +556,32 @@ export class MatrixWidget extends Widget {
         const g = svg.append('g').attr('transform', 'translate(20, 24)');
 
         const self = this;
+        
+        // Calculate column positions with group spacing
+        const columnPositions: number[] = [];
+        let currentX = 0;
+        let prevGroupId: string | null = null;
+        
+        notebookOrder.forEach((row, colIdx) => {
+            const nb = notebooks[row] as any;
+            
+            // Check if we need to add group spacing
+            if (this.sortState === 3 && this.similarityGroups && this.similarityGroups.length > 0) {
+                const kernelId = nb.kernelVersionId?.toString();
+                const simRow = this.similarityGroups.find((simRow: any) => simRow.kernelVersionId === kernelId);
+                const currentGroupId = simRow ? simRow.group_id : null;
+                
+                // Add spacing if this is a new group (but not for the first group)
+                if (prevGroupId !== null && currentGroupId !== prevGroupId && currentGroupId !== null) {
+                    currentX += groupGap;
+                }
+                prevGroupId = currentGroupId;
+            }
+            
+            columnPositions.push(currentX);
+            currentX += cellWidth + rowPadding;
+        });
+        
         notebookOrder.forEach((row, colIdx) => {
             const nb = notebooks[row];
             const sortedCells = nb.cells.sort((a, b) => a.cellId - b.cellId);
@@ -558,7 +602,7 @@ export class MatrixWidget extends Widget {
                 const base = g
                     .append('rect')
                     .datum({ ...cell, kernelVersionId: (nb as any).kernelVersionId, notebook_name: (nb as any).notebook_name })
-                    .attr('x', colIdx * (cellWidth + rowPadding) + 1)
+                    .attr('x', columnPositions[colIdx] + 1)
                     .attr('y', cellY + 1)
                     .attr('width', cellWidth - 2)
                     .attr('height', cellHeight - 2)
@@ -661,7 +705,7 @@ export class MatrixWidget extends Widget {
         const headerG = g.append('g').attr('class', 'matrix-header');
         for (let col = 0; col < notebookOrder.length; col++) {
             headerG.append('text')
-                .attr('x', col * (cellWidth + rowPadding) + cellWidth / 2)
+                .attr('x', columnPositions[col] + cellWidth / 2)
                 .attr('y', -10)
                 .attr('text-anchor', 'middle')
                 .attr('font-size', '11px')
