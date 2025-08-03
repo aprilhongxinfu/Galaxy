@@ -25,9 +25,11 @@ export class MatrixWidget extends Widget {
     private sortButton: HTMLButtonElement;
     private similaritySortButton: HTMLButtonElement;
     private cellHeightButton: HTMLButtonElement; // cell高度模式按钮
+    private markdownButton: HTMLButtonElement; // markdown显示/隐藏按钮
     private filter: any = null;
     private similarityGroups: any[];
     private cellHeightMode: 'fixed' | 'dynamic' = 'fixed'; // cell高度模式
+    private showMarkdown: boolean = true; // markdown显示状态
 
     constructor(data: Notebook[], colorScale: (label: string) => string, similarityGroups?: any[]) {
         super();
@@ -98,6 +100,7 @@ export class MatrixWidget extends Widget {
         sortBar.style.height = '24px';
         sortBar.style.width = '100%';
         sortBar.style.position = 'relative';
+        sortBar.style.gap = '8px'; // 统一按钮间距
 
         // 排序按钮
         this.notebookOrder = this.data.map((_, i) => i);
@@ -107,7 +110,9 @@ export class MatrixWidget extends Widget {
         this.sortButton.style.border = 'none';
         this.sortButton.style.cursor = 'pointer';
         this.sortButton.style.fontSize = '18px';
-        this.sortButton.style.marginRight = '8px';
+        this.sortButton.style.display = 'flex';
+        this.sortButton.style.alignItems = 'center';
+        this.sortButton.style.justifyContent = 'center';
         this.sortButton.innerHTML = this.getSortIcon();
         this.sortButton.onclick = () => {
             if (this.sortState === 3) return; // similarity模式下禁用
@@ -138,6 +143,9 @@ export class MatrixWidget extends Widget {
         this.similaritySortButton.style.border = 'none';
         this.similaritySortButton.style.cursor = 'pointer';
         this.similaritySortButton.style.fontSize = '18px';
+        this.similaritySortButton.style.display = 'flex';
+        this.similaritySortButton.style.alignItems = 'center';
+        this.similaritySortButton.style.justifyContent = 'center';
         this.similaritySortButton.innerHTML = this.getSimilaritySortIcon();
         this.similaritySortButton.onclick = () => {
             // 保存当前的filter状态
@@ -172,7 +180,9 @@ export class MatrixWidget extends Widget {
         this.cellHeightButton.style.border = 'none';
         this.cellHeightButton.style.cursor = 'pointer';
         this.cellHeightButton.style.fontSize = '18px';
-        this.cellHeightButton.style.marginLeft = '8px';
+        this.cellHeightButton.style.display = 'flex';
+        this.cellHeightButton.style.alignItems = 'center';
+        this.cellHeightButton.style.justifyContent = 'center';
         this.cellHeightButton.innerHTML = this.getCellHeightIcon();
         this.cellHeightButton.onclick = () => {
             this.cellHeightMode = this.cellHeightMode === 'fixed' ? 'dynamic' : 'fixed';
@@ -181,6 +191,26 @@ export class MatrixWidget extends Widget {
             this.drawMatrix();
         };
         sortBar.appendChild(this.cellHeightButton);
+        
+        // markdown显示/隐藏按钮
+        this.markdownButton = document.createElement('button');
+        this.markdownButton.title = 'Toggle markdown cells visibility';
+        this.markdownButton.style.background = 'none';
+        this.markdownButton.style.border = 'none';
+        this.markdownButton.style.cursor = 'pointer';
+        this.markdownButton.style.fontSize = '18px';
+        this.markdownButton.style.display = 'flex';
+        this.markdownButton.style.alignItems = 'center';
+        this.markdownButton.style.justifyContent = 'center';
+        this.markdownButton.innerHTML = this.getMarkdownIcon();
+        this.markdownButton.onclick = () => {
+            this.showMarkdown = !this.showMarkdown;
+            this.markdownButton.innerHTML = this.getMarkdownIcon();
+            this.saveFilterState();
+            this.drawMatrix();
+        };
+        sortBar.appendChild(this.markdownButton);
+        
         this.node.appendChild(sortBar);
         this.updateSortButtonState();
 
@@ -240,6 +270,17 @@ export class MatrixWidget extends Widget {
   <path d="M3 8c1-1 2-1 3 0s2 1 3 0 2-1 3 0 2 1 3 0 2-1 3 0 2 1 3 0 2-1 3 0" stroke="#4caf50" stroke-width="2" stroke-linecap="round" fill="none"/>
   <path d="M3 12c1-1 2-1 3 0s2 1 3 0 2-1 3 0 2 1 3 0 2-1 3 0 2 1 3 0 2-1 3 0" stroke="#4caf50" stroke-width="2" stroke-linecap="round" fill="none"/>
 </svg>`;
+        }
+    }
+
+    private getMarkdownIcon(): string {
+        // markdown显示/隐藏icon：使用"Md"文本，显示时绿色，隐藏时灰色
+        if (this.showMarkdown) {
+            // 显示markdown：绿色"Md"文本
+            return `<span style="color: #4caf50; font-weight: 600; font-size: 12px; line-height: 1; display: inline-block; vertical-align: middle;">Md</span>`;
+        } else {
+            // 隐藏markdown：灰色"Md"文本
+            return `<span style="color: #555; font-weight: 600; font-size: 12px; line-height: 1; display: inline-block; vertical-align: middle;">Md</span>`;
         }
     }
 
@@ -518,6 +559,11 @@ export class MatrixWidget extends Widget {
             let currentY = 0;
             
             sortedCells.forEach((cell, i) => {
+                // 如果隐藏markdown且当前cell是markdown，则跳过
+                if (!this.showMarkdown && cell.cellType === 'markdown') {
+                    return;
+                }
+                
                 let cellHeight: number;
                 if (this.cellHeightMode === 'fixed') {
                     cellHeight = baseCellHeight;
@@ -530,7 +576,7 @@ export class MatrixWidget extends Widget {
                 }
                 heights.push(cellHeight);
                 yPositions.push(currentY);
-                currentY += cellHeight + 1; // 1是cell间距
+                currentY += cellHeight + 0; // 减少cell间距，从1改为0
             });
             
             cellHeights.push(heights);
@@ -603,7 +649,14 @@ export class MatrixWidget extends Widget {
             const sortedCells = nb.cells.sort((a, b) => a.cellId - b.cellId);
 
             let prevStage: string | null = null;
+            let visibleCellIndex = 0; // 用于跟踪可见cell的索引
+            
             sortedCells.forEach((cell, i) => {
+                // 如果隐藏markdown且当前cell是markdown，则跳过
+                if (!this.showMarkdown && cell.cellType === 'markdown') {
+                    return;
+                }
+                
                 const currStage = String(cell["1st-level label"] ?? "None");
                 const currClass = currStage;
 
@@ -612,14 +665,14 @@ export class MatrixWidget extends Widget {
                     transitionClass = `pair-from-${prevStage}-to-${currClass}`;
                 }
 
-                const cellHeight = cellHeights[colIdx][i];
-                const cellY = cellYPositions[colIdx][i];
+                const cellHeight = cellHeights[colIdx][visibleCellIndex];
+                const cellY = cellYPositions[colIdx][visibleCellIndex];
 
                 const base = g
                     .append('rect')
                     .datum({ ...cell, kernelVersionId: (nb as any).kernelVersionId, notebook_name: (nb as any).notebook_name })
-                    .attr('x', columnPositions[colIdx] + 1)
-                    .attr('y', cellY + 1)
+                    .attr('x', columnPositions[colIdx] + 0)
+                    .attr('y', cellY + 0)
                     .attr('width', cellWidth - 2)
                     .attr('height', cellHeight - 2)
                     .attr('fill', cell.cellType === 'code' ? color(currStage) : 'white')
@@ -714,6 +767,7 @@ export class MatrixWidget extends Widget {
                     d3.select(base.node()?.previousSibling as SVGRectElement).classed(transitionClass, true);
                 }
                 prevStage = currStage;
+                visibleCellIndex++; // Increment visibleCellIndex after each cell
             });
         });
 
@@ -853,6 +907,7 @@ export class MatrixWidget extends Widget {
             assignmentFilter: (this as any)._assignmentFilter,
             studentFilter: (this as any)._studentFilter,
             cellHeightMode: this.cellHeightMode,
+            showMarkdown: this.showMarkdown,
             scrollLeft: finalScrollLeft,
             scrollTop: finalScrollTop
         };
@@ -888,11 +943,13 @@ export class MatrixWidget extends Widget {
             (this as any)._assignmentFilter = savedState.assignmentFilter || '';
             (this as any)._studentFilter = savedState.studentFilter || '';
             this.cellHeightMode = savedState.cellHeightMode || 'fixed';
+            this.showMarkdown = savedState.showMarkdown || true; // 恢复markdown显示状态
             
             // 更新按钮状态
             this.sortButton.innerHTML = this.getSortIcon();
             this.similaritySortButton.innerHTML = this.getSimilaritySortIcon();
             this.cellHeightButton.innerHTML = this.getCellHeightIcon();
+            this.markdownButton.innerHTML = this.getMarkdownIcon();
             this.updateSortButtonState();
             
             // 恢复assignment和student筛选器的值
@@ -923,11 +980,13 @@ export class MatrixWidget extends Widget {
             (this as any)._assignmentFilter = '';
             (this as any)._studentFilter = '';
             this.cellHeightMode = 'fixed';
+            this.showMarkdown = true; // 重置markdown显示状态
             
             // 更新按钮状态
             this.sortButton.innerHTML = this.getSortIcon();
             this.similaritySortButton.innerHTML = this.getSimilaritySortIcon();
             this.cellHeightButton.innerHTML = this.getCellHeightIcon();
+            this.markdownButton.innerHTML = this.getMarkdownIcon();
             this.updateSortButtonState();
             
             // 重置筛选器
