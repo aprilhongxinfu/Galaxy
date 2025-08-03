@@ -30,6 +30,9 @@ export class NotebookDetailWidget extends Widget {
   private rendermime: RenderMimeRegistry;
   private prismLoaded: boolean = false; // 用于判断 Prism.js 是否加载完成
   private jumpHandler: (event: Event) => void;
+  private minimapEventsBound: boolean = false;
+  private prismObserver: IntersectionObserver | null = null; // 添加 Prism 观察器引用
+  private cellSelectionUpdatePending: boolean = false; // 防止重复调用 updateCellSelection
 
   // 获取当前tab ID
   private getTabId(): string {
@@ -81,7 +84,6 @@ export class NotebookDetailWidget extends Widget {
     this.stageSelectedHandler = (e: Event) => {
       const detail = (e as CustomEvent).detail;
       const tabId = this.getTabId();
-      console.log('[NotebookDetailWidget] Stage selected event received:', detail, 'for tab:', tabId);
       
       // 检查事件是否包含 tabId，如果包含且不匹配当前 tab，则跳过
       if (detail && detail.tabId) {
@@ -94,11 +96,9 @@ export class NotebookDetailWidget extends Widget {
           const eventIndex = eventTabId.replace('notebook_', '');
           const currentIndex = this.notebook.index?.toString() || this.notebook.globalIndex?.toString();
           if (eventIndex !== currentIndex) {
-            console.log('[NotebookDetailWidget] Skipping stage selection - notebook index mismatch:', eventIndex, 'vs', currentIndex);
             return;
           }
         } else if (eventTabId !== currentTabId) {
-          console.log('[NotebookDetailWidget] Skipping stage selection - tab mismatch:', eventTabId, 'vs', currentTabId);
           return;
         }
       }
@@ -106,14 +106,15 @@ export class NotebookDetailWidget extends Widget {
       if (detail && detail.stage) {
         const stageSelectionKey = `_galaxyStageSelection_${tabId}`;
         (window as any)[stageSelectionKey] = detail.stage;
-        console.log('[NotebookDetailWidget] Set stage selection:', detail.stage, 'for tab:', tabId);
+        
+        // 使用局部更新而不是全量 render
+        this.updateMinimapHighlight();
+        this.updateNavigationControls();
       }
-      this.render();
     };
     this.flowSelectedHandler = (e: Event) => {
       const detail = (e as CustomEvent).detail;
       const tabId = this.getTabId();
-      console.log('[NotebookDetailWidget] Flow selected event received:', detail, 'for tab:', tabId);
       
       // 检查事件是否包含 tabId，如果包含且不匹配当前 tab，则跳过
       if (detail && detail.tabId) {
@@ -126,11 +127,9 @@ export class NotebookDetailWidget extends Widget {
           const eventIndex = eventTabId.replace('notebook_', '');
           const currentIndex = this.notebook.index?.toString() || this.notebook.globalIndex?.toString();
           if (eventIndex !== currentIndex) {
-            console.log('[NotebookDetailWidget] Skipping flow selection - notebook index mismatch:', eventIndex, 'vs', currentIndex);
             return;
           }
         } else if (eventTabId !== currentTabId) {
-          console.log('[NotebookDetailWidget] Skipping flow selection - tab mismatch:', eventTabId, 'vs', currentTabId);
           return;
         }
       }
@@ -138,21 +137,20 @@ export class NotebookDetailWidget extends Widget {
       if (detail && detail.from && detail.to) {
         const flowSelectionKey = `_galaxyFlowSelection_${tabId}`;
         (window as any)[flowSelectionKey] = { from: detail.from, to: detail.to };
-        console.log('[NotebookDetailWidget] Set flow selection:', detail, 'for tab:', tabId);
+        
+        // 使用局部更新而不是全量 render
+        this.updateMinimapHighlight();
+        this.updateNavigationControls();
       }
-      this.render();
     };
 
     // 监听 matrix 跳转事件
     this.jumpHandler = (e: Event) => {
       const detail = (e as CustomEvent).detail;
-      console.log('[NotebookDetailWidget] Jump event received:', detail);
       if (detail && detail.notebookIndex !== undefined && detail.cellIndex !== undefined) {
         // 检查是否是当前 notebook 的跳转
         const currentNotebookIndex = this.notebook.index;
         const targetNotebookIndex = detail.notebookIndex;
-        
-        console.log('[NotebookDetailWidget] Current notebook index:', currentNotebookIndex, 'Target notebook index:', targetNotebookIndex);
         
         // 转换为字符串进行比较，避免类型不匹配的问题
         const currentIndexStr = currentNotebookIndex?.toString();
@@ -161,13 +159,15 @@ export class NotebookDetailWidget extends Widget {
         // 如果索引不匹配，跳过（但允许 undefined 的情况）
         if (currentIndexStr !== undefined && targetIndexStr !== undefined && 
             currentIndexStr !== targetIndexStr) {
-          console.log('[NotebookDetailWidget] Skipping jump - notebook index mismatch:', currentIndexStr, 'vs', targetIndexStr);
           return;
         }
         
-        console.log('[NotebookDetailWidget] Processing jump to cell:', detail.cellIndex);
         this.selectedCellIdx = detail.cellIndex;
-        this.render();
+        // 使用局部更新而不是全量 render
+        this.updateMinimapHighlight();
+        this.updateCellSelection();
+        this.updateNavigationControls();
+        
         setTimeout(() => {
           const cellList = this.node.querySelector('#nbd-cell-list-scroll');
           if (!cellList) return;
@@ -201,12 +201,9 @@ export class NotebookDetailWidget extends Widget {
         if (currentIndexStr === targetIndexStr || 
             currentIndexStr === undefined || 
             targetIndexStr === undefined) {
-          console.log('[NotebookDetailWidget] Dispatching jump event for notebook:', targetIndexStr);
           window.dispatchEvent(new CustomEvent('galaxy-notebook-detail-jump', {
             detail: { notebookIndex: detail.notebook.index, cellIndex: detail.jumpCellIndex }
           }));
-        } else {
-          console.log('[NotebookDetailWidget] Skipping jump dispatch - notebook index mismatch:', currentIndexStr, 'vs', targetIndexStr);
         }
       }
     };
@@ -224,7 +221,7 @@ export class NotebookDetailWidget extends Widget {
 
     // 监听筛选状态变化，重新渲染以显示跳转控件
     window.addEventListener('galaxy-flow-selection-changed', () => {
-      this.render();
+      requestAnimationFrame(() => this.render());
     });
 
     // 监听stage选中事件，重新渲染以显示筛选控件
@@ -236,9 +233,9 @@ export class NotebookDetailWidget extends Widget {
     // 监听 matrix 跳转事件
     window.addEventListener('galaxy-notebook-detail-jump', this.jumpHandler);
 
-    // 如果 Prism.js 已经加载完成，立即渲染
+    // 如果 Prism.js 已经加载完成，defer 渲染到下一帧
     if (this.prismLoaded) {
-      this.render();
+      requestAnimationFrame(() => this.render());
     }
   }
 
@@ -255,6 +252,12 @@ export class NotebookDetailWidget extends Widget {
     window.removeEventListener('galaxy-flow-selected', this.flowSelectedHandler);
     // 移除跳转事件监听器
     window.removeEventListener('galaxy-notebook-detail-jump', this.jumpHandler);
+
+    // 清理 Prism.js 观察器
+    if (this.prismObserver) {
+      this.prismObserver.disconnect();
+      this.prismObserver = null;
+    }
   }
 
   private handleStageHover(event: Event): void {
@@ -411,7 +414,11 @@ export class NotebookDetailWidget extends Widget {
     const tabId = this.getTabId();
     (window as any)[`_galaxyFlowHoverStage_${tabId}`] = null;
     (window as any)[`_galaxyFlowHoverInfo_${tabId}`] = null;
-    this.render();
+    
+    // 使用局部更新而不是全量 render
+    this.updateMinimapHighlight();
+    this.updateCellSelection();
+    this.updateNavigationControls();
   }
 
 
@@ -419,11 +426,9 @@ export class NotebookDetailWidget extends Widget {
   private scrollToSelectedCell() {
     setTimeout(() => {
       if (this.selectedCellIdx == null) return;
-      console.log('[NotebookDetailWidget] scrollToSelectedCell called for cell:', this.selectedCellIdx);
       // 只在当前 tab 中查找目标元素，避免滚动到其他 tab
       const target = this.node.querySelector('#nbd-cell-row-' + this.selectedCellIdx) as HTMLElement;
       if (target) {
-        console.log('[NotebookDetailWidget] Scrolling to target cell');
         target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         target.style.background = 'linear-gradient(90deg, #f0f8ff 0%, #e6f3ff 100%)';
         target.style.transition = 'background 0.4s ease';
@@ -462,13 +467,39 @@ export class NotebookDetailWidget extends Widget {
       return;
     }
   
-    // **关键更改：只需调用 highlightAll。**
-    // 如果行号插件已正确加载并与此 Prism 版本关联，
-    // highlightAll() 在处理 <pre class="line-numbers"> 时应自动添加行号。
-    Prism.highlightAll();
-  
-    // 如果需要，您可以保留 render() 中的 `scrollToSelectedCell()` 调用
-    // 此处不再需要显式的循环或 _hook 调用来添加行号。
+    // 懒加载高亮：只对前10个代码块或可视区域进行初始高亮
+    const codeBlocks = this.node.querySelectorAll('pre code.language-python');
+    codeBlocks.forEach((block, i) => {
+      if (i < 10 || block.closest('#nbd-cell-row-0')) {
+        Prism.highlightElement(block as HTMLElement);
+        block.classList.add('prism-highlighted');
+      }
+    });
+
+    // 使用 IntersectionObserver 监听滚动，对进入可视区域的代码块进行懒加载高亮
+    this.prismObserver = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          const codeBlock = entry.target as HTMLElement;
+          if (!codeBlock.classList.contains('prism-highlighted')) {
+            Prism.highlightElement(codeBlock);
+            codeBlock.classList.add('prism-highlighted');
+          }
+          this.prismObserver?.unobserve(entry.target);
+        }
+      });
+    }, {
+      root: this.node.querySelector('#nbd-cell-list-scroll'),
+      rootMargin: '50px', // 提前50px开始高亮
+      threshold: 0.1
+    });
+
+    // 观察所有未高亮的代码块
+    codeBlocks.forEach((block) => {
+      if (!block.classList.contains('prism-highlighted')) {
+        this.prismObserver?.observe(block);
+      }
+    });
   }
 
   private loadPrismJS() {
@@ -496,7 +527,7 @@ export class NotebookDetailWidget extends Widget {
         lineNumbersJS.onload = () => {
           // 只有当所有插件都加载完成后再 render
           this.prismLoaded = true; // 设置加载完成标志
-          this.render(); // 首次渲染
+          requestAnimationFrame(() => this.render()); // defer 首次渲染到下一帧
         };
         document.head.appendChild(lineNumbersJS);
       };
@@ -650,7 +681,7 @@ export class NotebookDetailWidget extends Widget {
         // 为stroke留出空间，避免第一个cell的上边框被裁剪
         const strokePadding = 2;
         let viewBox = `0 0 ${minimapSvgWidth} ${minimapHeight + strokePadding}`;
-        let style = 'display:block; margin:0 auto;';
+        let style = 'display:block; margin:0 auto; will-change: transform; transform: translateZ(0);';
         if (minimapHeight > maxMinimapHeight) {
           svgHeight = maxMinimapHeight;
           style += ` height:${maxMinimapHeight}px; width:${minimapSvgWidth}px;`;
@@ -665,12 +696,12 @@ export class NotebookDetailWidget extends Widget {
           if (cell.cellType === 'markdown') {
             const stroke = '#999';
             const strokeWidth = 1;
-            return `<rect x="${rectX}" y="${y + strokePadding/2}" width="20" height="${height}" fill="transparent" stroke="${stroke}" stroke-width="${strokeWidth}" data-stage="${stage}" data-idx="${index}" data-orig-width="20" data-orig-x="${rectX}" style="cursor:pointer;" />`;
+            return `<rect x="${rectX}" y="${y + strokePadding/2}" width="20" height="${height}" fill="transparent" stroke="${stroke}" stroke-width="${strokeWidth}" data-stage="${stage}" data-idx="${index}" data-orig-width="20" data-orig-x="${rectX}" style="cursor:pointer; pointer-events: visible;" />`;
           } else {
             const stageColor = colorMap.get(stage) || '#bbb';
             const stroke = stageColor;
             const strokeWidth = 2;
-            return `<rect x="${rectX}" y="${y + strokePadding/2}" width="20" height="${height}" fill="${color}" stroke="${stroke}" stroke-width="${strokeWidth}" data-stage="${stage}" data-idx="${index}" data-orig-width="20" data-orig-x="${rectX}" style="cursor:pointer;" />`;
+            return `<rect x="${rectX}" y="${y + strokePadding/2}" width="20" height="${height}" fill="${color}" stroke="${stroke}" stroke-width="${strokeWidth}" data-stage="${stage}" data-idx="${index}" data-orig-width="20" data-orig-x="${rectX}" style="cursor:pointer; pointer-events: visible;" />`;
           }
         }).join('');
         
@@ -730,7 +761,7 @@ export class NotebookDetailWidget extends Widget {
         const stage = String(cell["1st-level label"] ?? 'None');
         const stageColor = colorMap.get(stage) || '#fff';
         const content = cell.source ?? cell.code ?? '';
-        const isSelected = this.selectedCellIdx === i;
+        // const isSelected = this.selectedCellIdx === i;
         // cell外层div
         const wrapper = document.createElement('div');
         wrapper.id = `nbd-cell-row-${i}`;
@@ -743,17 +774,7 @@ export class NotebookDetailWidget extends Widget {
         left.style.minWidth = '36px';
         left.style.marginRight = '8px';
         left.style.height = '100%';
-        if (isSelected) {
-          const selBar = document.createElement('div');
-          selBar.style.position = 'absolute';
-          selBar.style.left = '0';
-          selBar.style.top = '0';
-          selBar.style.width = '3px';
-          selBar.style.height = '100%';
-          selBar.style.background = '#1976d2';
-          selBar.style.borderRadius = '2px';
-          left.appendChild(selBar);
-        }
+        // 蓝色指示器由 updateCellSelection() 统一管理，不在这里创建
         const idxDiv = document.createElement('div');
         idxDiv.style.color = '#888';
         idxDiv.style.fontSize = '15px';
@@ -792,7 +813,10 @@ export class NotebookDetailWidget extends Widget {
             // 设置选中状态
             if (this.selectedCellIdx !== i) {
               this.selectedCellIdx = i;
-              this.render();
+              // 使用局部更新而不是全量 render
+              this.updateMinimapHighlight();
+              this.updateCellSelection();
+              this.updateNavigationControls();
             }
 
             const cell = this.notebook.cells[i];
@@ -898,6 +922,8 @@ export class NotebookDetailWidget extends Widget {
     setTimeout(() => {
       const minimapSvg = this.node.querySelector('svg');
       if (!minimapSvg) return;
+      // 只绑定一次 hover 事件
+      this.bindMinimapEvents(prevScrollTop);
       minimapSvg.querySelectorAll('rect').forEach((r, i) => {
         // 选中 cell 永远高亮
         if (this.selectedCellIdx === i) {
@@ -943,9 +969,13 @@ export class NotebookDetailWidget extends Widget {
           r.classList.remove('minimap-highlight');
         }
         // 点击选中
-        r.addEventListener('click', () => {
+        r.onclick = () => {
           this.selectedCellIdx = i;
-          this.render();
+          // 使用局部更新而不是全量 render
+          this.updateMinimapHighlight();
+          this.updateCellSelection();
+          this.updateNavigationControls();
+          
           setTimeout(() => {
             const cellList = this.node.querySelector('#nbd-cell-list-scroll');
             if (!cellList) return;
@@ -961,21 +991,7 @@ export class NotebookDetailWidget extends Widget {
               }, 1000);
             }
           }, 0);
-        });
-        // hover 临时高亮
-        r.addEventListener('mouseenter', () => {
-          r.classList.add('minimap-highlight');
-        });
-        r.addEventListener('mouseleave', () => {
-          // 只要不是选中 cell，移除高亮
-          if (this.selectedCellIdx !== i) {
-            r.classList.remove('minimap-highlight');
-          }
-          // 确保选中cell保持高亮
-          if (this.selectedCellIdx === i) {
-            r.classList.add('minimap-highlight');
-          }
-        });
+        };
       });
       // cell 列表点击选中（只选中，不显示详情）
       const cellList = this.node.querySelector('#nbd-cell-list-scroll');
@@ -986,7 +1002,10 @@ export class NotebookDetailWidget extends Widget {
           wrapper.onclick = (e) => {
             if (this.selectedCellIdx !== idx) {
               this.selectedCellIdx = idx;
-              this.render();
+              // 使用局部更新而不是全量 render
+              this.updateMinimapHighlight();
+              this.updateCellSelection();
+              this.updateNavigationControls();
             }
             e.stopPropagation();
           };
@@ -1057,7 +1076,10 @@ export class NotebookDetailWidget extends Widget {
             currentIndex--;
           }
           this.selectedCellIdx = filteredCellIndices[currentIndex];
-          this.render();
+          // 使用局部更新而不是全量 render
+          this.updateMinimapHighlight();
+          this.updateCellSelection();
+          this.updateNavigationControls();
           this.scrollToSelectedCell();
         }
       });
@@ -1075,7 +1097,10 @@ export class NotebookDetailWidget extends Widget {
             currentIndex++;
           }
           this.selectedCellIdx = filteredCellIndices[currentIndex];
-          this.render();
+          // 使用局部更新而不是全量 render
+          this.updateMinimapHighlight();
+          this.updateCellSelection();
+          this.updateNavigationControls();
           this.scrollToSelectedCell();
         }
       });
@@ -1157,9 +1182,221 @@ export class NotebookDetailWidget extends Widget {
       setTimeout(() => this.activatePrismLineNumbers(), 30);
     }
 
-    // 只有在需要自动滚动时才调用
-    if (autoScroll) {
-      this.scrollToSelectedCell();
+    // 使用 requestIdleCallback 延迟绑定 minimap 事件和滚动操作
+    if (typeof requestIdleCallback !== 'undefined') {
+      requestIdleCallback(() => {
+        this.bindMinimapEvents(prevScrollTop);
+        // 确保初始选中状态正确
+        this.updateCellSelection();
+        if (autoScroll) {
+          this.scrollToSelectedCell();
+        }
+      });
+    } else {
+      // 降级到 setTimeout
+      setTimeout(() => {
+        this.bindMinimapEvents(prevScrollTop);
+        // 确保初始选中状态正确
+        this.updateCellSelection();
+        if (autoScroll) {
+          this.scrollToSelectedCell();
+        }
+      }, 30);
+    }
+  }
+
+  private updateMinimapHighlight() {
+    const minimapSvg = this.node.querySelector('svg');
+    if (!minimapSvg) return;
+    
+    minimapSvg.querySelectorAll('rect').forEach((r, i) => {
+      const idx = parseInt(r.getAttribute('data-idx') || '0');
+      // 如果是选中的 cell，确保有高亮
+      if (this.selectedCellIdx === idx) {
+        r.classList.add('minimap-highlight');
+      } else {
+        // 如果不是选中的 cell，移除高亮（让 hover 事件自己管理）
+        r.classList.remove('minimap-highlight');
+      }
+    });
+  }
+
+  private updateCellSelection() {
+    // 防止重复调用
+    if (this.cellSelectionUpdatePending) {
+      return;
+    }
+    this.cellSelectionUpdatePending = true;
+    
+    // 更新 cell 列表中的选中状态
+    const cellList = this.node.querySelector('#nbd-cell-list-scroll');
+    if (!cellList) {
+      this.cellSelectionUpdatePending = false;
+      return;
+    }
+    
+    const cellWrappers = Array.from(cellList.children) as HTMLElement[];
+    cellWrappers.forEach((wrapper, idx) => {
+      const leftBar = wrapper.querySelector('div:first-child') as HTMLElement;
+      if (!leftBar) return;
+      
+      // 清除之前的选中指示器 - 使用更精确的选择器
+      const existingBars = leftBar.querySelectorAll('.cell-selection-bar');
+      existingBars.forEach(bar => bar.remove());
+      
+      // 添加新的选中指示器
+      if (this.selectedCellIdx === idx) {
+        const selBar = document.createElement('div');
+        selBar.className = 'cell-selection-bar'; // 添加特殊类名
+        selBar.style.position = 'absolute';
+        selBar.style.left = '0';
+        selBar.style.top = '0';
+        selBar.style.width = '3px';
+        selBar.style.height = '100%';
+        selBar.style.background = '#1976d2';
+        selBar.style.borderRadius = '2px';
+        leftBar.appendChild(selBar);
+      }
+    });
+    
+    // 重置标志
+    setTimeout(() => {
+      this.cellSelectionUpdatePending = false;
+    }, 0);
+  }
+
+  private updateNavigationControls() {
+    // 更新导航控件（如果存在）
+    const navContainer = this.node.querySelector('[style*="position:absolute; bottom:20px"]');
+    if (!navContainer) return;
+    
+    const tabId = this.getTabId();
+    const flowSelectionKey = `_galaxyFlowSelection_${tabId}`;
+    const stageSelectionKey = `_galaxyStageSelection_${tabId}`;
+    const currentFlowSelection = (window as any)[flowSelectionKey];
+    const currentStageSelection = (window as any)[stageSelectionKey];
+
+    let filteredCellIndices: number[] = [];
+    if (currentStageSelection) {
+      const cells = this.notebook.cells ?? [];
+      cells.forEach((cell: any, i: number) => {
+        const stage = String(cell["1st-level label"] ?? 'None');
+        if (stage === currentStageSelection) {
+          filteredCellIndices.push(i);
+        }
+      });
+    } else if (currentFlowSelection && currentFlowSelection.from && currentFlowSelection.to) {
+      const cells = this.notebook.cells ?? [];
+      const stageSeq: { stage: string; cellIndex: number }[] = [];
+      cells.forEach((cell: any, i: number) => {
+        if (cell.cellType === 'code') {
+          const stage = String(cell["1st-level label"] ?? 'None');
+          stageSeq.push({ stage, cellIndex: i });
+        }
+      });
+      for (let i = 0; i < stageSeq.length - 1; i++) {
+        const currStage = stageSeq[i].stage;
+        const nextStage = stageSeq[i + 1].stage;
+        if (currStage === currentFlowSelection.from && nextStage === currentFlowSelection.to) {
+          filteredCellIndices.push(stageSeq[i].cellIndex);
+        }
+      }
+    }
+
+    let currentFilteredIndex = -1;
+    if (filteredCellIndices.length > 0 && this.selectedCellIdx !== null) {
+      currentFilteredIndex = filteredCellIndices.indexOf(this.selectedCellIdx);
+    }
+
+    const navPrev = navContainer.querySelector('#nbd-nav-prev') as HTMLButtonElement;
+    const navNext = navContainer.querySelector('#nbd-nav-next') as HTMLButtonElement;
+    const navCount = navContainer.querySelector('span') as HTMLSpanElement;
+
+    if (navPrev && navNext && navCount) {
+      navPrev.disabled = (currentFilteredIndex <= 0 || currentFilteredIndex === -1);
+      navNext.disabled = (currentFilteredIndex >= filteredCellIndices.length - 1 && currentFilteredIndex !== -1);
+      navCount.textContent = `${currentFilteredIndex >= 0 ? currentFilteredIndex + 1 : 0} / ${filteredCellIndices.length}`;
+    }
+  }
+
+  private bindMinimapEvents(prevScrollTop?: number) {
+    if (this.minimapEventsBound) return;
+    const minimapSvg = this.node.querySelector('svg');
+    if (!minimapSvg) return;
+    this.minimapEventsBound = true;
+    
+    // 绑定 hover 事件（事件委托）
+    minimapSvg.addEventListener('mouseover', (e) => {
+      const target = e.target as SVGElement;
+      if (target.tagName === 'rect') {
+        const idx = parseInt(target.getAttribute('data-idx') || '0');
+        // 如果不是选中的 cell，添加 hover 高亮
+        if (this.selectedCellIdx !== idx) {
+          target.classList.add('minimap-highlight');
+        }
+      }
+    });
+    minimapSvg.addEventListener('mouseout', (e) => {
+      const target = e.target as SVGElement;
+      if (target.tagName === 'rect') {
+        const idx = parseInt(target.getAttribute('data-idx') || '0');
+        // 如果不是选中的 cell，移除 hover 高亮
+        if (this.selectedCellIdx !== idx) {
+          target.classList.remove('minimap-highlight');
+        }
+      }
+    });
+    
+    // 绑定 click 事件和其他操作
+    minimapSvg.querySelectorAll('rect').forEach((r, i) => {
+      // 点击选中
+      r.onclick = () => {
+        this.selectedCellIdx = i;
+        // 使用局部更新而不是全量 render
+        this.updateMinimapHighlight();
+        this.updateCellSelection();
+        this.updateNavigationControls();
+        
+        setTimeout(() => {
+          const cellList = this.node.querySelector('#nbd-cell-list-scroll');
+          if (!cellList) return;
+          const cellDivs = cellList.querySelectorAll('.nbd-cell');
+          const target = cellDivs[i]?.parentElement as HTMLElement;
+          if (target) {
+            target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            target.style.background = 'linear-gradient(90deg, #f0f8ff 0%, #e6f3ff 100%)';
+            target.style.transition = 'background 0.4s ease';
+            setTimeout(() => {
+              target.style.background = '';
+              target.style.transition = '';
+            }, 1000);
+          }
+        }, 0);
+      };
+    });
+    
+    // cell 列表点击选中（只选中，不显示详情）
+    const cellList = this.node.querySelector('#nbd-cell-list-scroll');
+    if (cellList) {
+      // 选中cell的外层div（display:flex; flex-direction:row; align-items:stretch;）
+      const cellWrappers = Array.from(cellList.children) as HTMLElement[];
+      cellWrappers.forEach((wrapper, idx) => {
+        wrapper.onclick = (e) => {
+          if (this.selectedCellIdx !== idx) {
+            this.selectedCellIdx = idx;
+            // 使用局部更新而不是全量 render
+            this.updateMinimapHighlight();
+            this.updateCellSelection();
+            this.updateNavigationControls();
+          }
+          e.stopPropagation();
+        };
+      });
+    }
+    
+    // 恢复滚动位置
+    if (cellList && typeof prevScrollTop === 'number') {
+      cellList.scrollTop = prevScrollTop;
     }
   }
 }
