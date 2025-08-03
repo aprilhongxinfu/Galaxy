@@ -617,15 +617,39 @@ export class NotebookDetailWidget extends Widget {
           <div style="width:20px; margin-right:14px; display:flex; flex-direction:column; justify-content:center; align-self:center; max-height:600px;">
             ${(function () {
         const cells = nb.cells ?? [];
-        const cellHeight = 4;
-        const gap = 1;
-        const rectHeight = 3;
-        const minimapHeight = cells.length * (cellHeight + gap);
+        const gap = 3;
         const minimapSvgWidth = 32;
         const rectX = (minimapSvgWidth - 20) / 2;
         const maxMinimapHeight = 800;
+        
+        // 计算每个cell的行数和位置
+        let currentY = 0;
+        const cellRects: { y: number; height: number; cell: any; index: number }[] = [];
+        
+        cells.forEach((cell: any, i: number) => {
+          const content = cell.source ?? cell.code ?? '';
+          const lineCount = content.split('\n').length;
+          // 根据行数计算高度，最小高度为3，最大高度为25
+          const minHeight = 3;
+          const maxHeight = 25;
+          const baseHeight = 4;
+          const height = Math.max(minHeight, Math.min(maxHeight, baseHeight + Math.floor(lineCount / 2)));
+          
+          cellRects.push({
+            y: currentY,
+            height: height,
+            cell: cell,
+            index: i
+          });
+          
+          currentY += height + gap;
+        });
+        
+        const minimapHeight = currentY;
         let svgHeight = minimapHeight;
-        let viewBox = `0 0 ${minimapSvgWidth} ${minimapHeight}`;
+        // 为stroke留出空间，避免第一个cell的上边框被裁剪
+        const strokePadding = 2;
+        let viewBox = `0 0 ${minimapSvgWidth} ${minimapHeight + strokePadding}`;
         let style = 'display:block; margin:0 auto;';
         if (minimapHeight > maxMinimapHeight) {
           svgHeight = maxMinimapHeight;
@@ -633,21 +657,23 @@ export class NotebookDetailWidget extends Widget {
         } else {
           style += ` height:${minimapHeight}px; width:${minimapSvgWidth}px;`;
         }
-        const rects = cells.map((cell: any, i: number) => {
+        
+        const rects = cellRects.map(({ y, height, cell, index }) => {
           const stage = String(cell["1st-level label"] ?? 'None');
           const color = colorMap.get(stage) || '#ccc';
-          const rectY = i * (cellHeight + gap);
+          
           if (cell.cellType === 'markdown') {
-            const stroke = '#bbb';
+            const stroke = '#999';
             const strokeWidth = 1;
-            return `<rect x="${rectX}" y="${rectY}" width="20" height="${rectHeight}" fill="transparent" stroke="${stroke}" stroke-width="${strokeWidth}" data-stage="${stage}" data-idx="${i}" data-orig-width="20" data-orig-x="${rectX}" style="cursor:pointer;" />`;
+            return `<rect x="${rectX}" y="${y + strokePadding/2}" width="20" height="${height}" fill="transparent" stroke="${stroke}" stroke-width="${strokeWidth}" data-stage="${stage}" data-idx="${index}" data-orig-width="20" data-orig-x="${rectX}" style="cursor:pointer;" />`;
           } else {
             const stageColor = colorMap.get(stage) || '#bbb';
             const stroke = stageColor;
-            const strokeWidth = 1;
-            return `<rect x="${rectX}" y="${rectY}" width="20" height="${rectHeight}" fill="${color}" stroke="${stroke}" stroke-width="${strokeWidth}" data-stage="${stage}" data-idx="${i}" data-orig-width="20" data-orig-x="${rectX}" style="cursor:pointer;" />`;
+            const strokeWidth = 2;
+            return `<rect x="${rectX}" y="${y + strokePadding/2}" width="20" height="${height}" fill="${color}" stroke="${stroke}" stroke-width="${strokeWidth}" data-stage="${stage}" data-idx="${index}" data-orig-width="20" data-orig-x="${rectX}" style="cursor:pointer;" />`;
           }
         }).join('');
+        
         return `<svg width="${minimapSvgWidth}" height="${svgHeight}" viewBox="${viewBox}" style="${style}" preserveAspectRatio="none">${rects}</svg>`;
       })()}
           </div>

@@ -30,12 +30,22 @@ export class MatrixWidget extends Widget {
     private similarityGroups: any[];
     private cellHeightMode: 'fixed' | 'dynamic' | 'workflow' = 'fixed'; // cell高度模式：固定、动态、工作流
     private showMarkdown: boolean = true; // markdown显示状态
+    private kernelTitleMap: Map<string, string> = new Map(); // 存储kernelVersionId到Title的映射
 
-    constructor(data: Notebook[], colorScale: (label: string) => string, similarityGroups?: any[]) {
+    constructor(data: Notebook[], colorScale: (label: string) => string, similarityGroups?: any[], kernelTitleMap?: Map<string, string>) {
         super();
         this.data = data.map((nb, i) => ({ ...nb, globalIndex: i }));
         this.colorScale = colorScale;
         this.similarityGroups = similarityGroups || [];
+        this.kernelTitleMap = kernelTitleMap || new Map();
+        
+        // 调试信息
+        console.log('MatrixWidget constructor:', {
+            dataLength: this.data.length,
+            kernelTitleMapSize: this.kernelTitleMap.size,
+            hasKernelTitleMap: !!kernelTitleMap,
+            sampleKernelIds: this.data.slice(0, 3).map(nb => (nb as any).kernelVersionId)
+        });
         this.id = 'matrix-widget';
         this.title.label = 'Stage Matrix';
         this.title.closable = true;
@@ -812,8 +822,22 @@ export class MatrixWidget extends Widget {
                         }
                         const code = (d as any).source ?? (d as any).code ?? '';
                         const lineCount = code.split(/\r?\n/).length;
+                        // 从kernelTitleMap中获取Title
+                        const kernelId = (d as any).kernelVersionId?.toString();
+                        const titleFromMap = kernelId ? self.kernelTitleMap.get(kernelId) : null;
+                        const notebookTitle = titleFromMap || kernelId || 'Unknown';
+                        
+                        // 调试信息
+                        console.log('Tooltip debug:', {
+                            kernelId,
+                            titleFromMap,
+                            notebookTitle,
+                            mapSize: self.kernelTitleMap.size,
+                            hasMap: !!self.kernelTitleMap
+                        });
+                        
                         let tooltipContent = `Stage: ${typeof LABEL_MAP !== 'undefined' ? (LABEL_MAP[String(d["1st-level label"] ?? "None")] ?? d["1st-level label"] ?? "None") : (d["1st-level label"] ?? "None")}` +
-                            `<br>Notebook: ${(d as any).notebook_name ?? (d as any).kernelVersionId}` +
+                            `<br>Notebook Title: ${notebookTitle}` +
                             `<br>cellId: ${d.cellId}` +
                             `<br>cellType: ${d.cellType}` +
                             `<br>Lines: ${lineCount}`;

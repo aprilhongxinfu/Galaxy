@@ -1,14 +1,14 @@
 export const LABEL_MAP: Record<string, string> = {
-  '0': 'Data_Extraction',
-  '1': 'Debug',
-  '2': 'Environment',
+  '0': 'Environment',
+  '1': 'Data_Extraction',
+  '2': 'Data_Transform',
   '3': 'EDA',
-  '4': 'Model_Train',
-  '5': 'Data_Transform',
-  '6': 'Visualization',
-  '7': 'Model_Evaluation',
-  '8': 'Data_Export',
-  '9': 'Other',
-  '10': 'Hyperparam_Tuning',
-  '11': 'Feature_Engineering'
+  '4': 'Visualization',
+  '5': 'Feature_Engineering',
+  '6': 'Hyperparam_Tuning',
+  '7': 'Model_Train',
+  '8': 'Model_Evaluation',
+  '9': 'Data_Export',
+  '10': 'Commented',
+  '12': 'Other'
 }; 

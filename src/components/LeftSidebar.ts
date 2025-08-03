@@ -46,8 +46,8 @@ export class LeftSidebar extends Widget {
         this.data = data;
         this.colorMap = colorMap;
 
-        // 默认隐藏 Debug 和 Other
-        this.hiddenStages = new Set(['1', '9']);
+        // 默认隐藏 Commented 和 Other
+        this.hiddenStages = new Set(['10', '12']);
 
         // 初始化 stageData 顺序（只做一次）
         const stageStats = new Map<string, { positions: number[]; firstPositions: number[]; count: number }>();
@@ -1128,7 +1128,7 @@ export class LeftSidebar extends Widget {
         
         if (savedState) {
             this.selection = savedState.selection;
-            this.hiddenStages = new Set(savedState.hiddenStages || ['1', '9']);
+            this.hiddenStages = new Set(savedState.hiddenStages || ['10', '12']);
             if (savedState.stageData) {
                 this.stageData = savedState.stageData;
             }
@@ -1152,7 +1152,7 @@ export class LeftSidebar extends Widget {
         } else {
             // 如果没有保存的状态，使用默认状态（无选中状态）
             this.selection = null;
-            this.hiddenStages = new Set(['1', '9']); // 默认隐藏的stages
+            this.hiddenStages = new Set(['10', '12']); // 默认隐藏的stages
             (window as any)[stageSelectionKey] = null;
             (window as any)[flowSelectionKey] = null;
             this.render();
