@@ -157,8 +157,15 @@ export class LeftSidebar extends Widget {
 
         window.addEventListener('galaxy-selection-cleared', (e: any) => {
             const { tabId } = e.detail || {};
-            // 只处理当前tab的事件
-            if (!tabId || tabId === this.getTabId()) {
+            // console.log('[LeftSidebar] galaxy-selection-cleared event received:', { tabId, detail: e.detail });
+            // 如果是 overview 模式，处理所有 notebook detail 的清除事件
+            // 如果是 notebook detail 模式，只处理当前 tab 的事件
+            const currentTabId = this.getTabId();
+            // console.log('[LeftSidebar] Current tabId:', currentTabId, 'Event tabId:', tabId);
+            
+            // 如果事件来自 notebook detail widget，总是处理（因为 overview 需要响应所有 notebook 的清除）
+            if (tabId && tabId.startsWith('notebook-detail-widget-')) {
+                // console.log('[LeftSidebar] Processing selection clear event from notebook detail widget');
                 this.selection = null;
                 // 清除全局筛选状态变量
                 const flowSelectionKey = `_galaxyFlowSelection_${tabId}`;
@@ -170,6 +177,21 @@ export class LeftSidebar extends Widget {
                 (window as any)._galaxyFlowHoverInfo = null;
                 this.saveFilterState();
                 this.render();
+            } else if (currentTabId === 'overview' || tabId === currentTabId) {
+                console.log('[LeftSidebar] Processing selection clear event');
+                this.selection = null;
+                // 清除全局筛选状态变量
+                const flowSelectionKey = `_galaxyFlowSelection_${tabId}`;
+                const stageSelectionKey = `_galaxyStageSelection_${tabId}`;
+                (window as any)[stageSelectionKey] = null;
+                (window as any)[flowSelectionKey] = null;
+                // 清除hover状态
+                (window as any)._galaxyFlowHoverStage = null;
+                (window as any)._galaxyFlowHoverInfo = null;
+                this.saveFilterState();
+                this.render();
+            } else {
+                console.log('[LeftSidebar] Skipping selection clear event - tab mismatch');
             }
         });
         // 监听 stage 选中事件（按tab隔离）

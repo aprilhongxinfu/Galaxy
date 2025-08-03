@@ -257,6 +257,7 @@ function activate(
         const colorScale = (label: string) => colorMapModule.get(label) || '#fff';
         matrixWidget = new MatrixWidget(result1, colorScale, similarityGroups);
         app.shell.add(matrixWidget, 'main');
+        app.shell.activateById(matrixWidget.id);
         matrixWidget.disposed.connect(() => {
           closeSidebarsIfNoMainWidgets(app);
         });

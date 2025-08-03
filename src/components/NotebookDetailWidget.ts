@@ -25,20 +25,16 @@ export class NotebookDetailWidget extends Widget {
   private clearCellSelectionHandler: () => void;
   private notebookSelectedHandler: (event: Event) => void;
   private selectionClearedHandler: (event: Event) => void;
-  private stageSelectedHandler: () => void;
-  private flowSelectedHandler: () => void;
+  private stageSelectedHandler: (event: Event) => void;
+  private flowSelectedHandler: (event: Event) => void;
   private rendermime: RenderMimeRegistry;
   private prismLoaded: boolean = false; // 用于判断 Prism.js 是否加载完成
+  private jumpHandler: (event: Event) => void;
 
   // 获取当前tab ID
   private getTabId(): string {
-    // 基于当前显示的内容生成唯一标识
-    // 如果是notebook detail模式，使用notebook的ID
-    if (this.notebook && (this.notebook as any).globalIndex !== undefined) {
-      return `notebook_${(this.notebook as any).globalIndex}`;
-    }
-    // 如果是overview模式，使用overview标识
-    return 'overview';
+    // 使用 widget 的 ID 作为唯一标识
+    return this.id || `notebook_${this.notebook?.kernelVersionId || this.notebook?.index || Date.now()}`;
   }
 
   constructor(notebook: any) {
@@ -72,30 +68,104 @@ export class NotebookDetailWidget extends Widget {
     this.clearCellSelectionHandler = this.handleClearCellSelection.bind(this);
     this.selectionClearedHandler = (e: Event) => {
       const tabId = (e as CustomEvent).detail?.tabId;
-      // 只处理当前tab的事件
       if (tabId === this.getTabId()) {
-        this.selectedCellIdx = null;
-        this.render(); // 在清除选择后重新渲染
+        const cellList = this.node.querySelector('#nbd-cell-list-scroll');
+        const prevScrollTop = cellList ? cellList.scrollTop : 0;
+        this.render(false);
+        setTimeout(() => {
+          const cellList = this.node.querySelector('#nbd-cell-list-scroll');
+          if (cellList) cellList.scrollTop = prevScrollTop;
+        }, 0);
       }
     };
-    this.stageSelectedHandler = () => {
+    this.stageSelectedHandler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      const tabId = this.getTabId();
+      console.log('[NotebookDetailWidget] Stage selected event received:', detail, 'for tab:', tabId);
+      
+      // 检查事件是否包含 tabId，如果包含且不匹配当前 tab，则跳过
+      if (detail && detail.tabId) {
+        // 尝试匹配不同的 tabId 格式
+        const eventTabId = detail.tabId;
+        const currentTabId = tabId;
+        
+        // 如果事件 tabId 是 notebook_X 格式，检查是否匹配当前 notebook
+        if (eventTabId.startsWith('notebook_')) {
+          const eventIndex = eventTabId.replace('notebook_', '');
+          const currentIndex = this.notebook.index?.toString() || this.notebook.globalIndex?.toString();
+          if (eventIndex !== currentIndex) {
+            console.log('[NotebookDetailWidget] Skipping stage selection - notebook index mismatch:', eventIndex, 'vs', currentIndex);
+            return;
+          }
+        } else if (eventTabId !== currentTabId) {
+          console.log('[NotebookDetailWidget] Skipping stage selection - tab mismatch:', eventTabId, 'vs', currentTabId);
+          return;
+        }
+      }
+      
+      if (detail && detail.stage) {
+        const stageSelectionKey = `_galaxyStageSelection_${tabId}`;
+        (window as any)[stageSelectionKey] = detail.stage;
+        console.log('[NotebookDetailWidget] Set stage selection:', detail.stage, 'for tab:', tabId);
+      }
       this.render();
     };
-    this.flowSelectedHandler = () => {
+    this.flowSelectedHandler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      const tabId = this.getTabId();
+      console.log('[NotebookDetailWidget] Flow selected event received:', detail, 'for tab:', tabId);
+      
+      // 检查事件是否包含 tabId，如果包含且不匹配当前 tab，则跳过
+      if (detail && detail.tabId) {
+        // 尝试匹配不同的 tabId 格式
+        const eventTabId = detail.tabId;
+        const currentTabId = tabId;
+        
+        // 如果事件 tabId 是 notebook_X 格式，检查是否匹配当前 notebook
+        if (eventTabId.startsWith('notebook_')) {
+          const eventIndex = eventTabId.replace('notebook_', '');
+          const currentIndex = this.notebook.index?.toString() || this.notebook.globalIndex?.toString();
+          if (eventIndex !== currentIndex) {
+            console.log('[NotebookDetailWidget] Skipping flow selection - notebook index mismatch:', eventIndex, 'vs', currentIndex);
+            return;
+          }
+        } else if (eventTabId !== currentTabId) {
+          console.log('[NotebookDetailWidget] Skipping flow selection - tab mismatch:', eventTabId, 'vs', currentTabId);
+          return;
+        }
+      }
+      
+      if (detail && detail.from && detail.to) {
+        const flowSelectionKey = `_galaxyFlowSelection_${tabId}`;
+        (window as any)[flowSelectionKey] = { from: detail.from, to: detail.to };
+        console.log('[NotebookDetailWidget] Set flow selection:', detail, 'for tab:', tabId);
+      }
       this.render();
     };
 
     // 监听 matrix 跳转事件
-    window.addEventListener('galaxy-notebook-detail-jump', (e: Event) => {
+    this.jumpHandler = (e: Event) => {
       const detail = (e as CustomEvent).detail;
+      console.log('[NotebookDetailWidget] Jump event received:', detail);
       if (detail && detail.notebookIndex !== undefined && detail.cellIndex !== undefined) {
-        // 切换 notebook
-        if (this.notebook.index !== undefined && this.notebook.index !== detail.notebookIndex) {
-          // 这里可以根据你的 notebook 切换逻辑来实现
-          // 例如 window.dispatchEvent(new CustomEvent('galaxy-notebook-selected', { detail: { notebookIndex: detail.notebookIndex } }));
-          // 这里只处理当前 notebook
+        // 检查是否是当前 notebook 的跳转
+        const currentNotebookIndex = this.notebook.index;
+        const targetNotebookIndex = detail.notebookIndex;
+        
+        console.log('[NotebookDetailWidget] Current notebook index:', currentNotebookIndex, 'Target notebook index:', targetNotebookIndex);
+        
+        // 转换为字符串进行比较，避免类型不匹配的问题
+        const currentIndexStr = currentNotebookIndex?.toString();
+        const targetIndexStr = targetNotebookIndex?.toString();
+        
+        // 如果索引不匹配，跳过（但允许 undefined 的情况）
+        if (currentIndexStr !== undefined && targetIndexStr !== undefined && 
+            currentIndexStr !== targetIndexStr) {
+          console.log('[NotebookDetailWidget] Skipping jump - notebook index mismatch:', currentIndexStr, 'vs', targetIndexStr);
           return;
         }
+        
+        console.log('[NotebookDetailWidget] Processing jump to cell:', detail.cellIndex);
         this.selectedCellIdx = detail.cellIndex;
         this.render();
         setTimeout(() => {
@@ -104,7 +174,7 @@ export class NotebookDetailWidget extends Widget {
           const cellDivs = cellList.querySelectorAll('.nbd-cell');
           const target = cellDivs[detail.cellIndex]?.parentElement as HTMLElement;
           if (target) {
-            target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             target.style.background = 'linear-gradient(90deg, #f0f8ff 0%, #e6f3ff 100%)';
             target.style.transition = 'background 0.4s ease';
             setTimeout(() => {
@@ -114,14 +184,30 @@ export class NotebookDetailWidget extends Widget {
           }
         }, 0);
       }
-    });
+    };
     // 监听 notebook 切换时的 cell 跳转请求
     this.notebookSelectedHandler = (e: Event) => {
       const detail = (e as CustomEvent).detail;
-      if (detail && detail.jumpCellIndex !== undefined && this.notebook.index === detail.notebook.index) {
-        window.dispatchEvent(new CustomEvent('galaxy-notebook-detail-jump', {
-          detail: { notebookIndex: detail.notebook.index, cellIndex: detail.jumpCellIndex }
-        }));
+      if (detail && detail.jumpCellIndex !== undefined) {
+        // 检查是否是当前 notebook 的跳转
+        const currentNotebookIndex = this.notebook.index;
+        const targetNotebookIndex = detail.notebook.index;
+        
+        // 转换为字符串进行比较，避免类型不匹配的问题
+        const currentIndexStr = currentNotebookIndex?.toString();
+        const targetIndexStr = targetNotebookIndex?.toString();
+        
+        // 如果索引匹配或者是 undefined 的情况，允许跳转
+        if (currentIndexStr === targetIndexStr || 
+            currentIndexStr === undefined || 
+            targetIndexStr === undefined) {
+          console.log('[NotebookDetailWidget] Dispatching jump event for notebook:', targetIndexStr);
+          window.dispatchEvent(new CustomEvent('galaxy-notebook-detail-jump', {
+            detail: { notebookIndex: detail.notebook.index, cellIndex: detail.jumpCellIndex }
+          }));
+        } else {
+          console.log('[NotebookDetailWidget] Skipping jump dispatch - notebook index mismatch:', currentIndexStr, 'vs', targetIndexStr);
+        }
       }
     };
     window.addEventListener('galaxy-notebook-selected', this.notebookSelectedHandler);
@@ -147,6 +233,9 @@ export class NotebookDetailWidget extends Widget {
     // 监听flow选中事件，重新渲染以显示筛选控件
     window.addEventListener('galaxy-flow-selected', this.flowSelectedHandler);
 
+    // 监听 matrix 跳转事件
+    window.addEventListener('galaxy-notebook-detail-jump', this.jumpHandler);
+
     // 如果 Prism.js 已经加载完成，立即渲染
     if (this.prismLoaded) {
       this.render();
@@ -164,15 +253,18 @@ export class NotebookDetailWidget extends Widget {
     // 移除筛选事件监听器
     window.removeEventListener('galaxy-stage-selected', this.stageSelectedHandler);
     window.removeEventListener('galaxy-flow-selected', this.flowSelectedHandler);
+    // 移除跳转事件监听器
+    window.removeEventListener('galaxy-notebook-detail-jump', this.jumpHandler);
   }
 
   private handleStageHover(event: Event): void {
     const stage = (event as CustomEvent).detail.stage;
-    // 记录当前 flow chart 悬浮 stage
-    (window as any)._galaxyFlowHoverStage = stage;
+    const tabId = this.getTabId();
+    // 记录当前 flow chart 悬浮 stage（按 tab 隔离）
+    (window as any)[`_galaxyFlowHoverStage_${tabId}`] = stage;
     // 清除flow信息（当stage筛选时）
     if (!stage) {
-      (window as any)._galaxyFlowHoverInfo = null;
+      (window as any)[`_galaxyFlowHoverInfo_${tabId}`] = null;
     }
     const minimapSvg = this.node.querySelector('svg');
     if (!minimapSvg) return;
@@ -181,7 +273,6 @@ export class NotebookDetailWidget extends Widget {
     const hoveredIdx = (event as any).detail?.cellIdx;
 
     // 检查是否有选中状态，如果有则不添加高亮
-    const tabId = this.getTabId();
     const flowSelectionKey = `_galaxyFlowSelection_${tabId}`;
     const stageSelectionKey = `_galaxyStageSelection_${tabId}`;
     const hasSelection = (window as any)[flowSelectionKey] || (window as any)[stageSelectionKey];
@@ -196,54 +287,46 @@ export class NotebookDetailWidget extends Widget {
         if (hoveredIdx === rectIdx) {
           r.classList.add('minimap-highlight');
         } else {
-          r.classList.remove('minimap-highlight');
+          // 保持选中cell的高亮
+          if (this.selectedCellIdx !== rectIdx) {
+            r.classList.remove('minimap-highlight');
+          }
         }
       } else if (stage && !hasSelection) {
         // 只有在没有选中状态时才添加高亮
-        // flow chart 悬浮时高亮所有同 stage 的 cell
+        // flow chart 悬浮时只高亮对应 stage 的 cell
         if (rectStage === stage) {
           r.classList.add('minimap-highlight');
         } else {
-          r.classList.remove('minimap-highlight');
-        }
-
-        // 高亮包含该stage的transition（即使中间有markdown cell）
-        const cells = this.notebook.cells ?? [];
-        for (let i = 0; i < cells.length - 1; i++) {
-          const currStage = String(cells[i]["1st-level label"] ?? 'None');
-          const nextStage = String(cells[i + 1]["1st-level label"] ?? 'None');
-          if ((currStage === stage || nextStage === stage) && currStage !== nextStage) {
-            // 找到对应的minimap rect并高亮
-            const currRect = minimapSvg.querySelector(`rect[data-idx="${i}"]`);
-            const nextRect = minimapSvg.querySelector(`rect[data-idx="${i + 1}"]`);
-            if (currRect && nextRect) {
-              currRect.classList.add('minimap-highlight');
-              nextRect.classList.add('minimap-highlight');
-            }
+          // 保持选中cell的高亮
+          if (this.selectedCellIdx !== rectIdx) {
+            r.classList.remove('minimap-highlight');
           }
         }
       } else {
-        // 没有 flow chart 悬浮时，清除所有高亮
-        r.classList.remove('minimap-highlight');
+        // 没有 flow chart 悬浮时，只清除非选中cell的高亮
+        if (this.selectedCellIdx !== rectIdx) {
+          r.classList.remove('minimap-highlight');
+        }
       }
     });
   }
 
   private handleTransitionHover(event: Event): void {
     const { from, to } = (event as CustomEvent).detail;
-    // 记录 flow chart 悬浮
-    (window as any)._galaxyFlowHoverStage = from && to ? '__flow_transition__' : null;
-    // 设置全局flow信息
+    const tabId = this.getTabId();
+    // 记录 flow chart 悬浮（按 tab 隔离）
+    (window as any)[`_galaxyFlowHoverStage_${tabId}`] = from && to ? '__flow_transition__' : null;
+    // 设置全局flow信息（按 tab 隔离）
     if (from && to) {
-      (window as any)._galaxyFlowHoverInfo = { from, to };
+      (window as any)[`_galaxyFlowHoverInfo_${tabId}`] = { from, to };
     } else {
-      (window as any)._galaxyFlowHoverInfo = null;
+      (window as any)[`_galaxyFlowHoverInfo_${tabId}`] = null;
     }
     const minimapSvg = this.node.querySelector('svg');
     if (!minimapSvg) return;
 
     // 检查是否有选中状态，如果有则不添加高亮
-    const tabId = this.getTabId();
     const flowSelectionKey = `_galaxyFlowSelection_${tabId}`;
     const stageSelectionKey = `_galaxyStageSelection_${tabId}`;
     const hasSelection = (window as any)[flowSelectionKey] || (window as any)[stageSelectionKey];
@@ -251,10 +334,13 @@ export class NotebookDetailWidget extends Widget {
 
 
     if (from && to && !hasSelection) {
-      // 先重置所有高亮
+      // 先重置所有高亮，但保持选中cell的高亮
       minimapSvg.querySelectorAll('rect').forEach((r) => {
-        r.classList.remove('minimap-highlight');
         const idx = parseInt(r.getAttribute('data-idx') || '0');
+        // 只清除非选中cell的高亮
+        if (this.selectedCellIdx !== idx) {
+          r.classList.remove('minimap-highlight');
+        }
         const cells = this.notebook.cells ?? [];
         if (cells[idx]?.cellType === 'markdown') {
           r.setAttribute('stroke', '#ccc');
@@ -315,15 +401,16 @@ export class NotebookDetailWidget extends Widget {
       });
     } else {
       // 取消高亮，还原所有状态
-      this.handleStageHover({ detail: { stage: null } } as CustomEvent);
+      this.handleStageHover({ detail: { stage: null, source: 'transition' } } as CustomEvent);
     }
   }
 
   private handleClearCellSelection() {
     this.selectedCellIdx = null;
-    // 清除全局筛选状态
-    (window as any)._galaxyFlowHoverStage = null;
-    (window as any)._galaxyFlowHoverInfo = null;
+    // 清除当前 tab 的筛选状态
+    const tabId = this.getTabId();
+    (window as any)[`_galaxyFlowHoverStage_${tabId}`] = null;
+    (window as any)[`_galaxyFlowHoverInfo_${tabId}`] = null;
     this.render();
   }
 
@@ -332,9 +419,12 @@ export class NotebookDetailWidget extends Widget {
   private scrollToSelectedCell() {
     setTimeout(() => {
       if (this.selectedCellIdx == null) return;
-      const target = document.getElementById('nbd-cell-row-' + this.selectedCellIdx) as HTMLElement;
+      console.log('[NotebookDetailWidget] scrollToSelectedCell called for cell:', this.selectedCellIdx);
+      // 只在当前 tab 中查找目标元素，避免滚动到其他 tab
+      const target = this.node.querySelector('#nbd-cell-row-' + this.selectedCellIdx) as HTMLElement;
       if (target) {
-        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        console.log('[NotebookDetailWidget] Scrolling to target cell');
+        target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         target.style.background = 'linear-gradient(90deg, #f0f8ff 0%, #e6f3ff 100%)';
         target.style.transition = 'background 0.4s ease';
         setTimeout(() => {
@@ -444,7 +534,7 @@ export class NotebookDetailWidget extends Widget {
     return html;
   }
 
-  private render() {
+  private render(autoScroll: boolean = true) {
     // 记录滚动位置
     let prevScrollTop = 0;
     const prevCellList = this.node.querySelector('#nbd-cell-list-scroll');
@@ -463,14 +553,13 @@ export class NotebookDetailWidget extends Widget {
     const flowSelectionKey = `_galaxyFlowSelection_${tabId}`;
     const stageSelectionKey = `_galaxyStageSelection_${tabId}`;
     const currentFlowSelection = (window as any)[flowSelectionKey];
-    const currentStageSelection = (window as any)[stageSelectionKey];
-    const currentFlowHoverStage = (window as any)._galaxyFlowHoverStage;
-    const currentFlowHoverInfo = (window as any)._galaxyFlowHoverInfo;
+          const currentStageSelection = (window as any)[stageSelectionKey];
+      const currentFlowHoverStage = (window as any)[`_galaxyFlowHoverStage_${tabId}`];
 
     // 计算筛选的cell索引
     let filteredCellIndices: number[] = [];
 
-    // 优先使用选中状态，如果没有选中状态则使用hover状态
+    // 只使用选中状态，不使用hover状态来显示导航控件
     if (currentStageSelection) {
       // stage 选中筛选
       const cells = nb.cells ?? [];
@@ -499,27 +588,8 @@ export class NotebookDetailWidget extends Widget {
           filteredCellIndices.push(stageSeq[i].cellIndex); // 添加每个transition的第一个cell
         }
       }
-    } else if (currentFlowHoverStage && currentFlowHoverStage !== '__flow_transition__') {
-      // stage hover筛选
-      const cells = nb.cells ?? [];
-      cells.forEach((cell: any, i: number) => {
-        const stage = String(cell["1st-level label"] ?? 'None');
-        if (stage === currentFlowHoverStage) {
-          filteredCellIndices.push(i);
-        }
-      });
-    } else if (currentFlowHoverStage === '__flow_transition__' && currentFlowHoverInfo) {
-      // flow hover筛选
-      const cells = nb.cells ?? [];
-      for (let i = 0; i < cells.length - 1; i++) {
-        const currStage = String(cells[i]["1st-level label"] ?? 'None');
-        const nextStage = String(cells[i + 1]["1st-level label"] ?? 'None');
-        if (currStage === currentFlowHoverInfo.from && nextStage === currentFlowHoverInfo.to) {
-          filteredCellIndices.push(i);
-          filteredCellIndices.push(i + 1);
-        }
-      }
     }
+    // 注意：hover状态只用于高亮显示，不用于显示导航控件
 
     // 计算当前在筛选cell中的位置
     let currentFilteredIndex = -1;
@@ -529,10 +599,10 @@ export class NotebookDetailWidget extends Widget {
 
     // 先渲染主结构和cell列表容器
     this.node.innerHTML = `
-      <div style="padding:24px; max-width:900px; margin:0 auto; height:100%; box-sizing:border-box; display:flex; flex-direction:column;">
+      <div style="padding:24px; max-width:900px; margin:0 auto; height:100%; box-sizing:border-box; display:flex; flex-direction:column; position:relative;">
         ${(() => {
         return filteredCellIndices.length > 0 ? `
-        <div style="position:fixed; bottom:20px; left:50%; transform:translateX(-50%); z-index:1000;">
+        <div style="position:absolute; bottom:20px; left:50%; transform:translateX(-50%); z-index:1000;">
           <div style="display:flex; align-items:center; background:rgba(255,255,255,0.95); backdrop-filter:blur(10px); border:1px solid #e0e0e0; border-radius:20px; padding:8px 12px; box-shadow:0 4px 12px rgba(0,0,0,0.15);">
             <button id="nbd-nav-prev" style="background:none; border:none; cursor:pointer; color:#666; font-size:14px; padding:4px; margin-right:8px; border-radius:4px; transition:all 0.2s; min-width:24px; height:24px; display:flex; align-items:center; justify-content:center;" ${(currentFilteredIndex <= 0 || currentFilteredIndex === -1) ? 'disabled' : ''}>‹</button>
             <span style="color:#333; font-size:12px; font-weight:500; margin:0 8px; min-width:40px; text-align:center;">${currentFilteredIndex >= 0 ? currentFilteredIndex + 1 : 0} / ${filteredCellIndices.length}</span>
@@ -830,7 +900,7 @@ export class NotebookDetailWidget extends Widget {
             // shouldKeepVisible = rectStage === currentFlowHoverStage;
           } else if (currentFlowHoverStage === '__flow_transition__') {
             // 来自flow hover筛选，需要检查当前cell是否在flow中
-            const flowHoverInfo = (window as any)._galaxyFlowHoverInfo;
+            const flowHoverInfo = (window as any)[`_galaxyFlowHoverInfo_${tabId}`];
             if (flowHoverInfo && flowHoverInfo.from && flowHoverInfo.to) {
               const cells = this.notebook.cells ?? [];
               if (i < cells.length - 1) {
@@ -856,7 +926,7 @@ export class NotebookDetailWidget extends Widget {
             const cellDivs = cellList.querySelectorAll('.nbd-cell');
             const target = cellDivs[i]?.parentElement as HTMLElement;
             if (target) {
-              target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
               target.style.background = 'linear-gradient(90deg, #f0f8ff 0%, #e6f3ff 100%)';
               target.style.transition = 'background 0.4s ease';
               setTimeout(() => {
@@ -874,6 +944,10 @@ export class NotebookDetailWidget extends Widget {
           // 只要不是选中 cell，移除高亮
           if (this.selectedCellIdx !== i) {
             r.classList.remove('minimap-highlight');
+          }
+          // 确保选中cell保持高亮
+          if (this.selectedCellIdx === i) {
+            r.classList.add('minimap-highlight');
           }
         });
       });
@@ -910,11 +984,9 @@ export class NotebookDetailWidget extends Widget {
       const stageSelectionKey = `_galaxyStageSelection_${tabId}`;
       const currentFlowSelection = (window as any)[flowSelectionKey];
       const currentStageSelection = (window as any)[stageSelectionKey];
-      const currentFlowHoverStage = (window as any)._galaxyFlowHoverStage;
-      const currentFlowHoverInfo = (window as any)._galaxyFlowHoverInfo;
 
       let filteredCellIndices: number[] = [];
-      // 优先使用选中状态，如果没有选中状态则使用hover状态
+      // 只使用选中状态，不使用hover状态
       if (currentStageSelection) {
         // stage 选中筛选
         const cells = this.notebook.cells ?? [];
@@ -943,27 +1015,8 @@ export class NotebookDetailWidget extends Widget {
             filteredCellIndices.push(stageSeq[i].cellIndex); // 添加每个transition的第一个cell
           }
         }
-      } else if (currentFlowHoverStage && currentFlowHoverStage !== '__flow_transition__') {
-        // stage hover筛选
-        const cells = this.notebook.cells ?? [];
-        cells.forEach((cell: any, i: number) => {
-          const stage = String(cell["1st-level label"] ?? 'None');
-          if (stage === currentFlowHoverStage) {
-            filteredCellIndices.push(i);
-          }
-        });
-      } else if (currentFlowHoverStage === '__flow_transition__' && currentFlowHoverInfo) {
-        // flow hover筛选
-        const cells = this.notebook.cells ?? [];
-        for (let i = 0; i < cells.length - 1; i++) {
-          const currStage = String(cells[i]["1st-level label"] ?? 'None');
-          const nextStage = String(cells[i + 1]["1st-level label"] ?? 'None');
-          if (currStage === currentFlowHoverInfo.from && nextStage === currentFlowHoverInfo.to) {
-            filteredCellIndices.push(i);
-            filteredCellIndices.push(i + 1);
-          }
-        }
       }
+      // 注意：hover状态只用于高亮显示，不用于导航控件
 
       navPrev.addEventListener('click', () => {
         if (filteredCellIndices.length > 0) {
@@ -1026,12 +1079,30 @@ export class NotebookDetailWidget extends Widget {
       // 清除筛选按钮事件
       if (navClear) {
         navClear.addEventListener('click', () => {
-          // 清除选中状态
-          this.selectedCellIdx = null;
-          // 触发清除事件，让所有组件回到默认状态
-          window.dispatchEvent(new CustomEvent('galaxy-selection-cleared', { detail: { tabId: this.getTabId() } })); // 传递当前tabId
-          // 重新渲染，隐藏导航控件
-          this.render();
+          const cellList = this.node.querySelector('#nbd-cell-list-scroll');
+          const prevScrollTop = cellList ? cellList.scrollTop : 0;
+          console.log('[NotebookDetailWidget] Clear button clicked for tab:', this.getTabId());
+          // 不清除选中状态，保持当前 cell 选中
+          // this.selectedCellIdx = null;
+          
+          // 直接清除当前 tab 的选中状态
+          const tabId = this.getTabId();
+          const stageSelectionKey = `_galaxyStageSelection_${tabId}`;
+          const flowSelectionKey = `_galaxyFlowSelection_${tabId}`;
+          delete (window as any)[stageSelectionKey];
+          delete (window as any)[flowSelectionKey];
+          
+          console.log('[NotebookDetailWidget] Cleared selection state for tab:', tabId);
+          
+          // 触发清除事件，让 flowchart 也恢复原状
+          window.dispatchEvent(new CustomEvent('galaxy-selection-cleared', { detail: { tabId: this.getTabId() } }));
+          
+          // 重新渲染，隐藏导航控件，但不自动滚动
+          this.render(false);
+          setTimeout(() => {
+            const cellList = this.node.querySelector('#nbd-cell-list-scroll');
+            if (cellList) cellList.scrollTop = prevScrollTop;
+          }, 0);
         });
 
         // 清除按钮hover效果
@@ -1060,6 +1131,9 @@ export class NotebookDetailWidget extends Widget {
       setTimeout(() => this.activatePrismLineNumbers(), 30);
     }
 
-    this.scrollToSelectedCell();
+    // 只有在需要自动滚动时才调用
+    if (autoScroll) {
+      this.scrollToSelectedCell();
+    }
   }
 }
