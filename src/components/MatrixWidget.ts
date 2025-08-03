@@ -28,7 +28,7 @@ export class MatrixWidget extends Widget {
     private markdownButton: HTMLButtonElement; // markdown显示/隐藏按钮
     private filter: any = null;
     private similarityGroups: any[];
-    private cellHeightMode: 'fixed' | 'dynamic' = 'fixed'; // cell高度模式
+    private cellHeightMode: 'fixed' | 'dynamic' | 'workflow' = 'fixed'; // cell高度模式：固定、动态、工作流
     private showMarkdown: boolean = true; // markdown显示状态
 
     constructor(data: Notebook[], colorScale: (label: string) => string, similarityGroups?: any[]) {
@@ -185,7 +185,14 @@ export class MatrixWidget extends Widget {
         this.cellHeightButton.style.justifyContent = 'center';
         this.cellHeightButton.innerHTML = this.getCellHeightIcon();
         this.cellHeightButton.onclick = () => {
-            this.cellHeightMode = this.cellHeightMode === 'fixed' ? 'dynamic' : 'fixed';
+            // 在三种模式之间切换：fixed -> workflow -> dynamic -> fixed
+            if (this.cellHeightMode === 'fixed') {
+                this.cellHeightMode = 'workflow';
+            } else if (this.cellHeightMode === 'workflow') {
+                this.cellHeightMode = 'dynamic';
+            } else {
+                this.cellHeightMode = 'fixed';
+            }
             this.cellHeightButton.innerHTML = this.getCellHeightIcon();
             this.saveFilterState();
             this.drawMatrix();
@@ -258,17 +265,26 @@ export class MatrixWidget extends Widget {
     }
 
     private getCellHeightIcon(): string {
-        // cell高度模式icon：固定高度（等号）和动态高度（波浪线）
+        // cell高度模式icon：固定高度（等号）、动态高度（波浪线）、工作流模式（流程图）
         if (this.cellHeightMode === 'fixed') {
             // 固定高度模式：等号图标
             return `<svg width="18" height="18" viewBox="0 0 20 20">
   <path d="M4 8h12M4 12h12" stroke="#555" stroke-width="2" stroke-linecap="round"/>
 </svg>`;
-        } else {
+        } else if (this.cellHeightMode === 'dynamic') {
             // 动态高度模式：波浪线图标
             return `<svg width="18" height="18" viewBox="0 0 20 20">
   <path d="M3 8c1-1 2-1 3 0s2 1 3 0 2-1 3 0 2 1 3 0 2-1 3 0 2 1 3 0 2-1 3 0" stroke="#4caf50" stroke-width="2" stroke-linecap="round" fill="none"/>
   <path d="M3 12c1-1 2-1 3 0s2 1 3 0 2-1 3 0 2 1 3 0 2-1 3 0 2 1 3 0 2-1 3 0" stroke="#4caf50" stroke-width="2" stroke-linecap="round" fill="none"/>
+</svg>`;
+        } else {
+            // 工作流模式：合并图标（两个矩形上下堆叠，带向内箭头）
+            return `<svg width="18" height="18" viewBox="0 0 20 20">
+  <rect x="4" y="2" width="12" height="6" fill="none" stroke="#4caf50" stroke-width="2" rx="1"/>
+  <rect x="4" y="12" width="12" height="6" fill="none" stroke="#4caf50" stroke-width="2" rx="1"/>
+  <path d="M10 8v4" stroke="#4caf50" stroke-width="2" stroke-linecap="round"/>
+  <path d="M8 8l2 2l2-2" stroke="#4caf50" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M8 12l2-2l2 2" stroke="#4caf50" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>`;
         }
     }
@@ -558,21 +574,69 @@ export class MatrixWidget extends Widget {
             const yPositions: number[] = [];
             let currentY = 0;
             
-            sortedCells.forEach((cell, i) => {
-                // 如果隐藏markdown且当前cell是markdown，则跳过
-                if (!this.showMarkdown && cell.cellType === 'markdown') {
-                    return;
-                }
+            // 工作流模式：合并相邻的相同stage
+            let processedCells: any[] = [];
+            if (this.cellHeightMode === 'workflow') {
+                // 先过滤markdown cell
+                const visibleCells = sortedCells.filter(cell => 
+                    this.showMarkdown || cell.cellType !== 'markdown'
+                );
                 
+                // 合并相邻的相同stage
+                let currentStage: string | null = null;
+                let currentGroup: any[] = [];
+                
+                visibleCells.forEach(cell => {
+                    const cellStage = String(cell["1st-level label"] ?? "None");
+                    if (currentStage === null) {
+                        currentStage = cellStage;
+                        currentGroup = [cell];
+                    } else if (cellStage === currentStage) {
+                        currentGroup.push(cell);
+                    } else {
+                        // 创建合并的cell
+                        const mergedCell = {
+                            ...currentGroup[0],
+                            mergedCells: currentGroup
+                        };
+                        processedCells.push(mergedCell);
+                        
+                        // 开始新的group
+                        currentStage = cellStage;
+                        currentGroup = [cell];
+                    }
+                });
+                
+                // 处理最后一个group
+                if (currentGroup.length > 0) {
+                    const mergedCell = {
+                        ...currentGroup[0],
+                        mergedCells: currentGroup
+                    };
+                    processedCells.push(mergedCell);
+                }
+            } else {
+                // 正常模式：直接使用原始cells
+                processedCells = sortedCells.filter(cell => 
+                    this.showMarkdown || cell.cellType !== 'markdown'
+                );
+            }
+            
+            processedCells.forEach((cell, i) => {
                 let cellHeight: number;
                 if (this.cellHeightMode === 'fixed') {
                     cellHeight = baseCellHeight;
                 } else {
                     // 动态高度：基于代码行数
-                    const code = (cell as any).source ?? (cell as any).code ?? '';
-                    const lineCount = code.split(/\r?\n/).length;
-                    // 最小高度为3，最大高度为20，基于行数映射
-                    cellHeight = Math.max(3, Math.min(20, 3 + lineCount * 0.8));
+                    if (this.cellHeightMode === 'workflow') {
+                        // 工作流模式：使用固定高度
+                        cellHeight = baseCellHeight;
+                    } else {
+                        // 正常模式：使用单个cell的行数
+                        const code = (cell as any).source ?? (cell as any).code ?? '';
+                        const lineCount = code.split(/\r?\n/).length;
+                        cellHeight = Math.max(3, Math.min(20, 3 + lineCount * 0.8));
+                    }
                 }
                 heights.push(cellHeight);
                 yPositions.push(currentY);
@@ -651,12 +715,55 @@ export class MatrixWidget extends Widget {
             let prevStage: string | null = null;
             let visibleCellIndex = 0; // 用于跟踪可见cell的索引
             
-            sortedCells.forEach((cell, i) => {
-                // 如果隐藏markdown且当前cell是markdown，则跳过
-                if (!this.showMarkdown && cell.cellType === 'markdown') {
-                    return;
-                }
+            // 工作流模式：合并相邻的相同stage
+            let processedCells: any[] = [];
+            if (this.cellHeightMode === 'workflow') {
+                // 先过滤markdown cell
+                const visibleCells = sortedCells.filter(cell => 
+                    this.showMarkdown || cell.cellType !== 'markdown'
+                );
                 
+                // 合并相邻的相同stage
+                let currentStage: string | null = null;
+                let currentGroup: any[] = [];
+                
+                visibleCells.forEach(cell => {
+                    const cellStage = String(cell["1st-level label"] ?? "None");
+                    if (currentStage === null) {
+                        currentStage = cellStage;
+                        currentGroup = [cell];
+                    } else if (cellStage === currentStage) {
+                        currentGroup.push(cell);
+                    } else {
+                        // 创建合并的cell
+                        const mergedCell = {
+                            ...currentGroup[0],
+                            mergedCells: currentGroup
+                        };
+                        processedCells.push(mergedCell);
+                        
+                        // 开始新的group
+                        currentStage = cellStage;
+                        currentGroup = [cell];
+                    }
+                });
+                
+                // 处理最后一个group
+                if (currentGroup.length > 0) {
+                    const mergedCell = {
+                        ...currentGroup[0],
+                        mergedCells: currentGroup
+                    };
+                    processedCells.push(mergedCell);
+                }
+            } else {
+                // 正常模式：直接使用原始cells
+                processedCells = sortedCells.filter(cell => 
+                    this.showMarkdown || cell.cellType !== 'markdown'
+                );
+            }
+            
+            processedCells.forEach((cell, i) => {
                 const currStage = String(cell["1st-level label"] ?? "None");
                 const currClass = currStage;
 
@@ -705,11 +812,24 @@ export class MatrixWidget extends Widget {
                         }
                         const code = (d as any).source ?? (d as any).code ?? '';
                         const lineCount = code.split(/\r?\n/).length;
-                        tooltip.innerHTML = `Stage: ${typeof LABEL_MAP !== 'undefined' ? (LABEL_MAP[String(d["1st-level label"] ?? "None")] ?? d["1st-level label"] ?? "None") : (d["1st-level label"] ?? "None")}` +
+                        let tooltipContent = `Stage: ${typeof LABEL_MAP !== 'undefined' ? (LABEL_MAP[String(d["1st-level label"] ?? "None")] ?? d["1st-level label"] ?? "None") : (d["1st-level label"] ?? "None")}` +
                             `<br>Notebook: ${(d as any).notebook_name ?? (d as any).kernelVersionId}` +
                             `<br>cellId: ${d.cellId}` +
                             `<br>cellType: ${d.cellType}` +
                             `<br>Lines: ${lineCount}`;
+                        
+                        // 工作流模式：显示合并信息
+                        if (self.cellHeightMode === 'workflow' && (d as any).mergedCells) {
+                            const mergedCells = (d as any).mergedCells;
+                            tooltipContent += `<br><br><strong>Merged ${mergedCells.length} cells:</strong>`;
+                            mergedCells.forEach((cell: any, idx: number) => {
+                                const cellCode = (cell as any).source ?? (cell as any).code ?? '';
+                                const cellLines = cellCode.split(/\r?\n/).length;
+                                tooltipContent += `<br>• Cell ${cell.cellId}: ${cellLines} lines`;
+                            });
+                        }
+                        
+                        tooltip.innerHTML = tooltipContent;
                         // 如果有 similarityGroups，显示 group_id, similarity, label_integers
                         if (self.similarityGroups && self.similarityGroups.length > 0) {
                             const kernelId = (d as any).kernelVersionId?.toString();
