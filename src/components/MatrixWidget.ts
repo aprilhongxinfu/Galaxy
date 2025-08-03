@@ -529,7 +529,7 @@ export class MatrixWidget extends Widget {
         
         // Calculate additional spacing for similarity groups
         let groupSpacing = 0;
-        const groupGap = 10; // White space between groups
+        const groupGap = 20; // White space between groups
         if (this.sortState === 3 && this.similarityGroups && this.similarityGroups.length > 0) {
             // Count unique groups in the current notebook order
             const uniqueGroups = new Set();
