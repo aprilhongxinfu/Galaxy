@@ -21,6 +21,160 @@ import { NotebookDetailWidget } from './components/NotebookDetailWidget';
 import { LabShell } from '@jupyterlab/application';
 import { csvParse } from 'd3-dsv';
 
+
+
+// 从JSON文件名中提取competition编号
+function extractCompetitionId(jsonPath: string): string | null {
+  const match = jsonPath.match(/(\d+)_(predicted|reassigned)\.json$/);
+  return match ? match[1] : null;
+}
+
+// 加载TOC数据
+async function loadTocData(competitionId: string): Promise<any[]> {
+  try {
+    const tocPath = `src/data/toc_data/${competitionId}_toc.json`;
+    console.log('TOC path:', tocPath);
+    
+    // 尝试不同的路径格式
+    const alternativePaths = [
+      tocPath,
+      `./src/data/toc_data/${competitionId}_toc.json`,
+      `/src/data/toc_data/${competitionId}_toc.json`,
+      `data/toc_data/${competitionId}_toc.json`
+    ];
+    const contentsManager = app?.serviceManager?.contents;
+    
+    if (!contentsManager) {
+      console.warn('Contents manager not available for TOC loading');
+      return [];
+    }
+
+    console.log(`Loading TOC data from: ${tocPath}`);
+    console.log('Available contents manager:', !!contentsManager);
+    
+    // 尝试多个路径格式
+    for (const path of alternativePaths) {
+      try {
+        console.log(`Trying path: ${path}`);
+        const model = await contentsManager.get(path, { type: 'file', format: 'text', content: true });
+        console.log('File loaded successfully, content length:', (model.content as string).length);
+        
+        const tocData = JSON.parse(model.content as string);
+        console.log(`TOC data loaded successfully for competition ${competitionId}, entries: ${tocData.length}`);
+        console.log('First few TOC entries:', tocData.slice(0, 3));
+        return tocData;
+      } catch (fileError) {
+        console.log(`Failed to load from ${path}:`, (fileError as Error).message);
+        continue;
+      }
+    }
+    
+    console.error('All paths failed for TOC loading');
+    console.log('Trying to list available files...');
+    
+    // 尝试列出可用的文件
+    try {
+      const listing = await contentsManager.get('src/data/toc_data/', { type: 'directory' });
+      console.log('Available files in toc_data:', listing.content);
+    } catch (listError) {
+      console.error('Error listing directory:', listError);
+    }
+    
+    return [];
+  } catch (error) {
+    console.warn(`Failed to load TOC data for competition ${competitionId}:`, error);
+    return [];
+  }
+}
+
+// 将TOC数据合并到notebook数据中
+function mergeTocData(notebooks: any[], tocData: any[]): any[] {
+  const tocMap = new Map();
+  tocData.forEach(item => {
+    tocMap.set(item.kernelVersionId, item.toc);
+  });
+  
+  console.log('TOC data sample:', tocData.slice(0, 3));
+  console.log('Notebooks sample:', notebooks.slice(0, 3).map(nb => ({
+    kernelVersionId: nb.kernelVersionId,
+    index: nb.index,
+    globalIndex: nb.globalIndex,
+    notebook_name: nb.notebook_name
+  })));
+  
+  return notebooks.map(notebook => {
+    const toc = tocMap.get(notebook.kernelVersionId);
+    if (toc) {
+      console.log(`Found TOC for notebook ${notebook.kernelVersionId}:`, toc.length, 'items');
+      return { ...notebook, toc };
+    } else {
+      console.log(`No TOC found for notebook ${notebook.kernelVersionId}`);
+    }
+    return notebook;
+  });
+}
+
+// 创建KernelVersionId到Title的映射
+async function createKernelTitleMap(competitionId: string): Promise<Map<string, string>> {
+  try {
+    // 动态加载CSV文件
+    const csvPath = `src/data/kernel_data/competition_${competitionId}.csv`;
+    const contentsManager = app?.serviceManager?.contents;
+    
+    if (!contentsManager) {
+      console.warn('Contents manager not available');
+      return new Map();
+    }
+
+    console.log(`Attempting to load CSV from: ${csvPath}`);
+    const model = await contentsManager.get(csvPath, { type: 'file', format: 'text', content: true });
+    console.log(`CSV loaded successfully, content length: ${(model.content as string).length}`);
+    
+    const csvData = csvParse(model.content as string);
+    console.log(`CSV parsed, rows: ${csvData.length}, sample row:`, csvData[0]);
+    
+    const titleMap = new Map<string, string>();
+    csvData.forEach((row: any) => {
+      const kernelVersionId = row.KernelVersionId?.toString();
+      const title = row.Title;
+      if (kernelVersionId && title) {
+        titleMap.set(kernelVersionId, title);
+      }
+    });
+
+    console.log(`Created title map for competition ${competitionId} with ${titleMap.size} entries`);
+    console.log(`Sample entries:`, Array.from(titleMap.entries()).slice(0, 3));
+    return titleMap;
+  } catch (error) {
+    console.warn(`Failed to load kernel data for competition ${competitionId}:`, error);
+    return new Map();
+  }
+}
+
+// 递归替换对象中的KernelVersionId为Title
+function replaceKernelVersionIdWithTitle(obj: any, titleMap: Map<string, string>): any {
+  if (Array.isArray(obj)) {
+    return obj.map(item => replaceKernelVersionIdWithTitle(item, titleMap));
+  } else if (obj && typeof obj === 'object') {
+    const newObj: any = {};
+    for (const [key, value] of Object.entries(obj)) {
+      if (key === 'kernelVersionId' && typeof value === 'string') {
+        const title = titleMap.get(value);
+        if (title) {
+          newObj.notebook_name = title; // 替换为notebook_name字段
+          newObj.kernelVersionId = value; // 保留kernelVersionId用于相似性分组匹配
+        } else {
+          newObj.kernelVersionId = value; // 保持原值如果找不到对应的title
+        }
+      } else {
+        newObj[key] = replaceKernelVersionIdWithTitle(value, titleMap);
+      }
+    }
+    return newObj;
+  }
+  return obj;
+}
+
 function getXsrfTokenFromCookie(): string | null {
   const match = document.cookie.match(/\b_xsrf=([^;]*)/);
   return match ? decodeURIComponent(match[1]) : null;
@@ -49,17 +203,21 @@ function activate(
 
   const command = 'galaxy:analyze';
 
-  // 将 app 赋值给全局变量
-  app = appInstance;
+          // 将 app 赋值给全局变量
+        app = appInstance;
 
-  let similarityGroups: any[] = [];
-  let lastKnownDetailIds: Set<string> = new Set();
+        let similarityGroups: any[] = [];
+        let lastKnownDetailIds: Set<string> = new Set();
+        let savedCompetitionId: string | null = null;
 
   // ====== handleTabSwitch 放回 activate 内部，直接访问最新 sidebar 变量 ======
   function handleTabSwitch(widget: any) {
-    // 新增：如果 widget 为空或不是 galaxy 相关 tab，关闭 sidebar
+    // 新增：如果 widget 为空或不是 galaxy 相关 tab，检查是否需要关闭 sidebar
     if (!widget || !(widget.id && (widget.id === 'matrix-widget' || widget.id.startsWith('notebook-detail-widget-')))) {
-      closeSidebarsIfNoMainWidgets(app);
+      // 只有在没有galaxy分析数据时才关闭sidebar
+      if (!result1 || result1.length === 0) {
+        closeSidebarsIfNoMainWidgets(app);
+      }
       return;
     }
     const tabId = widget.id || '';
@@ -67,12 +225,21 @@ function activate(
     if (tabId.startsWith('notebook-detail-widget-') && widget.notebook) {
       // notebook detail tab
       const nb = widget.notebook;
+      // 确保 colorMap 包含该 notebook 中的所有 stage
+      const singleNotebookStages = new Set<string>();
+      nb.cells.forEach((cell: any) => {
+        if ((cell.cellType + '').toLowerCase() === 'code') {
+          const stage = String(cell["1st-level label"] ?? "None");
+          singleNotebookStages.add(stage);
+        }
+      });
+      initColorMap(singleNotebookStages);
       // 保证左侧只保留 flowChartWidget
       const leftWidgets = Array.from(app.shell.widgets('left'));
       for (const w of leftWidgets) {
         if (w !== flowChartWidget && w.id === 'flow-chart-widget') w.close();
       }
-      flowChartWidget?.setData([nb], colorMap);
+      flowChartWidget?.setData([nb], colorMapModule);
       if (flowChartWidget) {
         app.shell.add(flowChartWidget, 'left');
         app.shell.activateById(flowChartWidget.id);
@@ -87,12 +254,23 @@ function activate(
     }
     if (tabId === 'matrix-widget') {
       // overview tab
+      // 确保 colorMap 包含所有 stage
+      const allStages = new Set<string>();
+      result1.forEach((nb: any) => {
+        nb.cells.forEach((cell: any) => {
+          if ((cell.cellType + '').toLowerCase() === 'code') {
+            const stage = String(cell["1st-level label"] ?? "None");
+            allStages.add(stage);
+          }
+        });
+      });
+      initColorMap(allStages);
       // 保证左侧只保留 flowChartWidget
       const leftWidgets = Array.from(app.shell.widgets('left'));
       for (const w of leftWidgets) {
         if (w !== flowChartWidget && w.id === 'flow-chart-widget') w.close();
       }
-      flowChartWidget?.setData(result1, colorMap);
+      flowChartWidget?.setData(result1, colorMapModule);
       if (flowChartWidget) {
         app.shell.add(flowChartWidget, 'left');
         app.shell.activateById(flowChartWidget.id);
@@ -106,8 +284,7 @@ function activate(
       console.log('[tab switch] matrix overview');
       return;
     }
-    // 其它 tab 不更新 sidebar
-    closeSidebarsIfNoMainWidgets(app);
+    // 其它 tab 不更新 sidebar，但也不关闭sidebar
     console.log('[tab switch] no flowchart action for tab:', tabId);
   }
 
@@ -116,17 +293,24 @@ function activate(
     const mainWidgets = Array.from(app.shell.widgets('main'));
     const hasMatrix = mainWidgets.some(w => w.id === 'matrix-widget');
     const hasDetail = mainWidgets.some(w => w.id && w.id.startsWith('notebook-detail-widget-'));
+    
+    // 只有当确实没有galaxy相关tab，且用户主动切换到其他应用时才关闭sidebar
     if (!hasMatrix && !hasDetail) {
-      // 没有 galaxy 相关 tab，关闭 sidebar
-      // 关闭左侧 flowchart
-      const oldLeft = app.shell.widgets('left');
-      for (const w of oldLeft) {
-        if (w.id === 'flow-chart-widget') w.close();
-      }
-      // 关闭右侧 detail sidebar
-      const oldRight = app.shell.widgets('right');
-      for (const w of oldRight) {
-        if (w.id === 'galaxy-detail-sidebar') w.close();
+      // 检查是否有其他galaxy相关的widget（比如正在分析中）
+      const hasGalaxyAnalysis = result1 && result1.length > 0;
+      
+      if (!hasGalaxyAnalysis) {
+        // 没有 galaxy 相关 tab，关闭 sidebar
+        // 关闭左侧 flowchart
+        const oldLeft = app.shell.widgets('left');
+        for (const w of oldLeft) {
+          if (w.id === 'flow-chart-widget') w.close();
+        }
+        // 关闭右侧 detail sidebar
+        const oldRight = app.shell.widgets('right');
+        for (const w of oldRight) {
+          if (w.id === 'galaxy-detail-sidebar') w.close();
+        }
       }
     }
   }
@@ -175,13 +359,33 @@ function activate(
         if (
           selectedItems.length === 1 &&
           selectedItems[0].type === 'file' &&
-          selectedItems[0].path.endsWith('18599_predicted.json')
+          selectedItems[0].path.endsWith('.json') && selectedItems[0].path.includes('18599')
         ) {
           // 直接用 Contents API 读取 JSON 文件内容
           const contentsManager = app.serviceManager.contents;
           const model = await contentsManager.get(selectedItems[0].path, { type: 'file', format: 'text', content: true });
           result1 = JSON.parse(model.content as string);
           console.log('Loaded JSON:', result1);
+          
+          // 提取competition ID并创建title映射
+          console.log('Extracting competition ID from path:', selectedItems[0].path);
+          const competitionId = extractCompetitionId(selectedItems[0].path);
+          console.log('Extracted competition ID:', competitionId);
+          if (competitionId) {
+            const titleMap = await createKernelTitleMap(competitionId);
+            result1 = replaceKernelVersionIdWithTitle(result1, titleMap);
+            console.log('Applied title mapping for competition:', competitionId);
+            savedCompetitionId = competitionId;
+            console.log('Set savedCompetitionId to:', savedCompetitionId);
+            
+            // 加载并合并TOC数据
+            const tocData = await loadTocData(competitionId);
+            result1 = mergeTocData(result1, tocData);
+            console.log('Applied TOC data for competition:', competitionId);
+          } else {
+            console.log('No competition ID extracted from path');
+          }
+          
           // 读取 CSV 文件
           try {
             const csvModel = await contentsManager.get('test-notebooks/simplified_hmm_clustering_results.csv', { type: 'file', format: 'text', content: true });
@@ -201,6 +405,26 @@ function activate(
           const model = await contentsManager.get(selectedItems[0].path, { type: 'file', format: 'text', content: true });
           result1 = JSON.parse(model.content as string);
           console.log('Loaded JSON:', result1);
+          
+          // 提取competition ID并创建title映射
+          console.log('Extracting competition ID from path (second case):', selectedItems[0].path);
+          const competitionId = extractCompetitionId(selectedItems[0].path);
+          console.log('Extracted competition ID (second case):', competitionId);
+          if (competitionId) {
+            const titleMap = await createKernelTitleMap(competitionId);
+            result1 = replaceKernelVersionIdWithTitle(result1, titleMap);
+            console.log('Applied title mapping for competition (second case):', competitionId);
+            savedCompetitionId = competitionId;
+            console.log('Set savedCompetitionId to (second case):', savedCompetitionId);
+            
+            // 加载并合并TOC数据
+            const tocData = await loadTocData(competitionId);
+            result1 = mergeTocData(result1, tocData);
+            console.log('Applied TOC data for competition (second case):', competitionId);
+          } else {
+            console.log('No competition ID extracted from path (second case)');
+          }
+          
           similarityGroups = [];
         } else {
           // 原有的后端 fetch 逻辑
@@ -228,6 +452,34 @@ function activate(
           if (!res1.ok) throw new Error(`❌ ${res1.statusText}`);
           result1 = await res1.json();
           console.log(result1);
+          
+          // 对于后端API返回的数据，尝试从selectedPaths中提取competition ID
+          if (selectedPaths.length > 0) {
+            const path = selectedPaths[0];
+            let competitionId: string | null = null;
+            
+            // 从路径中提取competition ID
+            if (path.includes('18599')) {
+              competitionId = '18599';
+            } else if (path.includes('35332')) {
+              competitionId = '35332';
+            } else if (path.includes('50160')) {
+              competitionId = '50160';
+            }
+            
+            if (competitionId) {
+              const titleMap = await createKernelTitleMap(competitionId);
+              result1 = replaceKernelVersionIdWithTitle(result1, titleMap);
+              console.log('Applied title mapping for competition:', competitionId);
+              savedCompetitionId = competitionId;
+              
+              // 加载并合并TOC数据
+              const tocData = await loadTocData(competitionId);
+              result1 = mergeTocData(result1, tocData);
+              console.log('Applied TOC data for competition:', competitionId);
+            }
+          }
+          
           similarityGroups = [];
         }
 
@@ -243,6 +495,8 @@ function activate(
         });
         initColorMap(allStages);
         colorMap = colorMapModule; // 确保 colorMap 全局可用
+        
+
         flowChartWidget = new LeftSidebar(result1, colorMap);
         app.shell.add(flowChartWidget, 'left');
         if (typeof (app.shell as any).expandLeftArea === 'function') {
@@ -255,7 +509,29 @@ function activate(
 
         // 添加 MatrixWidget 到主区域
         const colorScale = (label: string) => colorMapModule.get(label) || '#fff';
-        matrixWidget = new MatrixWidget(result1, colorScale, similarityGroups);
+        
+        // 创建kernelTitleMap用于MatrixWidget
+        let kernelTitleMap = new Map<string, string>();
+        
+        // 重新获取competitionId
+        let competitionIdForMatrix: string | null = null;
+        if (selectedItems.length === 1 && selectedItems[0].type === 'file' && selectedItems[0].path.endsWith('.json')) {
+          competitionIdForMatrix = extractCompetitionId(selectedItems[0].path);
+        }
+        
+        if (competitionIdForMatrix) {
+          console.log('Creating kernelTitleMap for MatrixWidget with competitionId:', competitionIdForMatrix);
+          kernelTitleMap = await createKernelTitleMap(competitionIdForMatrix);
+          console.log('Created kernelTitleMap for MatrixWidget:', {
+            competitionId: competitionIdForMatrix,
+            mapSize: kernelTitleMap.size,
+            sampleEntries: Array.from(kernelTitleMap.entries()).slice(0, 3)
+          });
+        } else {
+          console.log('No competitionId found for MatrixWidget');
+        }
+        
+        matrixWidget = new MatrixWidget(result1, colorScale, similarityGroups, kernelTitleMap);
         app.shell.add(matrixWidget, 'main');
         app.shell.activateById(matrixWidget.id);
         matrixWidget.disposed.connect(() => {
@@ -300,6 +576,39 @@ function activate(
           detailSidebar?.setFilter(null, true); // 跳过事件派发，避免循环
         });
 
+        // 监听TOC项目点击事件
+        window.addEventListener('galaxy-toc-item-clicked', (e: any) => {
+          const { cellId } = e.detail;
+          console.log('TOC item clicked:', cellId);
+          
+          // 解析cellId，格式为 "kernelVersionId_cellIndex"
+          const [kernelVersionId, cellIndexStr] = cellId.split('_');
+          const cellIndex = parseInt(cellIndexStr);
+          
+          // 找到对应的notebook
+          const notebook = result1.find((nb: any) => nb.kernelVersionId === kernelVersionId);
+          if (notebook) {
+            // 确保notebook有index属性，如果没有则使用数组索引
+            const notebookIndex = notebook.index !== undefined ? notebook.index : result1.indexOf(notebook);
+            console.log('Found notebook for TOC jump:', {
+              kernelVersionId,
+              notebookIndex,
+              cellIndex,
+              hasIndex: notebook.index !== undefined
+            });
+            
+            // 跳转到对应的cell
+            window.dispatchEvent(new CustomEvent('galaxy-notebook-detail-jump', {
+              detail: { 
+                notebookIndex: notebookIndex, 
+                cellIndex: cellIndex 
+              }
+            }));
+          } else {
+            console.warn('Notebook not found for kernelVersionId:', kernelVersionId);
+          }
+        });
+
         // 只注册一次 notebook 详情切换监听器
         if (!notebookSelectedListenerRegistered) {
           handleNotebookSelected = function (e: any) {
@@ -318,7 +627,17 @@ function activate(
             });
 
             // 新建只显示该 notebook 的 flowchart
-            const singleLeftSidebar = new LeftSidebar([nb], colorMap);
+            // 确保 colorMap 包含该 notebook 中的所有 stage
+            const singleNotebookStages = new Set<string>();
+            nb.cells.forEach((cell: any) => {
+              if ((cell.cellType + '').toLowerCase() === 'code') {
+                const stage = String(cell["1st-level label"] ?? "None");
+                singleNotebookStages.add(stage);
+              }
+            });
+            // 重新初始化 colorMap 以包含该 notebook 的所有 stage
+            initColorMap(singleNotebookStages);
+            const singleLeftSidebar = new LeftSidebar([nb], colorMapModule);
             app.shell.add(singleLeftSidebar, 'left');
             setTimeout(() => {
               if (typeof (app.shell as any).expandLeftArea === 'function') {
@@ -359,7 +678,18 @@ function activate(
               for (const w of leftWidgets) {
                 if (w.id === 'flow-chart-widget') w.close();
               }
-              // 恢复原始 LeftSidebar
+              // 恢复原始 LeftSidebar，并确保 colorMap 包含所有 stage
+              const allStages = new Set<string>();
+              result1.forEach((nb: any) => {
+                nb.cells.forEach((cell: any) => {
+                  if ((cell.cellType + '').toLowerCase() === 'code') {
+                    const stage = String(cell["1st-level label"] ?? "None");
+                    allStages.add(stage);
+                  }
+                });
+              });
+              initColorMap(allStages);
+              flowChartWidget?.setData(result1, colorMapModule);
               app.shell.add(flowChartWidget!, 'left');
               app.shell.activateById(flowChartWidget!.id);
               // matrix-widget 保持不变

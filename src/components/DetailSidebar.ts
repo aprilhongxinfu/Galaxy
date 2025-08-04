@@ -120,7 +120,7 @@ export class DetailSidebar extends Widget {
     });
     this.setDefault();
     this.node.style.overflowY = 'auto';
-    this._hiddenStages = hiddenStages ?? new Set(['1', '9']);
+    this._hiddenStages = hiddenStages ?? new Set(['6', '1']);
     // 监听左侧 legend 显隐变化，自动刷新统计
     window.addEventListener('galaxy-hidden-stages-changed', (e: any) => {
       const arr = e.detail?.hiddenStages ?? [];
@@ -203,7 +203,7 @@ export class DetailSidebar extends Widget {
     const codeCells = cells.filter((c: any) => c.cellType === 'code');
     
     // 获取被隐藏的stage列表
-    const hiddenStages = this._hiddenStages ?? new Set(['1', '9']);
+    const hiddenStages = this._hiddenStages ?? new Set(['6', '1']);
     
     // 统计stage频率，排除被隐藏的stage
     for (let i = 0; i < codeCells.length; i++) {
@@ -419,7 +419,7 @@ export class DetailSidebar extends Widget {
     // 插入内容
     this.node.innerHTML = `
       <div style="padding:28px 18px 18px 18px; font-size:15px; color:#222; max-width:420px; margin:0 auto;">
-        <div style="font-size:20px; font-weight:700; margin-bottom:18px; line-height:1.2; word-break:break-all;" id="detail-sidebar-title"><span style="${this._getTitleStyle()}">${nb.notebook_name ?? nb.kernelVersionId}</span></div>
+        <div style="font-size:20px; font-weight:700; margin-bottom:18px; line-height:1.2; word-break:break-all;" id="detail-sidebar-title"><span style="${this._getTitleStyle()}">Notebook ${nb.globalIndex !== undefined ? nb.globalIndex + 1 : ''}: ${nb.notebook_name ?? nb.kernelVersionId}</span></div>
         <div style="display:flex; flex-direction:row; gap:18px; margin-bottom:18px;">
           <div style="flex:1;">
             <div style="font-size:13px; color:#888;">Total Cells</div>
@@ -450,7 +450,60 @@ export class DetailSidebar extends Widget {
         
         ${selectedStageInfo}
         ${selectedTransitionInfo}
+        
+        ${nb.toc && nb.toc.length > 0 ? `
+        <div style="margin:18px 0 8px 0; font-weight:600; font-size:15px;">Table of Contents</div>
+        <div class="toc-scroll" style="background:#f8f9fa; border-radius:8px; padding:20px; margin-bottom:16px; max-height:300px; overflow-y:auto; overflow-x:hidden; border:1px solid #e0e0e0;">
+          ${nb.toc.map((item: any) => {
+            // 统计#数量，决定层级
+            const match = item.heading.match(/^(#+)\s+/);
+            const level = match ? match[1].length : 1;
+            const marginLeft = 12 * (level - 1);
+            const fontSize = level === 1 ? 15 : (level === 2 ? 14 : 13);
+            const fontWeight = level === 1 ? 600 : (level === 2 ? 500 : 400);
+            const color = level === 1 ? '#1976d2' : (level === 2 ? '#1565c0' : '#666');
+            const padding = level === 1 ? '8px 0' : (level === 2 ? '6px 0' : '4px 0');
+            return `
+              <div style="margin-bottom:2px; margin-left:${marginLeft}px;">
+                <div class="toc-item" data-cell-id="${item.cellId}" 
+                     style="color:${color}; font-size:${fontSize}px; font-weight:${fontWeight}; cursor:pointer; line-height:1.4; padding:${padding}; border-radius:4px; transition:all 0.2s ease;"
+                     onmouseover="this.style.background='#e3f2fd'; this.style.color='#1565c0';"
+                     onmouseout="this.style.background='transparent'; this.style.color='${color}';">
+                  ${item.heading.replace(/^#+\s*/, '')}
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+        ` : `
+        <div style="margin:18px 0 8px 0; font-weight:600; font-size:15px;">Table of Contents</div>
+        <div style="background:#f8f9fa; border-radius:8px; padding:20px; margin-bottom:16px; color:#888; font-size:14px; text-align:center; border:1px solid #e0e0e0;">
+          No table of contents available for this notebook.
+        </div>
+        `}
       </div>
+      <style>
+        /* TOC滚动条样式 */
+        .toc-scroll::-webkit-scrollbar {
+          width: 8px;
+        }
+        .toc-scroll::-webkit-scrollbar-track {
+          background: #f5f5f5;
+          border-radius: 4px;
+        }
+        .toc-scroll::-webkit-scrollbar-thumb {
+          background: #d0d0d0;
+          border-radius: 4px;
+          border: 1px solid #f5f5f5;
+        }
+        .toc-scroll::-webkit-scrollbar-thumb:hover {
+          background: #b0b0b0;
+        }
+        /* TOC项目悬停效果 */
+        .toc-item:hover {
+          transform: translateX(2px);
+        }
+      </style>
     `;
 
     // ✅ Tooltip 注入 + 事件绑定
@@ -515,6 +568,21 @@ export class DetailSidebar extends Widget {
               // 触发flow选中效果，与选中flow相同
               this.setFilter({ type: 'flow', from, to });
             }
+          }
+        });
+      });
+
+      // 绑定TOC项目点击事件
+      const tocItems = this.node.querySelectorAll('.toc-item');
+      tocItems.forEach(item => {
+        item.addEventListener('click', (e) => {
+          e.preventDefault();
+          const cellId = (item as HTMLElement).getAttribute('data-cell-id');
+          if (cellId) {
+            console.log('TOC item clicked in DetailSidebar (first setTimeout):', cellId);
+            window.dispatchEvent(new CustomEvent('galaxy-toc-item-clicked', {
+              detail: { cellId: cellId }
+            }));
           }
         });
       });
@@ -587,6 +655,21 @@ export class DetailSidebar extends Widget {
       };
       addHover('.dsb-stage-expand-btn');
       addHover('.dsb-flow-expand-btn');
+
+      // 绑定TOC项目点击事件
+      const tocItems = this.node.querySelectorAll('.toc-item');
+      tocItems.forEach(item => {
+        item.addEventListener('click', (e) => {
+          e.preventDefault();
+          const cellId = (item as HTMLElement).getAttribute('data-cell-id');
+          if (cellId) {
+            console.log('TOC item clicked in DetailSidebar:', cellId);
+            window.dispatchEvent(new CustomEvent('galaxy-toc-item-clicked', {
+              detail: { cellId: cellId }
+            }));
+          }
+        });
+      });
     }, 0);
   }
 
@@ -1170,7 +1253,7 @@ export class DetailSidebar extends Widget {
     }
     this._mostFreqStage = mostFreqStage;
     this._mostFreqFlow = mostFreqFlow;
-    const hiddenStages = this._hiddenStages ?? new Set(['1', '9']);
+    const hiddenStages = this._hiddenStages ?? new Set(['6', '1']);
     // 过滤掉 hiddenStages 的 cell
     let filteredData = data.map((nb) => {
       // 用 kernelVersionId 在 this._allData 里查找 globalIndex
