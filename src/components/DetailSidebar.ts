@@ -957,12 +957,17 @@ export class DetailSidebar extends Widget {
     </div>
     <div class="galaxy-tab-content" data-tab-content="second" style="display:none;"></div>`;
     this.node.innerHTML = `<div style="padding:24px 18px 18px 18px; margin:18px 0; width:100%; font-size:15px; color:#222; box-sizing:border-box;">
-      <div style="font-size:17px; font-weight:600; margin-bottom:12px; display:flex; align-items:center; gap:10px; flex-wrap:" id="detail-sidebar-title">
-        <span style="${this._getTitleStyle()}">
-        <span class="dsb-nb-link" style="color:#3182bd; cursor:pointer; text-decoration:underline;">Notebook${nbIdx ? + nbIdx : ''}</span>
+      <div style="font-size:17px; font-weight:600; margin-bottom:12px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;" id="detail-sidebar-title">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <div class="dsb-back-btn" style="cursor: pointer; display: flex; align-items: center; gap: 4px;" title="Back to notebook overview">
+            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M15 10H5M5 10L10 15M5 10L10 5" stroke="#888" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <span style="color:#3182bd; font-weight:600;">Notebook ${nbIdx ? + nbIdx : ''}</span>
+        </div>
         ${cellIdx ? `<span style='color:#888; font-size:14px;'>/ Cell ${cellIdx}</span>` : ''}
         ${cellTypeLabel}
-        </span>
       </div>
       ${tabHeader}
       ${tabContent}
@@ -1090,15 +1095,15 @@ export class DetailSidebar extends Widget {
     }, 0);
     // 绑定 notebook 返回事件
     setTimeout(() => {
-      const nbLink = this.node.querySelector('.dsb-nb-link');
-      if (nbLink) {
-        nbLink.addEventListener('click', () => {
+      const backBtn = this.node.querySelector('.dsb-back-btn');
+      if (backBtn) {
+        backBtn.addEventListener('click', () => {
+          // 直接返回到当前notebook的概览视图，不打开新tab，不清除cell selection
           if (cell._notebookDetail) {
-            this.setNotebookDetail(cell._notebookDetail);
+            this.setNotebookDetail(cell._notebookDetail, true); // skipEventDispatch = true
           } else if ((window as any).galaxyCurrentNotebookDetail) {
-            this.setNotebookDetail((window as any).galaxyCurrentNotebookDetail);
+            this.setNotebookDetail((window as any).galaxyCurrentNotebookDetail, true); // skipEventDispatch = true
           }
-          window.dispatchEvent(new CustomEvent('galaxy-clear-cell-selection'));
         });
       }
     }, 0);

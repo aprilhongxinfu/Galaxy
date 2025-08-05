@@ -47,15 +47,9 @@ export class MatrixWidget extends Widget {
             sampleKernelIds: this.data.slice(0, 3).map(nb => (nb as any).kernelVersionId)
         });
         this.id = 'matrix-widget';
-        this.title.label = 'Stage Matrix';
+        this.title.label = 'Overview';
         this.title.closable = true;
         this.addClass('matrix-widget');
-
-        // 添加面包屑导航栏
-        const nav = document.createElement('div');
-        nav.className = 'galaxy-breadcrumbs';
-        nav.innerText = 'Overview';
-        this.node.appendChild(nav);
 
         // ====== DROPLISTS FOR FILTERING ======
         // Collect unique assignments and student_ids

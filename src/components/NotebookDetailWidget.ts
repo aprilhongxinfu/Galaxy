@@ -46,7 +46,12 @@ export class NotebookDetailWidget extends Widget {
     (this as any).notebook = notebook; // 让外部 handleTabSwitch 能直接访问
     const nbId = notebook.kernelVersionId;
     this.id = 'notebook-detail-widget-' + nbId;
-    this.title.label = 'Notebook Detail';
+    
+    // 设置tab标题为"notebook+对应的序号"
+    const notebookIndex = notebook.globalIndex !== undefined ? notebook.globalIndex + 1 : 
+                         notebook.index !== undefined ? notebook.index + 1 : 
+                         'unknown';
+    this.title.label = `Notebook ${notebookIndex}`;
     this.title.closable = true;
     this.addClass('notebook-detail-widget');
     this.rendermime = new RenderMimeRegistry({

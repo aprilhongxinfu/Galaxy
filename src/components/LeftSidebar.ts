@@ -232,31 +232,48 @@ export class LeftSidebar extends Widget {
     }
 
     private render(): void {
-        // --- 更新顶部面包屑导航栏 ---
-        let nav = this.node.querySelector('.galaxy-breadcrumbs') as HTMLDivElement;
-        if (!nav) {
-            nav = document.createElement('div');
-            nav.className = 'galaxy-breadcrumbs';
-            this.node.insertBefore(nav, this.node.firstChild);
+        // --- 更新顶部标题和返回按钮 ---
+        let header = this.node.querySelector('.galaxy-header') as HTMLDivElement;
+        if (!header) {
+            header = document.createElement('div');
+            header.className = 'galaxy-header';
+            header.style.position = 'absolute';
+            header.style.top = '12px';
+            header.style.left = '18px';
+            header.style.zIndex = '10';
+            header.style.display = 'flex';
+            header.style.alignItems = 'center';
+            header.style.gap = '8px';
+            this.node.appendChild(header);
         }
-        // 根据 selection 类型渲染面包屑
+        
+        // 根据 selection 类型渲染标题和返回按钮
         if (this.selection?.type === 'stage') {
-            nav.innerHTML = '<span class="galaxy-breadcrumb-overview">Overview</span> / <b>' + (LABEL_MAP[this.selection.stage] ?? this.selection.stage) + '</b>';
+            header.innerHTML = `
+                <div style="cursor: pointer; display: flex; align-items: center; gap: 4px;" onclick="this.clearSelection()">
+                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M15 10H5M5 10L10 15M5 10L10 5" stroke="#888" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </div>
+                <span style="font-weight: 600; color: #333;">${LABEL_MAP[this.selection.stage] ?? this.selection.stage}</span>
+            `;
         } else if (this.selection?.type === 'flow') {
-            nav.innerHTML = '<span class="galaxy-breadcrumb-overview">Overview</span> / <b>' +
-                (LABEL_MAP[this.selection.from] ?? this.selection.from) +
-                ' → ' +
-                (LABEL_MAP[this.selection.to] ?? this.selection.to) +
-                '</b>';
+            header.innerHTML = `
+                <div style="cursor: pointer; display: flex; align-items: center; gap: 4px;" onclick="this.clearSelection()">
+                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M15 10H5M5 10L10 15M5 10L10 5" stroke="#888" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </div>
+                <span style="font-weight: 600; color: #333;">${LABEL_MAP[this.selection.from] ?? this.selection.from} → ${LABEL_MAP[this.selection.to] ?? this.selection.to}</span>
+            `;
         } else {
-            nav.innerHTML = '<span class="galaxy-breadcrumb-overview">Overview</span>';
+            header.innerHTML = '';
         }
-        // Overview 始终可点击
-        const overviewSpan = nav.querySelector('.galaxy-breadcrumb-overview') as HTMLSpanElement;
-        if (overviewSpan) {
-            overviewSpan.style.cursor = 'pointer';
-            overviewSpan.style.textDecoration = 'underline';
-            overviewSpan.onclick = (e) => {
+        
+        // 绑定返回按钮的点击事件
+        const backButton = header.querySelector('div');
+        if (backButton) {
+            backButton.onclick = () => {
                 this.selection = null;
                 // 清除全局选中状态（按tab隔离）
                 const tabId = this.getTabId();
