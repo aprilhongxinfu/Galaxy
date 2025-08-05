@@ -34,7 +34,7 @@ async function loadTocData(competitionId: string): Promise<any[]> {
   try {
     const tocPath = `src/data/toc_data/${competitionId}_toc.json`;
     console.log('TOC path:', tocPath);
-    
+
     // 尝试不同的路径格式
     const alternativePaths = [
       tocPath,
@@ -43,7 +43,7 @@ async function loadTocData(competitionId: string): Promise<any[]> {
       `data/toc_data/${competitionId}_toc.json`
     ];
     const contentsManager = app?.serviceManager?.contents;
-    
+
     if (!contentsManager) {
       console.warn('Contents manager not available for TOC loading');
       return [];
@@ -51,27 +51,27 @@ async function loadTocData(competitionId: string): Promise<any[]> {
 
     console.log(`Loading TOC data from: ${tocPath}`);
     console.log('Available contents manager:', !!contentsManager);
-    
+
     // 尝试多个路径格式
     for (const path of alternativePaths) {
       try {
         console.log(`Trying path: ${path}`);
         const model = await contentsManager.get(path, { type: 'file', format: 'text', content: true });
-        console.log('File loaded successfully, content length:', (model.content as string).length);
-        
+        // console.log('File loaded successfully, content length:', (model.content as string).length);
+
         const tocData = JSON.parse(model.content as string);
-        console.log(`TOC data loaded successfully for competition ${competitionId}, entries: ${tocData.length}`);
-        console.log('First few TOC entries:', tocData.slice(0, 3));
+        // console.log(`TOC data loaded successfully for competition ${competitionId}, entries: ${tocData.length}`);
+        // console.log('First few TOC entries:', tocData.slice(0, 3));
         return tocData;
       } catch (fileError) {
         console.log(`Failed to load from ${path}:`, (fileError as Error).message);
         continue;
       }
     }
-    
+
     console.error('All paths failed for TOC loading');
     console.log('Trying to list available files...');
-    
+
     // 尝试列出可用的文件
     try {
       const listing = await contentsManager.get('src/data/toc_data/', { type: 'directory' });
@@ -79,7 +79,7 @@ async function loadTocData(competitionId: string): Promise<any[]> {
     } catch (listError) {
       console.error('Error listing directory:', listError);
     }
-    
+
     return [];
   } catch (error) {
     console.warn(`Failed to load TOC data for competition ${competitionId}:`, error);
@@ -93,19 +93,19 @@ function mergeTocData(notebooks: any[], tocData: any[]): any[] {
   tocData.forEach(item => {
     tocMap.set(item.kernelVersionId, item.toc);
   });
-  
-  console.log('TOC data sample:', tocData.slice(0, 3));
-  console.log('Notebooks sample:', notebooks.slice(0, 3).map(nb => ({
-    kernelVersionId: nb.kernelVersionId,
-    index: nb.index,
-    globalIndex: nb.globalIndex,
-    notebook_name: nb.notebook_name
-  })));
-  
+
+  // console.log('TOC data sample:', tocData.slice(0, 3));
+  // console.log('Notebooks sample:', notebooks.slice(0, 3).map(nb => ({
+  //   kernelVersionId: nb.kernelVersionId,
+  //   index: nb.index,
+  //   globalIndex: nb.globalIndex,
+  //   notebook_name: nb.notebook_name
+  // })));
+
   return notebooks.map(notebook => {
     const toc = tocMap.get(notebook.kernelVersionId);
     if (toc) {
-      console.log(`Found TOC for notebook ${notebook.kernelVersionId}:`, toc.length, 'items');
+      // console.log(`Found TOC for notebook ${notebook.kernelVersionId}:`, toc.length, 'items');
       return { ...notebook, toc };
     } else {
       console.log(`No TOC found for notebook ${notebook.kernelVersionId}`);
@@ -120,7 +120,7 @@ async function createKernelTitleMap(competitionId: string): Promise<Map<string, 
     // 动态加载CSV文件
     const csvPath = `src/data/kernel_data/competition_${competitionId}.csv`;
     const contentsManager = app?.serviceManager?.contents;
-    
+
     if (!contentsManager) {
       console.warn('Contents manager not available');
       return new Map();
@@ -129,10 +129,10 @@ async function createKernelTitleMap(competitionId: string): Promise<Map<string, 
     console.log(`Attempting to load CSV from: ${csvPath}`);
     const model = await contentsManager.get(csvPath, { type: 'file', format: 'text', content: true });
     console.log(`CSV loaded successfully, content length: ${(model.content as string).length}`);
-    
+
     const csvData = csvParse(model.content as string);
-    console.log(`CSV parsed, rows: ${csvData.length}, sample row:`, csvData[0]);
-    
+    // console.log(`CSV parsed, rows: ${csvData.length}, sample row:`, csvData[0]);
+
     const titleMap = new Map<string, string>();
     csvData.forEach((row: any) => {
       const kernelVersionId = row.KernelVersionId?.toString();
@@ -143,7 +143,7 @@ async function createKernelTitleMap(competitionId: string): Promise<Map<string, 
     });
 
     console.log(`Created title map for competition ${competitionId} with ${titleMap.size} entries`);
-    console.log(`Sample entries:`, Array.from(titleMap.entries()).slice(0, 3));
+    // console.log(`Sample entries:`, Array.from(titleMap.entries()).slice(0, 3));
     return titleMap;
   } catch (error) {
     console.warn(`Failed to load kernel data for competition ${competitionId}:`, error);
@@ -189,9 +189,16 @@ let result1: any = null;
 let mostFreqStage: any = null;
 let mostFreqFlow: any = null;
 let matrixWidget: MatrixWidget | null = null;
-let notebookCache = new Map<string, any>();
+
 let notebookDetailIds = new Set<string>();
 let colorMap: any = null;
+
+// 添加滚动同步相关的全局变量
+let scrollSyncEnabled = false;
+let scrollSyncWidgets: Set<string> = new Set();
+let scrollSyncHandlers: Map<string, (e: Event) => void> = new Map();
+let scrollSyncUpdatePending = false; // 防止频繁更新
+let lastScrollSyncState = { hasMultiple: false }; // 记录上次状态
 
 function activate(
   appInstance: JupyterFrontEnd,
@@ -203,12 +210,275 @@ function activate(
 
   const command = 'galaxy:analyze';
 
-          // 将 app 赋值给全局变量
-        app = appInstance;
+  // 将 app 赋值给全局变量
+  app = appInstance;
 
-        let similarityGroups: any[] = [];
-        let lastKnownDetailIds: Set<string> = new Set();
-        let savedCompetitionId: string | null = null;
+  let similarityGroups: any[] = [];
+  let lastKnownDetailIds: Set<string> = new Set();
+  
+
+  // ====== 检测主区域是否有分屏布局（包括任何类型的widget） ======
+  function hasSplitLayout(): boolean {
+    try {
+      // 解决方案: 使用 app.shell 的内部 layout 判断是否分屏
+      const layout = (app.shell as any).saveLayout();
+      const mainArea = layout.mainArea;
+
+      // 添加调试信息
+      // console.log('Layout structure:', layout);
+      // console.log('Main area:', mainArea);
+
+      // 递归检查是否分屏
+      function isSplitScreen(area: any): boolean {
+        if (!area) return false;
+
+        // console.log('Checking area:', area);
+
+        // 检查是否有 dock.main 结构
+        if (area.dock && area.dock.main) {
+          // console.log('Found dock.main, checking:', area.dock.main);
+          return isSplitScreen(area.dock.main);
+        }
+
+        if (area.type === 'split-area') {
+          // 并行多个子区域（不是单个 tab-area）
+          if (area.children && area.children.length > 1) {
+            // console.log('Found split-area with multiple children:', area.children.length);
+            return true;
+          }
+        }
+
+        // 递归继续判断嵌套结构
+        if (area.children) {
+          return area.children.some((child: any) => isSplitScreen(child));
+        }
+
+        // 如果是 tab-area, 不代表分屏
+        if (area.type === 'tab-area') {
+          // console.log('Found tab-area:', area);
+          return false;
+        }
+
+        return false;
+      }
+
+      const split = isSplitScreen(mainArea);
+      // console.log('当前是否分屏:', split);
+
+      return split;
+    } catch (error) {
+      console.error('检测分屏布局时出错:', error);
+
+      // 降级到之前的DOM检测方法
+      const mainWidgets = Array.from(app.shell.widgets('main'));
+      const parents = new Set(mainWidgets.map(w => w.parent?.id));
+
+      const mainArea = document.querySelector('.lm-MainArea-widget');
+      let hasVisualSplit = false;
+
+      if (mainArea) {
+        const splitPanels = mainArea.querySelectorAll('.lm-SplitPanel');
+        hasVisualSplit = splitPanels.length > 0;
+
+        const tabBars = mainArea.querySelectorAll('.lm-TabBar');
+        const hasMultipleTabBars = tabBars.length > 1;
+
+        const activeTabs = mainArea.querySelectorAll('.lm-TabBar-tab.lm-mod-current');
+        const hasMultipleActiveTabs = activeTabs.length > 1;
+
+        const mainAreaChildren = mainArea.children;
+        const hasMultipleChildren = mainAreaChildren.length > 1;
+
+        console.log('[hasSplitLayout fallback]', {
+          mainWidgetCount: mainWidgets.length,
+          parentCount: parents.size,
+          hasVisualSplit,
+          hasMultipleTabBars,
+          hasMultipleActiveTabs,
+          hasMultipleChildren
+        });
+
+        if (hasVisualSplit || hasMultipleTabBars || hasMultipleActiveTabs || hasMultipleChildren || parents.size > 1) {
+          return true;
+        }
+      }
+
+      return false;
+    }
+  }
+
+  // ====== 检测是否有多个notebook detail widget（排除matrix widget） ======
+  function hasMultipleNotebookDetailWidgets(): boolean {
+    const mainWidgets = Array.from(app.shell.widgets('main'));
+    const notebookDetailWidgets = mainWidgets.filter(w =>
+      w.id && w.id.startsWith('notebook-detail-widget-')
+    );
+
+    // 调试输出
+    // console.log('[Widget Debug] All main widgets:', mainWidgets.map(w => w.id));
+    // console.log('[Widget Debug] Notebook detail widgets:', notebookDetailWidgets.map(w => w.id));
+    // console.log('[Widget Debug] Count:', notebookDetailWidgets.length);
+
+    return notebookDetailWidgets.length > 1;
+  }
+
+  // ====== 检测是否需要滚动同步（有多个notebook detail widget在分屏中） ======
+  function shouldEnableScrollSync(): boolean {
+    const hasMultipleNotebookDetails = hasMultipleNotebookDetailWidgets();
+
+    // 如果有多个notebook detail widget，就启用滚动同步
+    // 不需要检测整体分屏，因为matrix的存在不影响notebook detail之间的同步
+    return hasMultipleNotebookDetails;
+  }
+
+  // ====== 设置滚动同步 ======
+  function setupScrollSync() {
+    // 清除之前的滚动同步
+    scrollSyncHandlers.forEach((handler, widgetId) => {
+      const widgets = Array.from(app.shell.widgets('main'));
+      const widget = widgets.find(w => w.id === widgetId);
+      if (widget) {
+        const cellList = widget.node.querySelector('#nbd-cell-list-scroll');
+        if (cellList) {
+          cellList.removeEventListener('scroll', handler);
+        }
+      }
+    });
+    scrollSyncHandlers.clear();
+
+    // 检查是否需要启用滚动同步
+    const shouldEnable = shouldEnableScrollSync();
+
+    // 只在状态真正改变时才输出日志
+    const currentState = { hasMultiple: hasMultipleNotebookDetailWidgets() };
+    const stateChanged = currentState.hasMultiple !== lastScrollSyncState.hasMultiple;
+
+    // 调试输出
+    // console.log('[Scroll Sync Debug] Multiple notebook details:', currentState.hasMultiple, 'Should enable:', shouldEnable);
+    if (stateChanged) {
+      console.log('[Scroll Sync] Multiple notebook details:', currentState.hasMultiple, 'Should enable:', shouldEnable);
+      lastScrollSyncState = currentState;
+    }
+
+    if (shouldEnable) {
+      // 启用滚动同步
+      scrollSyncEnabled = true;
+      scrollSyncWidgets.clear();
+
+      // 收集所有notebook detail widget
+      const mainWidgets = Array.from(app.shell.widgets('main'));
+      mainWidgets.forEach(widget => {
+        if (widget.id && widget.id.startsWith('notebook-detail-widget-')) {
+          scrollSyncWidgets.add(widget.id);
+        }
+      });
+
+      // 只在状态真正改变时才输出日志
+      if (stateChanged) {
+        console.log('[Scroll Sync] Enabled for widgets:', Array.from(scrollSyncWidgets));
+        console.log('[Scroll Sync] Widget count:', scrollSyncWidgets.size);
+      }
+
+      // 为每个widget的滚动容器绑定事件监听器
+      scrollSyncWidgets.forEach(widgetId => {
+        const widgets = Array.from(app.shell.widgets('main'));
+        const widget = widgets.find(w => w.id === widgetId);
+        if (widget) {
+          const cellList = widget.node.querySelector('#nbd-cell-list-scroll');
+          if (cellList) {
+            // 移除之前的事件监听器（如果存在）
+            const existingHandler = scrollSyncHandlers.get(widgetId);
+            if (existingHandler) {
+              cellList.removeEventListener('scroll', existingHandler);
+            }
+
+            // 创建滚动同步处理器
+            const scrollHandler = (e: Event) => {
+              if (!scrollSyncEnabled) return;
+
+              const target = e.target as HTMLElement;
+              const scrollTop = target.scrollTop;
+              const sourceWidgetId = widgetId;
+
+              // 只在调试模式下输出滚动日志
+              // console.log('[Scroll Sync] Widget', sourceWidgetId, 'scrolled to:', scrollTop);
+
+              // 临时禁用滚动同步，避免循环触发
+              scrollSyncEnabled = false;
+
+              // 同步其他widget的滚动位置
+              scrollSyncWidgets.forEach(otherWidgetId => {
+                if (otherWidgetId !== sourceWidgetId) {
+                  const otherWidgets = Array.from(app.shell.widgets('main'));
+                  const otherWidget = otherWidgets.find(w => w.id === otherWidgetId);
+                  if (otherWidget) {
+                    const otherCellList = otherWidget.node.querySelector('#nbd-cell-list-scroll');
+                    if (otherCellList && otherCellList.scrollTop !== scrollTop) {
+                      // console.log('[Scroll Sync] Syncing widget', otherWidgetId, 'to scroll position:', scrollTop);
+                      otherCellList.scrollTop = scrollTop;
+                    }
+                  }
+                }
+              });
+
+              // 恢复滚动同步
+              scrollSyncEnabled = true;
+            };
+
+            // 绑定事件监听器
+            cellList.addEventListener('scroll', scrollHandler);
+            scrollSyncHandlers.set(widgetId, scrollHandler);
+            
+            // 添加调试信息
+            if (stateChanged) {
+              console.log('[Scroll Sync] Bound scroll handler for widget:', widgetId);
+            }
+          } else {
+            console.warn('[Scroll Sync] No cell list found for widget:', widgetId);
+          }
+        } else {
+          console.warn('[Scroll Sync] Widget not found:', widgetId);
+        }
+      });
+
+    } else {
+      // 禁用滚动同步
+      scrollSyncEnabled = false;
+
+      // 移除所有widget的滚动事件监听器
+      const mainWidgets = Array.from(app.shell.widgets('main'));
+      mainWidgets.forEach(widget => {
+        if (widget.id && widget.id.startsWith('notebook-detail-widget-')) {
+          const cellList = widget.node.querySelector('#nbd-cell-list-scroll');
+          if (cellList) {
+            const handler = scrollSyncHandlers.get(widget.id);
+            if (handler) {
+              cellList.removeEventListener('scroll', handler);
+            }
+          }
+        }
+      });
+
+      scrollSyncWidgets.clear();
+      scrollSyncHandlers.clear();
+      // 只在状态真正改变时才输出日志
+      if (stateChanged) {
+        console.log('[Scroll Sync] Disabled');
+      }
+    }
+  }
+
+  // ====== 更新滚动同步状态 ======
+  function updateScrollSync() {
+    if (scrollSyncUpdatePending) return;
+    scrollSyncUpdatePending = true;
+
+    // 使用 requestAnimationFrame 确保在下一帧执行，避免频繁调用
+    requestAnimationFrame(() => {
+      setupScrollSync();
+      scrollSyncUpdatePending = false;
+    });
+  }
 
   // ====== handleTabSwitch 放回 activate 内部，直接访问最新 sidebar 变量 ======
   function handleTabSwitch(widget: any) {
@@ -221,7 +491,23 @@ function activate(
       return;
     }
     const tabId = widget.id || '';
-    console.log('[tab switch] widget.id:', tabId, widget);
+    // console.log('[tab switch] widget.id:', tabId, widget);
+
+    // 检查是否有分屏布局
+    if (hasSplitLayout()) {
+      // console.log('[tab switch] Split layout detected, collapsing sidebars');
+      // 收缩左右sidebar而不是关闭
+      if (typeof (app.shell as any).collapseLeft === 'function') {
+        (app.shell as any).collapseLeft();
+      }
+      if (typeof (app.shell as any).collapseRight === 'function') {
+        (app.shell as any).collapseRight();
+      }
+      // 在分屏布局下也需要更新滚动同步
+      setTimeout(() => updateScrollSync(), 100);
+      return;
+    }
+
     if (tabId.startsWith('notebook-detail-widget-') && widget.notebook) {
       // notebook detail tab
       const nb = widget.notebook;
@@ -249,7 +535,7 @@ function activate(
         app.shell.add(detailSidebar, 'right');
         app.shell.activateById(detailSidebar.id);
       }
-      console.log('[tab switch] notebook detail:', nb);
+      // console.log('[tab switch] notebook detail:', nb);
       return;
     }
     if (tabId === 'matrix-widget') {
@@ -281,11 +567,11 @@ function activate(
         app.shell.add(detailSidebar, 'right');
         app.shell.activateById(detailSidebar.id);
       }
-      console.log('[tab switch] matrix overview');
+      // console.log('[tab switch] matrix overview');
       return;
     }
     // 其它 tab 不更新 sidebar，但也不关闭sidebar
-    console.log('[tab switch] no flowchart action for tab:', tabId);
+    // console.log('[tab switch] no flowchart action for tab:', tabId);
   }
 
   // ====== closeSidebarsIfNoMainWidgets 也放到 activate 内部，能访问 handleTabSwitch ======
@@ -293,12 +579,25 @@ function activate(
     const mainWidgets = Array.from(app.shell.widgets('main'));
     const hasMatrix = mainWidgets.some(w => w.id === 'matrix-widget');
     const hasDetail = mainWidgets.some(w => w.id && w.id.startsWith('notebook-detail-widget-'));
-    
+
+    // 检查是否有分屏布局
+    if (hasSplitLayout()) {
+      // console.log('[closeSidebarsIfNoMainWidgets] Split layout detected, collapsing sidebars');
+      // 收缩左右sidebar而不是关闭
+      if (typeof (app.shell as any).collapseLeft === 'function') {
+        (app.shell as any).collapseLeft();
+      }
+      if (typeof (app.shell as any).collapseRight === 'function') {
+        (app.shell as any).collapseRight();
+      }
+      return;
+    }
+
     // 只有当确实没有galaxy相关tab，且用户主动切换到其他应用时才关闭sidebar
     if (!hasMatrix && !hasDetail) {
       // 检查是否有其他galaxy相关的widget（比如正在分析中）
       const hasGalaxyAnalysis = result1 && result1.length > 0;
-      
+
       if (!hasGalaxyAnalysis) {
         // 没有 galaxy 相关 tab，关闭 sidebar
         // 关闭左侧 flowchart
@@ -350,7 +649,7 @@ function activate(
         for (const w of oldRight) {
           if (w.id === 'galaxy-detail-sidebar') w.close();
         }
-        
+
         // 清理 notebook detail IDs 记录
         notebookDetailIds.clear();
         lastKnownDetailIds.clear();
@@ -365,8 +664,8 @@ function activate(
           const contentsManager = app.serviceManager.contents;
           const model = await contentsManager.get(selectedItems[0].path, { type: 'file', format: 'text', content: true });
           result1 = JSON.parse(model.content as string);
-          console.log('Loaded JSON:', result1);
-          
+          // console.log('Loaded JSON:', result1);
+
           // 提取competition ID并创建title映射
           console.log('Extracting competition ID from path:', selectedItems[0].path);
           const competitionId = extractCompetitionId(selectedItems[0].path);
@@ -375,9 +674,7 @@ function activate(
             const titleMap = await createKernelTitleMap(competitionId);
             result1 = replaceKernelVersionIdWithTitle(result1, titleMap);
             console.log('Applied title mapping for competition:', competitionId);
-            savedCompetitionId = competitionId;
-            console.log('Set savedCompetitionId to:', savedCompetitionId);
-            
+
             // 加载并合并TOC数据
             const tocData = await loadTocData(competitionId);
             result1 = mergeTocData(result1, tocData);
@@ -385,12 +682,12 @@ function activate(
           } else {
             console.log('No competition ID extracted from path');
           }
-          
+
           // 读取 CSV 文件
           try {
             const csvModel = await contentsManager.get('test-notebooks/enhanced_clustering_results.csv', { type: 'file', format: 'text', content: true });
             similarityGroups = csvParse(csvModel.content as string);
-            console.log('Loaded CSV:', similarityGroups);
+            // console.log('Loaded CSV:', similarityGroups);
           } catch (e) {
             alert('无法读取 enhanced_clustering_results.csv');
             similarityGroups = [];
@@ -404,8 +701,8 @@ function activate(
           const contentsManager = app.serviceManager.contents;
           const model = await contentsManager.get(selectedItems[0].path, { type: 'file', format: 'text', content: true });
           result1 = JSON.parse(model.content as string);
-          console.log('Loaded JSON:', result1);
-          
+          // console.log('Loaded JSON:', result1);
+
           // 提取competition ID并创建title映射
           console.log('Extracting competition ID from path (second case):', selectedItems[0].path);
           const competitionId = extractCompetitionId(selectedItems[0].path);
@@ -414,9 +711,7 @@ function activate(
             const titleMap = await createKernelTitleMap(competitionId);
             result1 = replaceKernelVersionIdWithTitle(result1, titleMap);
             console.log('Applied title mapping for competition (second case):', competitionId);
-            savedCompetitionId = competitionId;
-            console.log('Set savedCompetitionId to (second case):', savedCompetitionId);
-            
+
             // 加载并合并TOC数据
             const tocData = await loadTocData(competitionId);
             result1 = mergeTocData(result1, tocData);
@@ -424,7 +719,7 @@ function activate(
           } else {
             console.log('No competition ID extracted from path (second case)');
           }
-          
+
           similarityGroups = [];
         } else {
           // 原有的后端 fetch 逻辑
@@ -452,12 +747,12 @@ function activate(
           if (!res1.ok) throw new Error(`❌ ${res1.statusText}`);
           result1 = await res1.json();
           console.log(result1);
-          
+
           // 对于后端API返回的数据，尝试从selectedPaths中提取competition ID
           if (selectedPaths.length > 0) {
             const path = selectedPaths[0];
             let competitionId: string | null = null;
-            
+
             // 从路径中提取competition ID
             if (path.includes('18599')) {
               competitionId = '18599';
@@ -466,20 +761,19 @@ function activate(
             } else if (path.includes('50160')) {
               competitionId = '50160';
             }
-            
+
             if (competitionId) {
               const titleMap = await createKernelTitleMap(competitionId);
               result1 = replaceKernelVersionIdWithTitle(result1, titleMap);
               console.log('Applied title mapping for competition:', competitionId);
-              savedCompetitionId = competitionId;
-              
+
               // 加载并合并TOC数据
               const tocData = await loadTocData(competitionId);
               result1 = mergeTocData(result1, tocData);
               console.log('Applied TOC data for competition:', competitionId);
             }
           }
-          
+
           similarityGroups = [];
         }
 
@@ -495,7 +789,7 @@ function activate(
         });
         initColorMap(allStages);
         colorMap = colorMapModule; // 确保 colorMap 全局可用
-        
+
 
         flowChartWidget = new LeftSidebar(result1, colorMap);
         app.shell.add(flowChartWidget, 'left');
@@ -509,28 +803,28 @@ function activate(
 
         // 添加 MatrixWidget 到主区域
         const colorScale = (label: string) => colorMapModule.get(label) || '#fff';
-        
+
         // 创建kernelTitleMap用于MatrixWidget
         let kernelTitleMap = new Map<string, string>();
-        
+
         // 重新获取competitionId
         let competitionIdForMatrix: string | null = null;
         if (selectedItems.length === 1 && selectedItems[0].type === 'file' && selectedItems[0].path.endsWith('.json')) {
           competitionIdForMatrix = extractCompetitionId(selectedItems[0].path);
         }
-        
+
         if (competitionIdForMatrix) {
           console.log('Creating kernelTitleMap for MatrixWidget with competitionId:', competitionIdForMatrix);
           kernelTitleMap = await createKernelTitleMap(competitionIdForMatrix);
-          console.log('Created kernelTitleMap for MatrixWidget:', {
-            competitionId: competitionIdForMatrix,
-            mapSize: kernelTitleMap.size,
-            sampleEntries: Array.from(kernelTitleMap.entries()).slice(0, 3)
-          });
+          // console.log('Created kernelTitleMap for MatrixWidget:', {
+          //   competitionId: competitionIdForMatrix,
+          //   mapSize: kernelTitleMap.size,
+          //   sampleEntries: Array.from(kernelTitleMap.entries()).slice(0, 3)
+          // });
         } else {
           console.log('No competitionId found for MatrixWidget');
         }
-        
+
         matrixWidget = new MatrixWidget(result1, colorScale, similarityGroups, kernelTitleMap);
         app.shell.add(matrixWidget, 'main');
         app.shell.activateById(matrixWidget.id);
@@ -580,11 +874,11 @@ function activate(
         window.addEventListener('galaxy-toc-item-clicked', (e: any) => {
           const { cellId } = e.detail;
           console.log('TOC item clicked:', cellId);
-          
+
           // 解析cellId，格式为 "kernelVersionId_cellIndex"
           const [kernelVersionId, cellIndexStr] = cellId.split('_');
           const cellIndex = parseInt(cellIndexStr);
-          
+
           // 找到对应的notebook
           const notebook = result1.find((nb: any) => nb.kernelVersionId === kernelVersionId);
           if (notebook) {
@@ -596,12 +890,12 @@ function activate(
               cellIndex,
               hasIndex: notebook.index !== undefined
             });
-            
+
             // 跳转到对应的cell
             window.dispatchEvent(new CustomEvent('galaxy-notebook-detail-jump', {
-              detail: { 
-                notebookIndex: notebookIndex, 
-                cellIndex: cellIndex 
+              detail: {
+                notebookIndex: notebookIndex,
+                cellIndex: cellIndex
               }
             }));
           } else {
@@ -614,9 +908,6 @@ function activate(
           handleNotebookSelected = function (e: any) {
             // 新建并显示 notebook 详情，深拷贝 notebook 数据
             const nb = JSON.parse(JSON.stringify(e.detail.notebook));
-            if (nb && nb.kernelVersionId) {
-              notebookCache.set(String(nb.kernelVersionId), nb);
-            }
             const nbDetailWidget = new NotebookDetailWidget(nb);
             nbDetailWidget.id = `notebook-detail-widget-${nb.kernelVersionId || nb.index || Date.now()}`;
             app.shell.add(nbDetailWidget, 'main');
@@ -624,7 +915,27 @@ function activate(
             notebookDetailIds.add(nbDetailWidget.id);
             nbDetailWidget.disposed.connect(() => {
               console.log('[galaxy] notebook detail widget disposed:', nbDetailWidget.id);
+              // 清理滚动同步状态
+              updateScrollSync();
             });
+
+            // 延迟更新滚动同步状态，避免频繁调用
+            setTimeout(() => updateScrollSync(), 100);
+
+            // 检查是否有分屏布局
+            if (hasSplitLayout()) {
+              console.log('[handleNotebookSelected] Split layout detected, collapsing sidebars');
+              // 收缩左右sidebar而不是关闭
+              if (typeof (app.shell as any).collapseLeft === 'function') {
+                (app.shell as any).collapseLeft();
+              }
+              if (typeof (app.shell as any).collapseRight === 'function') {
+                (app.shell as any).collapseRight();
+              }
+              // 在分屏布局下也需要更新滚动同步
+              setTimeout(() => updateScrollSync(), 100);
+              return; // 不创建sidebar，直接返回
+            }
 
             // 新建只显示该 notebook 的 flowchart
             // 确保 colorMap 包含该 notebook 中的所有 stage
@@ -735,6 +1046,8 @@ function activate(
   if (app.shell instanceof LabShell) {
     app.shell.layoutModified.connect(() => {
       closeSidebarsIfNoMainWidgets(app);
+      // 移除频繁的滚动同步更新
+      // updateScrollSync();
     });
 
     // 检查 notebook detail tab 是否被关闭，并在每次关闭时恢复 overview sidebar
@@ -763,33 +1076,36 @@ function activate(
       // 检查是否有 detail tab 被关闭，如果有则恢复 overview sidebar
       for (const oldId of notebookDetailIds) {
         if (!currentDetailIds.has(oldId)) {
-          console.log('[galaxy] Notebook detail widget no longer in main:', oldId);
+          // console.log('[galaxy] Notebook detail widget no longer in main:', oldId);
           // 当 notebook detail widget 被关闭时，立即恢复 overview sidebar
           if (result1 && matrixWidget && detailSidebar) {
-            console.log('✅ Detected detail tab closed. Restoring overview sidebar.');
-            
+            // console.log('✅ Detected detail tab closed. Restoring overview sidebar.');
+
             // 先清理现有的左侧 sidebar
             const leftWidgets = Array.from(app.shell.widgets('left'));
             for (const w of leftWidgets) {
               if (w.id === 'flow-chart-widget') w.close();
             }
-            
+
             // 重新创建或恢复 flowChartWidget
             if (!flowChartWidget || flowChartWidget.isDisposed) {
               flowChartWidget = new LeftSidebar(result1, colorMap);
             } else {
               flowChartWidget.setData(result1, colorMap);
             }
-            
+
             app.shell.add(flowChartWidget, 'left');
             app.shell.activateById(flowChartWidget.id);
-            
+
             const { mostFreqStage, mostFreqFlow } = flowChartWidget.getMostFrequentStageAndFlow();
             detailSidebar.setFilter(null);
             detailSidebar.setSummary(result1, mostFreqStage, mostFreqFlow, matrixWidget.getNotebookOrder());
             app.shell.add(detailSidebar, 'right');
             app.shell.activateById(detailSidebar.id);
           }
+
+          // 更新滚动同步状态
+          updateScrollSync();
         }
       }
 
@@ -802,6 +1118,19 @@ function activate(
     // 只在 layoutModified 里检测，不在 currentChanged/activeChanged 里检测
     app.shell.layoutModified.connect(() => {
       checkNotebookDetailWidgetStatus();
+      // 检查是否有分屏布局
+      if (hasSplitLayout()) {
+        // console.log('[layoutModified] Split layout detected, collapsing sidebars');
+        // 收缩左右sidebar而不是关闭
+        if (typeof (app.shell as any).collapseLeft === 'function') {
+          (app.shell as any).collapseLeft();
+        }
+        if (typeof (app.shell as any).collapseRight === 'function') {
+          (app.shell as any).collapseRight();
+        }
+      }
+      // 在布局变化时更新滚动同步状态
+      setTimeout(() => updateScrollSync(), 100);
     });
     // 用 MutationObserver 动态绑定 tab click delegate，保证 MyBinder/JupyterLab 任何时机都能绑定
     function bindTabClickDelegates() {
@@ -814,7 +1143,7 @@ function activate(
             }
             if (target && target.classList.contains('lm-TabBar-tab')) {
               const dataId = target.getAttribute('data-id');
-              console.log('[tab click-delegate] data-id:', dataId);
+              // console.log('[tab click-delegate] data-id:', dataId);
               // 通过 data-id 找到 widget
               const allWidgets = [
                 ...Array.from(app.shell.widgets('main')),
@@ -840,10 +1169,10 @@ function activate(
       document.querySelectorAll('.lm-TabBar-content').forEach(tabBar => {
         if (!(tabBar as any).__galaxyCloseBound) {
           tabBar.addEventListener('mousedown', (e) => {
-            console.log('[galaxy] mousedown event:', e.target, (e.target as HTMLElement)?.outerHTML);
+            // console.log('[galaxy] mousedown event:', e.target, (e.target as HTMLElement)?.outerHTML);
           });
           tabBar.addEventListener('click', (e) => {
-            console.log('[galaxy] click event:', e.target, (e.target as HTMLElement)?.outerHTML);
+            // console.log('[galaxy] click event:', e.target, (e.target as HTMLElement)?.outerHTML);
           });
           (tabBar as any).__galaxyCloseBound = true;
         }
@@ -860,9 +1189,9 @@ function activate(
         if (!(w as any).__galaxyDisposedBound) {
           w.disposed.connect(() => {
             if (w.id && w.id.startsWith('notebook-detail-widget-')) {
-              console.log('[galaxy] notebook detail widget disposed:', w.id);
+              // console.log('[galaxy] notebook detail widget disposed:', w.id);
             } else {
-              console.log('[galaxy] main widget disposed:', w.id);
+              // console.log('[galaxy] main widget disposed:', w.id);
               setTimeout(() => {
                 const widget = getActiveGalaxyWidget();
                 handleTabSwitch(widget);
