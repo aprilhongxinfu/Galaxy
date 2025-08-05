@@ -491,7 +491,6 @@ function activate(
       return;
     }
     const tabId = widget.id || '';
-    // console.log('[tab switch] widget.id:', tabId, widget);
 
     // 检查是否有分屏布局
     if (hasSplitLayout()) {
@@ -510,6 +509,9 @@ function activate(
 
     if (tabId.startsWith('notebook-detail-widget-') && widget.notebook) {
       // notebook detail tab
+      // 确保notebook detail widget可见并激活
+      ensureWidgetVisibleAndActive(widget);
+      
       const nb = widget.notebook;
       // 确保 colorMap 包含该 notebook 中的所有 stage
       const singleNotebookStages = new Set<string>();
@@ -535,11 +537,13 @@ function activate(
         app.shell.add(detailSidebar, 'right');
         app.shell.activateById(detailSidebar.id);
       }
-      // console.log('[tab switch] notebook detail:', nb);
       return;
     }
     if (tabId === 'matrix-widget') {
       // overview tab
+      // 确保matrix widget可见并激活
+      ensureWidgetVisibleAndActive(matrixWidget);
+      
       // 确保 colorMap 包含所有 stage
       const allStages = new Set<string>();
       result1.forEach((nb: any) => {
@@ -567,7 +571,6 @@ function activate(
         app.shell.add(detailSidebar, 'right');
         app.shell.activateById(detailSidebar.id);
       }
-      // console.log('[tab switch] matrix overview');
       return;
     }
     // 其它 tab 不更新 sidebar，但也不关闭sidebar
@@ -614,13 +617,41 @@ function activate(
     }
   }
 
+  // 辅助函数：确保widget可见并激活
+  function ensureWidgetVisibleAndActive(widget: any) {
+    if (!widget) return false;
+    
+    // 如果widget不可见，尝试激活它
+    if (!widget.isVisible) {
+      app.shell.activateById(widget.id);
+    }
+    
+    return widget.isVisible;
+  }
+
   // 恢复：获取主区域第一个 galaxy 相关 widget（优先 notebook-detail-widget，其次 matrix-widget）
   function getActiveGalaxyWidget() {
     const mainWidgets = Array.from(app.shell.widgets('main'));
+    
+    // 首先检查可见的galaxy widget
+    const visibleGalaxyWidgets = mainWidgets.filter(w => 
+      w.isVisible && (
+        (w.id && w.id.startsWith('notebook-detail-widget-')) ||
+        (w.id && w.id === 'matrix-widget')
+      )
+    );
+    
+    // 如果有可见的galaxy widget，优先使用第一个
+    if (visibleGalaxyWidgets.length > 0) {
+      return visibleGalaxyWidgets[0];
+    }
+    
+    // 如果没有可见的，按原来的逻辑查找
     let widget = mainWidgets.find(w => w.id && w.id.startsWith('notebook-detail-widget-'));
     if (!widget) {
       widget = mainWidgets.find(w => w.id && w.id === 'matrix-widget');
     }
+    
     return widget || null;
   }
 
@@ -1076,10 +1107,41 @@ function activate(
       // 检查是否有 detail tab 被关闭，如果有则恢复 overview sidebar
       for (const oldId of notebookDetailIds) {
         if (!currentDetailIds.has(oldId)) {
-          // console.log('[galaxy] Notebook detail widget no longer in main:', oldId);
+          console.log('[galaxy] Notebook detail widget no longer in main:', oldId);
+          
+          // 打印当前layout信息
+          try {
+            console.log('[Detail Tab Closed] Current layout after closing detail tab:', oldId);
+            
+                          // 检测关闭detail tab后切换到了哪个tab
+              setTimeout(() => {
+                // 获取当前激活的widget
+                const currentWidget = app.shell.currentWidget;
+                
+                // 检查哪个widget是当前可见的
+                const visibleWidgets = Array.from(app.shell.widgets('main')).filter(w => w.isVisible);
+                
+                // 检查DOM中的当前激活tab
+                const activeTabElement = document.querySelector('.lm-TabBar-tab.lm-mod-current');
+                const activeTabId = activeTabElement?.getAttribute('data-id');
+                
+                // 分析不一致的情况
+                if (currentWidget && visibleWidgets.length > 0 && !visibleWidgets.includes(currentWidget)) {
+                  console.log('[Detail Tab Closed] ⚠️ Current widget is not in visible widgets list!');
+                }
+                
+                if (activeTabId && currentWidget && activeTabId !== currentWidget.id) {
+                  console.log('[Detail Tab Closed] ⚠️ DOM active tab differs from shell.currentWidget!');
+                }
+                
+              }, 100); // 延迟100ms确保切换完成
+            
+          } catch (error) {
+            console.error('[Detail Tab Closed] Error getting layout info:', error);
+          }
+          
           // 当 notebook detail widget 被关闭时，立即恢复 overview sidebar
           if (result1 && matrixWidget && detailSidebar) {
-            // console.log('✅ Detected detail tab closed. Restoring overview sidebar.');
 
             // 先清理现有的左侧 sidebar
             const leftWidgets = Array.from(app.shell.widgets('left'));
@@ -1102,6 +1164,11 @@ function activate(
             detailSidebar.setSummary(result1, mostFreqStage, mostFreqFlow, matrixWidget.getNotebookOrder());
             app.shell.add(detailSidebar, 'right');
             app.shell.activateById(detailSidebar.id);
+            
+            // 确保matrix widget可见并激活
+            if (matrixWidget && !matrixWidget.isVisible) {
+              app.shell.activateById(matrixWidget.id);
+            }
           }
 
           // 更新滚动同步状态
@@ -1117,10 +1184,17 @@ function activate(
     }
     // 只在 layoutModified 里检测，不在 currentChanged/activeChanged 里检测
     app.shell.layoutModified.connect(() => {
+      // 打印layout变化信息
+      try {
+        console.log('[Layout Modified] Layout structure changed');
+      } catch (error) {
+        console.error('[Layout Modified] Error getting layout info:', error);
+      }
+      
       checkNotebookDetailWidgetStatus();
       // 检查是否有分屏布局
       if (hasSplitLayout()) {
-        // console.log('[layoutModified] Split layout detected, collapsing sidebars');
+        console.log('[layoutModified] Split layout detected, collapsing sidebars');
         // 收缩左右sidebar而不是关闭
         if (typeof (app.shell as any).collapseLeft === 'function') {
           (app.shell as any).collapseLeft();
@@ -1182,20 +1256,60 @@ function activate(
     const closeObserver = new MutationObserver(bindTabCloseDelegates);
     closeObserver.observe(document.body, { childList: true, subtree: true });
 
-    // 监听 main 区域 widget 的 disposed 事件，主要用于日志记录
+        // 监听 main 区域 widget 的 disposed 事件，主要用于日志记录
     function monitorMainWidgetDisposed() {
       const mainWidgets = Array.from(app.shell.widgets('main'));
       for (const w of mainWidgets) {
         if (!(w as any).__galaxyDisposedBound) {
           w.disposed.connect(() => {
+            // 打印当前layout信息
+            try {
+              console.log('[Tab Closed] Current layout after closing tab:', w.id);
+              
+              // 检测关闭tab后切换到了哪个tab
+              setTimeout(() => {
+                // 获取当前激活的widget
+                const currentWidget = app.shell.currentWidget;
+                
+                // 检查哪个widget是当前可见的
+                const visibleWidgets = Array.from(app.shell.widgets('main')).filter(w => w.isVisible);
+                
+                // 检查DOM中的当前激活tab
+                const activeTabElement = document.querySelector('.lm-TabBar-tab.lm-mod-current');
+                const activeTabId = activeTabElement?.getAttribute('data-id');
+                
+                // 分析不一致的情况
+                if (currentWidget && visibleWidgets.length > 0 && !visibleWidgets.includes(currentWidget)) {
+                  console.log('[Tab Closed] ⚠️ Current widget is not in visible widgets list!');
+                }
+                
+                if (activeTabId && currentWidget && activeTabId !== currentWidget.id) {
+                  console.log('[Tab Closed] ⚠️ DOM active tab differs from shell.currentWidget!');
+                }
+                
+              }, 100); // 延迟100ms确保切换完成
+              
+            } catch (error) {
+              console.error('[Tab Closed] Error getting layout info:', error);
+            }
+            
             if (w.id && w.id.startsWith('notebook-detail-widget-')) {
-              // console.log('[galaxy] notebook detail widget disposed:', w.id);
-            } else {
-              // console.log('[galaxy] main widget disposed:', w.id);
+              // 对于notebook detail widget的关闭，延迟处理以确保状态稳定
               setTimeout(() => {
                 const widget = getActiveGalaxyWidget();
-                handleTabSwitch(widget);
-              }, 0);
+                if (widget) {
+                  handleTabSwitch(widget);
+                } else {
+                  closeSidebarsIfNoMainWidgets(app);
+                }
+              }, 200); // 增加延迟时间，确保状态稳定
+            } else {
+              setTimeout(() => {
+                const widget = getActiveGalaxyWidget();
+                if (widget) {
+                  handleTabSwitch(widget);
+                }
+              }, 100);
             }
           });
           (w as any).__galaxyDisposedBound = true;
