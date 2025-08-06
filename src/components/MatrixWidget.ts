@@ -327,15 +327,37 @@ export class MatrixWidget extends Widget {
                 }
             });
             
-            // Second pass: map notebooks to clusters
+            // Second pass: map notebooks to clusters in CSV order
+            this.similarityGroups.forEach((simRow: any) => {
+                if (simRow.cluster_id && simRow.kernelVersionId) {
+                    // Find the notebook index in this.data that matches this kernelVersionId
+                    const notebookIndex = this.data.findIndex((nb, i) => {
+                        const kernelId = (nb as any).kernelVersionId?.toString();
+                        return kernelId === simRow.kernelVersionId.toString();
+                    });
+                    
+                    if (notebookIndex !== -1 && groupMap[simRow.cluster_id]) {
+                        // Only add if not already added (avoid duplicates)
+                        if (!groupMap[simRow.cluster_id].includes(notebookIndex)) {
+                            groupMap[simRow.cluster_id].push(notebookIndex);
+                        }
+                    }
+                }
+            });
+            
+            // Add any notebooks not found in CSV to ungrouped
             this.data.forEach((nb, i) => {
                 const kernelId = (nb as any).kernelVersionId?.toString();
                 const simRow = this.similarityGroups.find((row: any) => row.kernelVersionId === kernelId);
                 
-                if (simRow && simRow.cluster_id && groupMap[simRow.cluster_id]) {
-                    groupMap[simRow.cluster_id].push(i);
-                } else {
+                if (!simRow || !simRow.cluster_id) {
                     ungroupedNotebooks.push(i);
+                } else {
+                    // Check if this notebook is already in a group
+                    const isInGroup = Object.values(groupMap).some(group => group.includes(i));
+                    if (!isInGroup) {
+                        ungroupedNotebooks.push(i);
+                    }
                 }
             });
             
@@ -852,13 +874,18 @@ export class MatrixWidget extends Widget {
                         }
                         
                         tooltip.innerHTML = tooltipContent;
-                        // 如果有 similarityGroups，显示 cluster_id, similarity, label_integers
+                        // 如果有 similarityGroups，显示 cluster_id, sequence_length, similarity, label_integers
                         if (self.similarityGroups && self.similarityGroups.length > 0) {
                             const kernelId = (d as any).kernelVersionId?.toString();
                             const simRow = self.similarityGroups.find((row: any) => row.kernelVersionId === kernelId);
                             if (simRow) {
                                 tooltip.innerHTML += `<br>cluster_id: ${simRow.cluster_id}`;
-                                tooltip.innerHTML += `<br>similarity: ${simRow.similarity}`;
+                                if (simRow.sequence_length !== undefined) {
+                                    tooltip.innerHTML += `<br>sequence_length: ${simRow.sequence_length}`;
+                                }
+                                if (simRow.similarity !== undefined) {
+                                    tooltip.innerHTML += `<br>similarity: ${simRow.similarity}`;
+                                }
                             }
                         }
                         tooltip.style.display = 'block';
