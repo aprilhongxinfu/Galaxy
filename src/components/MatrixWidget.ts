@@ -313,31 +313,37 @@ export class MatrixWidget extends Widget {
             arr.sort((a, b) => this.sortState === 1 ? b.len - a.len : a.len - b.len);
             this.notebookOrder = arr.map(d => d.i);
         } else if (this.sortState === 3 && this.similarityGroups && this.similarityGroups.length > 0) {
-            // Group clustering - only use cluster_id, ignore similarity
-            // First, group notebooks by cluster_id
+            // Group clustering - preserve original CSV order
+            // First, group notebooks by cluster_id based on CSV order
             const groupMap: Record<string, number[]> = {};
             const ungroupedNotebooks: number[] = [];
+            const clusterOrder: string[] = []; // Track original order of clusters from CSV
             
+            // First pass: iterate through CSV data to establish cluster order
+            this.similarityGroups.forEach((simRow: any) => {
+                if (simRow.cluster_id && !clusterOrder.includes(simRow.cluster_id)) {
+                    clusterOrder.push(simRow.cluster_id); // Track first appearance order in CSV
+                    groupMap[simRow.cluster_id] = [];
+                }
+            });
+            
+            // Second pass: map notebooks to clusters
             this.data.forEach((nb, i) => {
                 const kernelId = (nb as any).kernelVersionId?.toString();
                 const simRow = this.similarityGroups.find((row: any) => row.kernelVersionId === kernelId);
                 
-                if (simRow && simRow.cluster_id) {
-                    if (!groupMap[simRow.cluster_id]) {
-                        groupMap[simRow.cluster_id] = [];
-                    }
+                if (simRow && simRow.cluster_id && groupMap[simRow.cluster_id]) {
                     groupMap[simRow.cluster_id].push(i);
                 } else {
                     ungroupedNotebooks.push(i);
                 }
             });
             
-            // Sort groups by cluster_id and flatten
-            const sortedGroupIds = Object.keys(groupMap).sort();
+            // Use original cluster appearance order from CSV
             this.notebookOrder = [];
             
-            // Add grouped notebooks first
-            sortedGroupIds.forEach(groupId => {
+            // Add grouped notebooks in original CSV order
+            clusterOrder.forEach(groupId => {
                 this.notebookOrder.push(...groupMap[groupId]);
             });
             
