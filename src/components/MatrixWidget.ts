@@ -832,8 +832,6 @@ export class MatrixWidget extends Widget {
                         
                         let tooltipContent = `Stage: ${typeof LABEL_MAP !== 'undefined' ? (LABEL_MAP[String(d["1st-level label"] ?? "None")] ?? d["1st-level label"] ?? "None") : (d["1st-level label"] ?? "None")}` +
                             `<br>Notebook Title: ${notebookTitle}` +
-                            `<br>cellId: ${d.cellId}` +
-                            `<br>cellType: ${d.cellType}` +
                             `<br>Lines: ${lineCount}`;
                         
                         // 工作流模式：显示合并信息
@@ -855,7 +853,6 @@ export class MatrixWidget extends Widget {
                             if (simRow) {
                                 tooltip.innerHTML += `<br>cluster_id: ${simRow.cluster_id}`;
                                 tooltip.innerHTML += `<br>similarity: ${simRow.similarity}`;
-                                tooltip.innerHTML += `<br>label_integers: ${simRow.label_integers}`;
                             }
                         }
                         tooltip.style.display = 'block';
