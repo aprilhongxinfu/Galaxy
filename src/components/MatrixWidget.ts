@@ -142,7 +142,7 @@ export class MatrixWidget extends Widget {
 
         // similarity排序按钮
         this.similaritySortButton = document.createElement('button');
-        this.similaritySortButton.title = 'Group clustering by group_id';
+        this.similaritySortButton.title = 'Group clustering by cluster_id';
         this.similaritySortButton.style.background = 'none';
         this.similaritySortButton.style.border = 'none';
         this.similaritySortButton.style.cursor = 'pointer';
@@ -313,8 +313,8 @@ export class MatrixWidget extends Widget {
             arr.sort((a, b) => this.sortState === 1 ? b.len - a.len : a.len - b.len);
             this.notebookOrder = arr.map(d => d.i);
         } else if (this.sortState === 3 && this.similarityGroups && this.similarityGroups.length > 0) {
-            // Group clustering - only use group_id, ignore similarity
-            // First, group notebooks by group_id
+            // Group clustering - only use cluster_id, ignore similarity
+            // First, group notebooks by cluster_id
             const groupMap: Record<string, number[]> = {};
             const ungroupedNotebooks: number[] = [];
             
@@ -322,17 +322,17 @@ export class MatrixWidget extends Widget {
                 const kernelId = (nb as any).kernelVersionId?.toString();
                 const simRow = this.similarityGroups.find((row: any) => row.kernelVersionId === kernelId);
                 
-                if (simRow && simRow.group_id) {
-                    if (!groupMap[simRow.group_id]) {
-                        groupMap[simRow.group_id] = [];
+                if (simRow && simRow.cluster_id) {
+                    if (!groupMap[simRow.cluster_id]) {
+                        groupMap[simRow.cluster_id] = [];
                     }
-                    groupMap[simRow.group_id].push(i);
+                    groupMap[simRow.cluster_id].push(i);
                 } else {
                     ungroupedNotebooks.push(i);
                 }
             });
             
-            // Sort groups by group_id and flatten
+            // Sort groups by cluster_id and flatten
             const sortedGroupIds = Object.keys(groupMap).sort();
             this.notebookOrder = [];
             
@@ -558,7 +558,7 @@ export class MatrixWidget extends Widget {
                 const kernelId = nb.kernelVersionId?.toString();
                 const simRow = this.similarityGroups.find((row: any) => row.kernelVersionId === kernelId);
                 if (simRow) {
-                    uniqueGroups.add(simRow.group_id);
+                    uniqueGroups.add(simRow.cluster_id);
                 }
             });
             groupSpacing = Math.max(0, uniqueGroups.size - 1) * groupGap;
@@ -699,7 +699,7 @@ export class MatrixWidget extends Widget {
             if (this.sortState === 3 && this.similarityGroups && this.similarityGroups.length > 0) {
                 const kernelId = nb.kernelVersionId?.toString();
                 const simRow = this.similarityGroups.find((simRow: any) => simRow.kernelVersionId === kernelId);
-                const currentGroupId = simRow ? simRow.group_id : null;
+                const currentGroupId = simRow ? simRow.cluster_id : null;
                 
                 // Add spacing if this is a new group (but not for the first group)
                 if (prevGroupId !== null && currentGroupId !== prevGroupId && currentGroupId !== null) {
@@ -848,12 +848,12 @@ export class MatrixWidget extends Widget {
                         }
                         
                         tooltip.innerHTML = tooltipContent;
-                        // 如果有 similarityGroups，显示 group_id, similarity, label_integers
+                        // 如果有 similarityGroups，显示 cluster_id, similarity, label_integers
                         if (self.similarityGroups && self.similarityGroups.length > 0) {
                             const kernelId = (d as any).kernelVersionId?.toString();
                             const simRow = self.similarityGroups.find((row: any) => row.kernelVersionId === kernelId);
                             if (simRow) {
-                                tooltip.innerHTML += `<br>group_id: ${simRow.group_id}`;
+                                tooltip.innerHTML += `<br>cluster_id: ${simRow.cluster_id}`;
                                 tooltip.innerHTML += `<br>similarity: ${simRow.similarity}`;
                                 tooltip.innerHTML += `<br>label_integers: ${simRow.label_integers}`;
                             }
