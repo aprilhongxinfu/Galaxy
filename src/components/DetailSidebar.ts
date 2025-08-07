@@ -120,7 +120,7 @@ export class DetailSidebar extends Widget {
     });
     this.setDefault();
     this.node.style.overflowY = 'auto';
-    this._hiddenStages = hiddenStages ?? new Set(['6', '1']);
+    this._hiddenStages = hiddenStages ?? new Set(['10', '12']);
     // 监听左侧 legend 显隐变化，自动刷新统计
     window.addEventListener('galaxy-hidden-stages-changed', (e: any) => {
       const arr = e.detail?.hiddenStages ?? [];
@@ -420,6 +420,24 @@ export class DetailSidebar extends Widget {
     this.node.innerHTML = `
       <div style="padding:28px 18px 18px 18px; font-size:15px; color:#222; max-width:420px; margin:0 auto;">
         <div style="font-size:20px; font-weight:700; margin-bottom:18px; line-height:1.2; word-break:break-all;" id="detail-sidebar-title"><span style="${this._getTitleStyle()}">Notebook ${nb.globalIndex !== undefined ? nb.globalIndex + 1 : ''}: ${nb.notebook_name ?? nb.kernelVersionId}</span></div>
+        
+        ${nb.creationDate || nb.totalLines ? `
+        <div style="display:flex; flex-direction:row; gap:18px; margin-bottom:18px;">
+          ${nb.creationDate ? `
+          <div style="flex:1;">
+            <div style="font-size:13px; color:#888;">Creation Date</div>
+            <div style="font-size:16px; font-weight:600;">${nb.creationDate}</div>
+          </div>
+          ` : ''}
+          ${nb.totalLines ? `
+          <div style="flex:1;">
+            <div style="font-size:13px; color:#888;">Total Lines</div>
+            <div style="font-size:16px; font-weight:600;">${nb.totalLines.toLocaleString()}</div>
+          </div>
+          ` : ''}
+        </div>
+        ` : ''}
+        
         <div style="display:flex; flex-direction:row; gap:18px; margin-bottom:18px;">
           <div style="flex:1;">
             <div style="font-size:13px; color:#888;">Total Cells</div>
@@ -957,7 +975,7 @@ export class DetailSidebar extends Widget {
     </div>
     <div class="galaxy-tab-content" data-tab-content="second" style="display:none;"></div>`;
     this.node.innerHTML = `<div style="padding:24px 18px 18px 18px; margin:18px 0; width:100%; font-size:15px; color:#222; box-sizing:border-box;">
-      <div style="font-size:17px; font-weight:600; margin-bottom:12px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;" id="detail-sidebar-title">
+      <div style="font-size:17px; font-weight:600; margin-bottom:12px; display:flex; align-items:center; gap:10px; flex-wrap;" id="detail-sidebar-title">
         <div style="display:flex; align-items:center; gap:8px;">
           <div class="dsb-back-btn" style="cursor: pointer; display: flex; align-items: center; gap: 4px;" title="Back to notebook overview">
             <svg width="16" height="16" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">

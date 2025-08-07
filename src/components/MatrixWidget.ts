@@ -30,9 +30,9 @@ export class MatrixWidget extends Widget {
     private similarityGroups: any[];
     private cellHeightMode: 'fixed' | 'dynamic' | 'workflow' = 'fixed'; // cell高度模式：固定、动态、工作流
     private showMarkdown: boolean = true; // markdown显示状态
-    private kernelTitleMap: Map<string, string> = new Map(); // 存储kernelVersionId到Title的映射
+    private kernelTitleMap: Map<string, { title: string; creationDate: string; totalLines: number }> = new Map(); // 存储kernelVersionId到Title的映射
 
-    constructor(data: Notebook[], colorScale: (label: string) => string, similarityGroups?: any[], kernelTitleMap?: Map<string, string>) {
+    constructor(data: Notebook[], colorScale: (label: string) => string, similarityGroups?: any[], kernelTitleMap?: Map<string, { title: string; creationDate: string; totalLines: number }>) {
         super();
         this.data = data.map((nb, i) => ({ ...nb, globalIndex: i }));
         this.colorScale = colorScale;
