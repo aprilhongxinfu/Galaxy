@@ -1,5 +1,5 @@
 import { Widget } from '@lumino/widgets';
-// import { LABEL_MAP } from './labelMap';
+import { LABEL_MAP } from './labelMap';
 import { colorMap } from './colorMap';
 import { RenderMimeRegistry, standardRendererFactories } from '@jupyterlab/rendermime';
 
@@ -901,6 +901,23 @@ export class NotebookDetailWidget extends Widget {
             contentDiv.appendChild(fallbackDiv);
           }
         } else if (cell.cellType === 'code') {
+          // 为code cell添加stage tag
+          const stageTag = document.createElement('div');
+          stageTag.style.display = 'flex';
+          stageTag.style.alignItems = 'center';
+          stageTag.style.marginBottom = '8px';
+          stageTag.style.fontSize = '11px';
+          stageTag.style.fontWeight = '600';
+          stageTag.style.color = stageColor; // 直接使用stage对应的颜色
+          stageTag.style.textTransform = 'uppercase';
+          stageTag.style.letterSpacing = '0.5px';
+          
+          const tagText = document.createElement('span');
+          tagText.textContent = LABEL_MAP[stage] || stage; // 使用LABEL_MAP映射到具体的stage名称
+          
+          stageTag.appendChild(tagText);
+          contentDiv.appendChild(stageTag);
+          
           // 创建代码内容 - 使用 Prism.js 官方行号插件
           const preElement = document.createElement('pre');
           preElement.classList.add('line-numbers');
