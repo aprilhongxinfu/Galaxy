@@ -31,8 +31,8 @@ export class NotebookDetailWidget extends Widget {
   private prismLoaded: boolean = false; // 用于判断 Prism.js 是否加载完成
   private jumpHandler: (event: Event) => void;
   private minimapEventsBound: boolean = false;
-  private prismObserver: IntersectionObserver | null = null; // 添加 Prism 观察器引用
   private cellSelectionUpdatePending: boolean = false; // 防止重复调用 updateCellSelection
+  private scrollTimeout: number | null = null; // 添加滚动防抖定时器
 
   // 获取当前tab ID
   private getTabId(): string {
@@ -238,10 +238,20 @@ export class NotebookDetailWidget extends Widget {
     // 监听 matrix 跳转事件
     window.addEventListener('galaxy-notebook-detail-jump', this.jumpHandler);
 
+    // 监听标签页可见性变化，确保切换时重新激活 Prism.js
+    document.addEventListener('visibilitychange', this.handleVisibilityChange.bind(this));
+
     // 如果 Prism.js 已经加载完成，defer 渲染到下一帧
     if (this.prismLoaded) {
       requestAnimationFrame(() => this.render());
     }
+    
+    // 标签页切换时的额外保障：确保 Prism.js 正确渲染
+    setTimeout(() => {
+      if (this.prismLoaded) {
+        this.activatePrismLineNumbers();
+      }
+    }, 100);
   }
 
   onBeforeDetach(): void {
@@ -257,11 +267,19 @@ export class NotebookDetailWidget extends Widget {
     window.removeEventListener('galaxy-flow-selected', this.flowSelectedHandler);
     // 移除跳转事件监听器
     window.removeEventListener('galaxy-notebook-detail-jump', this.jumpHandler);
+    // 移除标签页可见性变化监听器
+    document.removeEventListener('visibilitychange', this.handleVisibilityChange.bind(this));
 
-    // 清理 Prism.js 观察器
-    if (this.prismObserver) {
-      this.prismObserver.disconnect();
-      this.prismObserver = null;
+    // 清理滚动事件监听器
+    const scrollContainer = this.node.querySelector('#nbd-cell-list-scroll');
+    if (scrollContainer && (scrollContainer as any)._scrollHandler) {
+      scrollContainer.removeEventListener('scroll', (scrollContainer as any)._scrollHandler);
+    }
+
+    // 清理滚动防抖定时器
+    if (this.scrollTimeout) {
+      clearTimeout(this.scrollTimeout);
+      this.scrollTimeout = null;
     }
   }
 
@@ -472,39 +490,26 @@ export class NotebookDetailWidget extends Widget {
       return;
     }
   
-    // 懒加载高亮：只对前10个代码块或可视区域进行初始高亮
+    // 直接对所有代码块进行语法高亮，不使用懒加载
     const codeBlocks = this.node.querySelectorAll('pre code.language-python');
+    const totalBlocks = codeBlocks.length;
+    
+    if (totalBlocks === 0) {
+      console.warn('No code blocks found for highlighting');
+      return;
+    }
+    
+    console.log(`[NotebookDetailWidget] Highlighting ${totalBlocks} code blocks...`);
+    
+    // 直接高亮所有代码块
     codeBlocks.forEach((block, i) => {
-      if (i < 10 || block.closest('#nbd-cell-row-0')) {
+      if (!block.classList.contains('prism-highlighted')) {
         Prism.highlightElement(block as HTMLElement);
         block.classList.add('prism-highlighted');
       }
     });
-
-    // 使用 IntersectionObserver 监听滚动，对进入可视区域的代码块进行懒加载高亮
-    this.prismObserver = new IntersectionObserver((entries) => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting) {
-          const codeBlock = entry.target as HTMLElement;
-          if (!codeBlock.classList.contains('prism-highlighted')) {
-            Prism.highlightElement(codeBlock);
-            codeBlock.classList.add('prism-highlighted');
-          }
-          this.prismObserver?.unobserve(entry.target);
-        }
-      });
-    }, {
-      root: this.node.querySelector('#nbd-cell-list-scroll'),
-      rootMargin: '50px', // 提前50px开始高亮
-      threshold: 0.1
-    });
-
-    // 观察所有未高亮的代码块
-    codeBlocks.forEach((block) => {
-      if (!block.classList.contains('prism-highlighted')) {
-        this.prismObserver?.observe(block);
-      }
-    });
+    
+    console.log(`[NotebookDetailWidget] Successfully highlighted ${totalBlocks} code blocks`);
   }
 
   private loadPrismJS() {
@@ -999,10 +1004,10 @@ export class NotebookDetailWidget extends Widget {
         };
       });
       // cell 列表点击选中（只选中，不显示详情）
-      const cellList = this.node.querySelector('#nbd-cell-list-scroll');
-      if (cellList) {
+      const cellListContainer = this.node.querySelector('#nbd-cell-list-scroll');
+      if (cellListContainer) {
         // 选中cell的外层div（display:flex; flex-direction:row; align-items:stretch;）
-        const cellWrappers = Array.from(cellList.children) as HTMLElement[];
+        const cellWrappers = Array.from(cellListContainer.children) as HTMLElement[];
         cellWrappers.forEach((wrapper, idx) => {
           wrapper.onclick = (e) => {
             if (this.selectedCellIdx !== idx) {
@@ -1184,7 +1189,10 @@ export class NotebookDetailWidget extends Widget {
     // 延迟高亮执行,确保 DOM 完成后再运行
     // 只有当 Prism.js 已经加载完成时才尝试激活行号
     if (this.prismLoaded) {
-      setTimeout(() => this.activatePrismLineNumbers(), 30);
+      // 直接激活所有代码块的语法高亮
+      setTimeout(() => {
+        this.activatePrismLineNumbers();
+      }, 30);
     }
 
     // 使用 requestIdleCallback 延迟绑定 minimap 事件和滚动操作
@@ -1196,6 +1204,10 @@ export class NotebookDetailWidget extends Widget {
         if (autoScroll) {
           this.scrollToSelectedCell();
         }
+        // 最后的保障：确保所有代码块都被正确高亮
+        if (this.prismLoaded) {
+          this.activatePrismLineNumbers();
+        }
       });
     } else {
       // 降级到 setTimeout
@@ -1205,6 +1217,10 @@ export class NotebookDetailWidget extends Widget {
         this.updateCellSelection();
         if (autoScroll) {
           this.scrollToSelectedCell();
+        }
+        // 最后的保障：确保所有代码块都被正确高亮
+        if (this.prismLoaded) {
+          this.activatePrismLineNumbers();
         }
       }, 30);
     }
@@ -1330,6 +1346,27 @@ export class NotebookDetailWidget extends Widget {
     if (!minimapSvg) return;
     this.minimapEventsBound = true;
     
+    // 绑定滚动事件，确保滚动时也能正确高亮代码块
+    const scrollContainer = this.node.querySelector('#nbd-cell-list-scroll');
+    if (scrollContainer) {
+      const scrollHandler = () => {
+        // 使用防抖，避免频繁触发
+        if (this.scrollTimeout) {
+          clearTimeout(this.scrollTimeout);
+        }
+        this.scrollTimeout = setTimeout(() => {
+          // 滚动时重新激活 Prism.js，确保所有代码块都被高亮
+          if (this.prismLoaded) {
+            this.activatePrismLineNumbers();
+          }
+        }, 100);
+      };
+      
+      scrollContainer.addEventListener('scroll', scrollHandler);
+      // 保存引用以便后续清理
+      (scrollContainer as any)._scrollHandler = scrollHandler;
+    }
+    
     // 绑定 hover 事件（事件委托）
     minimapSvg.addEventListener('mouseover', (e) => {
       const target = e.target as SVGElement;
@@ -1381,10 +1418,10 @@ export class NotebookDetailWidget extends Widget {
     });
     
     // cell 列表点击选中（只选中，不显示详情）
-    const cellList = this.node.querySelector('#nbd-cell-list-scroll');
-    if (cellList) {
+    const cellListContainer = this.node.querySelector('#nbd-cell-list-scroll');
+    if (cellListContainer) {
       // 选中cell的外层div（display:flex; flex-direction:row; align-items:stretch;）
-      const cellWrappers = Array.from(cellList.children) as HTMLElement[];
+      const cellWrappers = Array.from(cellListContainer.children) as HTMLElement[];
       cellWrappers.forEach((wrapper, idx) => {
         wrapper.onclick = (e) => {
           if (this.selectedCellIdx !== idx) {
@@ -1400,8 +1437,21 @@ export class NotebookDetailWidget extends Widget {
     }
     
     // 恢复滚动位置
-    if (cellList && typeof prevScrollTop === 'number') {
-      cellList.scrollTop = prevScrollTop;
+    if (cellListContainer && typeof prevScrollTop === 'number') {
+      cellListContainer.scrollTop = prevScrollTop;
+    }
+  }
+
+  private handleVisibilityChange() {
+    if (document.hidden) {
+      // 标签页变为隐藏状态，此时不激活 Prism.js
+      console.log('[NotebookDetailWidget] Notebook tab is hidden.');
+    } else {
+      // 标签页变为可见状态，此时重新激活 Prism.js
+      console.log('[NotebookDetailWidget] Notebook tab is visible, reactivating Prism.js.');
+      if (this.prismLoaded) {
+        this.activatePrismLineNumbers();
+      }
     }
   }
 }
