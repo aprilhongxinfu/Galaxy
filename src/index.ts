@@ -115,7 +115,7 @@ function mergeTocData(notebooks: any[], tocData: any[]): any[] {
 }
 
 // 创建KernelVersionId到Title的映射
-async function createKernelTitleMap(competitionId: string): Promise<Map<string, string>> {
+async function createKernelTitleMap(competitionId: string): Promise<Map<string, { title: string; creationDate: string; totalLines: number }>> {
   try {
     // 动态加载CSV文件
     const csvPath = `src/data/kernel_data/competition_${competitionId}.csv`;
@@ -133,12 +133,14 @@ async function createKernelTitleMap(competitionId: string): Promise<Map<string, 
     const csvData = csvParse(model.content as string);
     // console.log(`CSV parsed, rows: ${csvData.length}, sample row:`, csvData[0]);
 
-    const titleMap = new Map<string, string>();
+    const titleMap = new Map<string, { title: string; creationDate: string; totalLines: number }>();
     csvData.forEach((row: any) => {
       const kernelVersionId = row.KernelVersionId?.toString();
       const title = row.Title;
+      const creationDate = row.CreationDate;
+      const totalLines = parseFloat(row.TotalLines) || 0;
       if (kernelVersionId && title) {
-        titleMap.set(kernelVersionId, title);
+        titleMap.set(kernelVersionId, { title, creationDate, totalLines });
       }
     });
 
@@ -151,18 +153,20 @@ async function createKernelTitleMap(competitionId: string): Promise<Map<string, 
   }
 }
 
-// 递归替换对象中的KernelVersionId为Title
-function replaceKernelVersionIdWithTitle(obj: any, titleMap: Map<string, string>): any {
+// 递归替换对象中的KernelVersionId为Title，并添加CreationDate和TotalLines信息
+function replaceKernelVersionIdWithTitle(obj: any, titleMap: Map<string, { title: string; creationDate: string; totalLines: number }>): any {
   if (Array.isArray(obj)) {
     return obj.map(item => replaceKernelVersionIdWithTitle(item, titleMap));
   } else if (obj && typeof obj === 'object') {
     const newObj: any = {};
     for (const [key, value] of Object.entries(obj)) {
       if (key === 'kernelVersionId' && typeof value === 'string') {
-        const title = titleMap.get(value);
-        if (title) {
-          newObj.notebook_name = title; // 替换为notebook_name字段
+        const titleInfo = titleMap.get(value);
+        if (titleInfo) {
+          newObj.notebook_name = titleInfo.title; // 替换为notebook_name字段
           newObj.kernelVersionId = value; // 保留kernelVersionId用于相似性分组匹配
+          newObj.creationDate = titleInfo.creationDate; // 添加创建日期
+          newObj.totalLines = titleInfo.totalLines; // 添加总行数
         } else {
           newObj.kernelVersionId = value; // 保持原值如果找不到对应的title
         }
@@ -836,7 +840,7 @@ function activate(
         const colorScale = (label: string) => colorMapModule.get(label) || '#fff';
 
         // 创建kernelTitleMap用于MatrixWidget
-        let kernelTitleMap = new Map<string, string>();
+        let kernelTitleMap = new Map<string, { title: string; creationDate: string; totalLines: number }>();
 
         // 重新获取competitionId
         let competitionIdForMatrix: string | null = null;
