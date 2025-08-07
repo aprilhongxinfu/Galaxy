@@ -120,7 +120,7 @@ export class DetailSidebar extends Widget {
     });
     this.setDefault();
     this.node.style.overflowY = 'auto';
-    this._hiddenStages = hiddenStages ?? new Set(['6', '1']);
+    this._hiddenStages = hiddenStages ?? new Set(['10', '12']);
     // 监听左侧 legend 显隐变化，自动刷新统计
     window.addEventListener('galaxy-hidden-stages-changed', (e: any) => {
       const arr = e.detail?.hiddenStages ?? [];
