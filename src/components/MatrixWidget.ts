@@ -46,6 +46,9 @@ export class MatrixWidget extends Widget {
             hasKernelTitleMap: !!kernelTitleMap,
             sampleKernelIds: this.data.slice(0, 3).map(nb => (nb as any).kernelVersionId)
         });
+        
+        // 初始化时重置状态，确保每次创建都是全新的状态
+        this.resetState();
         this.id = 'matrix-widget';
         this.title.label = 'Overview';
         this.title.closable = true;
@@ -583,10 +586,13 @@ export class MatrixWidget extends Widget {
             const uniqueGroups = new Set();
             notebookOrder.forEach(idx => {
                 const nb = notebooks[idx] as any;
-                const kernelId = nb.kernelVersionId?.toString();
-                const simRow = this.similarityGroups.find((row: any) => row.kernelVersionId === kernelId);
-                if (simRow) {
-                    uniqueGroups.add(simRow.cluster_id);
+                // 安全检查：确保kernelVersionId存在
+                if (nb && nb.kernelVersionId) {
+                    const kernelId = nb.kernelVersionId.toString();
+                    const simRow = this.similarityGroups.find((row: any) => row.kernelVersionId === kernelId);
+                    if (simRow) {
+                        uniqueGroups.add(simRow.cluster_id);
+                    }
                 }
             });
             groupSpacing = Math.max(0, uniqueGroups.size - 1) * groupGap;
@@ -725,8 +731,8 @@ export class MatrixWidget extends Widget {
             
             // Check if we need to add group spacing
             if (this.sortState === 3 && this.similarityGroups && this.similarityGroups.length > 0) {
-                const kernelId = nb.kernelVersionId?.toString();
-                const simRow = this.similarityGroups.find((simRow: any) => simRow.kernelVersionId === kernelId);
+                const kernelId = nb && nb.kernelVersionId ? nb.kernelVersionId.toString() : null;
+                const simRow = kernelId ? this.similarityGroups.find((simRow: any) => simRow.kernelVersionId === kernelId) : null;
                 const currentGroupId = simRow ? simRow.cluster_id : null;
                 
                 // Add spacing if this is a new group (but not for the first group)
@@ -809,7 +815,7 @@ export class MatrixWidget extends Widget {
 
                 const base = g
                     .append('rect')
-                    .datum({ ...cell, kernelVersionId: (nb as any).kernelVersionId, notebook_name: (nb as any).notebook_name })
+                    .datum({ ...cell, kernelVersionId: (nb as any)?.kernelVersionId || null, notebook_name: (nb as any)?.notebook_name || null })
                     .attr('x', columnPositions[colIdx] + 0)
                     .attr('y', cellY + 0)
                     .attr('width', cellWidth - 2)
@@ -845,7 +851,7 @@ export class MatrixWidget extends Widget {
                         const code = (d as any).source ?? (d as any).code ?? '';
                         const lineCount = code.split(/\r?\n/).length;
                         // 从kernelTitleMap中获取Title
-                        const kernelId = (d as any).kernelVersionId?.toString();
+                        const kernelId = (d as any)?.kernelVersionId?.toString();
                         const titleFromMap = kernelId ? self.kernelTitleMap.get(kernelId) : null;
                         const notebookTitle = titleFromMap || kernelId || 'Unknown';
                         
@@ -876,8 +882,8 @@ export class MatrixWidget extends Widget {
                         tooltip.innerHTML = tooltipContent;
                         // 如果有 similarityGroups，显示 cluster_id, sequence_length, similarity, label_integers
                         if (self.similarityGroups && self.similarityGroups.length > 0) {
-                            const kernelId = (d as any).kernelVersionId?.toString();
-                            const simRow = self.similarityGroups.find((row: any) => row.kernelVersionId === kernelId);
+                            const kernelId = (d as any)?.kernelVersionId?.toString();
+                            const simRow = kernelId ? self.similarityGroups.find((row: any) => row.kernelVersionId === kernelId) : null;
                             if (simRow) {
                                 tooltip.innerHTML += `<br>cluster_id: ${simRow.cluster_id}`;
                                 if (simRow.sequence_length !== undefined) {
@@ -1016,6 +1022,45 @@ export class MatrixWidget extends Widget {
         return this.notebookOrder;
     }
 
+    // 重置MatrixWidget状态，用于切换competition时
+    resetState(): void {
+        this.filter = null;
+        this.sortState = 0;
+        this.notebookOrder = this.data.map((_, i) => i);
+        (this as any)._assignmentFilter = '';
+        (this as any)._studentFilter = '';
+        this.cellHeightMode = 'fixed';
+        this.showMarkdown = true;
+        
+        // 只有在DOM元素已经创建时才更新按钮状态
+        if (this.sortButton) {
+            this.sortButton.innerHTML = this.getSortIcon();
+        }
+        if (this.similaritySortButton) {
+            this.similaritySortButton.innerHTML = this.getSimilaritySortIcon();
+        }
+        if (this.cellHeightButton) {
+            this.cellHeightButton.innerHTML = this.getCellHeightIcon();
+        }
+        if (this.markdownButton) {
+            this.markdownButton.innerHTML = this.getMarkdownIcon();
+        }
+        this.updateSortButtonState();
+        
+        // 只有在DOM元素已经创建时才重置筛选器
+        if (this.node) {
+            const assignmentSelect = this.node.querySelector('select') as HTMLSelectElement;
+            const studentSelect = this.node.querySelectorAll('select')[1] as HTMLSelectElement;
+            if (assignmentSelect) assignmentSelect.value = '';
+            if (studentSelect) studentSelect.value = '';
+        }
+        
+        // 清除保存的状态
+        const tabId = this.getTabId();
+        const stateKey = `_galaxyMatrixFilterState_${tabId}`;
+        delete (window as any)[stateKey];
+    }
+
     setFilter(selection: any) {
         this.filter = selection;
         this.drawMatrix();
@@ -1034,14 +1079,16 @@ export class MatrixWidget extends Widget {
 
     // 根据当前排序状态更新按钮样式和可用性
     private updateSortButtonState() {
-        if (this.sortState === 3) {
-            this.sortButton.style.opacity = '0.4';
-            this.sortButton.style.cursor = 'not-allowed';
-            this.sortButton.disabled = true;
-        } else {
-            this.sortButton.style.opacity = '1';
-            this.sortButton.style.cursor = 'pointer';
-            this.sortButton.disabled = false;
+        if (this.sortButton) {
+            if (this.sortState === 3) {
+                this.sortButton.style.opacity = '0.4';
+                this.sortButton.style.cursor = 'not-allowed';
+                this.sortButton.disabled = true;
+            } else {
+                this.sortButton.style.opacity = '1';
+                this.sortButton.style.cursor = 'pointer';
+                this.sortButton.disabled = false;
+            }
         }
     }
 

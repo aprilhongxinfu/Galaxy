@@ -69,20 +69,10 @@ async function loadTocData(competitionId: string): Promise<any[]> {
       }
     }
 
-    console.error('All paths failed for TOC loading');
-    console.log('Trying to list available files...');
-
-    // 尝试列出可用的文件
-    try {
-      const listing = await contentsManager.get('src/data/toc_data/', { type: 'directory' });
-      console.log('Available files in toc_data:', listing.content);
-    } catch (listError) {
-      console.error('Error listing directory:', listError);
-    }
-
+    console.log('TOC data file not found for competition:', competitionId);
     return [];
   } catch (error) {
-    console.warn(`Failed to load TOC data for competition ${competitionId}:`, error);
+    console.log(`TOC data file not found for competition ${competitionId}: src/data/toc_data/${competitionId}_toc.json`);
     return [];
   }
 }
@@ -148,7 +138,7 @@ async function createKernelTitleMap(competitionId: string): Promise<Map<string, 
     // console.log(`Sample entries:`, Array.from(titleMap.entries()).slice(0, 3));
     return titleMap;
   } catch (error) {
-    console.warn(`Failed to load kernel data for competition ${competitionId}:`, error);
+    console.log(`Kernel data file not found for competition ${competitionId}: src/data/kernel_data/competition_${competitionId}.csv`);
     return new Map();
   }
 }
@@ -693,7 +683,7 @@ function activate(
         if (
           selectedItems.length === 1 &&
           selectedItems[0].type === 'file' &&
-          selectedItems[0].path.endsWith('.json') && selectedItems[0].path.includes('18599')
+          selectedItems[0].path.endsWith('.json')
         ) {
           // 直接用 Contents API 读取 JSON 文件内容
           const contentsManager = app.serviceManager.contents;
@@ -706,56 +696,41 @@ function activate(
           const competitionId = extractCompetitionId(selectedItems[0].path);
           console.log('Extracted competition ID:', competitionId);
           if (competitionId) {
-            const titleMap = await createKernelTitleMap(competitionId);
-            result1 = replaceKernelVersionIdWithTitle(result1, titleMap);
-            console.log('Applied title mapping for competition:', competitionId);
+            try {
+              const titleMap = await createKernelTitleMap(competitionId);
+              result1 = replaceKernelVersionIdWithTitle(result1, titleMap);
+              console.log('Applied title mapping for competition:', competitionId);
+            } catch (e) {
+              console.log(`无法加载kernel数据: competition_${competitionId}.csv`);
+            }
 
-            // 加载并合并TOC数据
-            const tocData = await loadTocData(competitionId);
-            result1 = mergeTocData(result1, tocData);
-            console.log('Applied TOC data for competition:', competitionId);
+            // 加载并合并TOC数据（如果存在）
+            try {
+              const tocData = await loadTocData(competitionId);
+              result1 = mergeTocData(result1, tocData);
+              console.log('Applied TOC data for competition:', competitionId);
+            } catch (e) {
+              console.log(`TOC数据不存在，跳过: ${competitionId}_toc.json`);
+            }
           } else {
             console.log('No competition ID extracted from path');
           }
 
-          // 读取 CSV 文件
-          try {
-            const csvModel = await contentsManager.get('test-notebooks/18599_clustered.csv', { type: 'file', format: 'text', content: true });
-            similarityGroups = csvParse(csvModel.content as string);
-            // console.log('Loaded CSV:', similarityGroups);
-          } catch (e) {
-            alert('无法读取 18599_clustered.csv');
+          // 读取对应的 CSV 文件（如果存在）
+          if (competitionId) {
+            try {
+              const csvPath = `src/data/cluster_data/${competitionId}_clustered.csv`;
+              const csvModel = await contentsManager.get(csvPath, { type: 'file', format: 'text', content: true });
+              similarityGroups = csvParse(csvModel.content as string);
+              console.log(`成功加载聚类数据: ${competitionId}_clustered.csv`);
+            } catch (e) {
+              console.log(`聚类文件不存在，跳过: ${competitionId}_clustered.csv`);
+              similarityGroups = [];
+            }
+          } else {
             similarityGroups = [];
           }
-        } else if (
-          selectedItems.length === 1 &&
-          selectedItems[0].type === 'file' &&
-          selectedItems[0].path.endsWith('.json')
-        ) {
-          // 直接用 Contents API 读取 JSON 文件内容
-          const contentsManager = app.serviceManager.contents;
-          const model = await contentsManager.get(selectedItems[0].path, { type: 'file', format: 'text', content: true });
-          result1 = JSON.parse(model.content as string);
-          // console.log('Loaded JSON:', result1);
 
-          // 提取competition ID并创建title映射
-          console.log('Extracting competition ID from path (second case):', selectedItems[0].path);
-          const competitionId = extractCompetitionId(selectedItems[0].path);
-          console.log('Extracted competition ID (second case):', competitionId);
-          if (competitionId) {
-            const titleMap = await createKernelTitleMap(competitionId);
-            result1 = replaceKernelVersionIdWithTitle(result1, titleMap);
-            console.log('Applied title mapping for competition (second case):', competitionId);
-
-            // 加载并合并TOC数据
-            const tocData = await loadTocData(competitionId);
-            result1 = mergeTocData(result1, tocData);
-            console.log('Applied TOC data for competition (second case):', competitionId);
-          } else {
-            console.log('No competition ID extracted from path (second case)');
-          }
-
-          similarityGroups = [];
         } else {
           // 原有的后端 fetch 逻辑
           const selectedPaths = selectedItems
@@ -788,13 +763,10 @@ function activate(
             const path = selectedPaths[0];
             let competitionId: string | null = null;
 
-            // 从路径中提取competition ID
-            if (path.includes('18599')) {
-              competitionId = '18599';
-            } else if (path.includes('35332')) {
-              competitionId = '35332';
-            } else if (path.includes('50160')) {
-              competitionId = '50160';
+            // 从路径中提取competition ID - 支持任何数字ID
+            const match = path.match(/(\d+)/);
+            if (match) {
+              competitionId = match[1];
             }
 
             if (competitionId) {
