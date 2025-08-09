@@ -41,7 +41,7 @@ export class LeftSidebar extends Widget {
     constructor(data: Notebook[], colorMap: Map<string, string>) {
         super();
         this.id = 'flow-chart-widget';
-        this.title.label = 'Flow Chart';
+        this.title.label = 'Workflow';
         this.title.closable = true;
         this.addClass('flow-chart-widget');
         this.data = data;
@@ -82,7 +82,7 @@ export class LeftSidebar extends Widget {
         this.node.style.flexDirection = 'column';
         this.node.style.height = '100%';
         this.node.style.padding = '16px 16px 12px 16px'; // 统一内边距
-        this.node.style.minWidth = '300px'; // 保证sidebar最小宽度不小于SVG
+        this.node.style.minWidth = '340px'; // 保证sidebar最小宽度不小于SVG
 
         // 右上角重置排序 icon
         const resetDiv = document.createElement('div');
@@ -124,7 +124,7 @@ export class LeftSidebar extends Widget {
         this.legendDiv.style.flex = 'none';
         this.legendDiv.style.margin = '0';
         this.legendDiv.style.padding = '0';
-        this.legendDiv.style.height = '100px';
+        this.legendDiv.style.height = '180px'; // 增加高度
         this.node.appendChild(this.legendDiv);
 
         // SVG 渲染到中间
@@ -134,9 +134,8 @@ export class LeftSidebar extends Widget {
         svgElement.style.width = '100%';
         svgElement.style.overflow = 'visible';
         svgElement.style.flex = '1 1 auto';
-        svgElement.style.height = '85%';  // 关键：撑满 chartContainer
+        svgElement.style.height = '100%';  // 关键：撑满 chartContainer
         svgElement.style.marginBottom = '0';  // 去掉底部冗余间距
-        svgElement.style.maxHeight = '85%';
         chartContainer.appendChild(svgElement);
         this.svg = d3.select(svgElement);
 
@@ -163,7 +162,7 @@ export class LeftSidebar extends Widget {
             // 如果是 notebook detail 模式，只处理当前 tab 的事件
             const currentTabId = this.getTabId();
             // console.log('[LeftSidebar] Current tabId:', currentTabId, 'Event tabId:', tabId);
-            
+
             // 如果事件来自 notebook detail widget，总是处理（因为 overview 需要响应所有 notebook 的清除）
             if (tabId && tabId.startsWith('notebook-detail-widget-')) {
                 // console.log('[LeftSidebar] Processing selection clear event from notebook detail widget');
@@ -222,7 +221,7 @@ export class LeftSidebar extends Widget {
             const filteredData = e.detail?.notebooks ?? [];
             this.setData(filteredData, this.colorMap);
         });
-        
+
         // 监听 notebook 排序变化事件，保持 selection 状态
         window.addEventListener('galaxy-notebook-order-changed', (e: any) => {
             // 重新渲染以应用视觉效果
@@ -233,6 +232,84 @@ export class LeftSidebar extends Widget {
     }
 
     private render(): void {
+        // 添加距离比例箭头
+        const addDistanceBasedArrow = (path: d3.Selection<SVGPathElement, unknown, null, undefined>, arrowSize = 6) => {
+            const pathNode = path.node();
+            if (!pathNode) return;
+
+            const totalLength = pathNode.getTotalLength();
+            if (totalLength === 0) return;
+
+            // 起点终点
+            const start = pathNode.getPointAtLength(0);
+            const end = pathNode.getPointAtLength(totalLength);
+
+            // 计算距离
+            const dx = end.x - start.x;
+            const dy = end.y - start.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+
+            // 根据距离决定箭头位置比例 - 都靠近终点
+            let arrowPosition = 0.7; // 默认靠近终点
+            if (distance > 300) {
+                arrowPosition = 0.6; // 长距离，稍微远离终点
+            } else if (distance > 150) {
+                arrowPosition = 0.65; // 中等距离
+            } else {
+                arrowPosition = 0.75; // 短距离，更靠近终点
+            }
+
+            // 获取flow源头的颜色
+            const fromStage = pathNode.getAttribute("data-from-stage");
+            const sourceColor = fromStage
+                ? this.colorMap.get(fromStage) || "#2c3e50"
+                : "#2c3e50";
+
+            // 智能调整箭头大小
+            const flowStrokeWidth = parseFloat(
+                pathNode.getAttribute("stroke-width") || "1",
+            );
+            let finalArrowSize;
+            if (flowStrokeWidth > 8) {
+                finalArrowSize = flowStrokeWidth * 0.8;
+            } else {
+                const adjustedArrowSize = Math.min(arrowSize, totalLength * 0.15);
+                finalArrowSize = Math.max(adjustedArrowSize, 4);
+            }
+
+            const parentNode = pathNode.parentNode as Element;
+            if (!parentNode) return;
+
+            // 在指定位置添加单个箭头
+            const length = totalLength * arrowPosition;
+            const pt = pathNode.getPointAtLength(length);
+
+            // 计算箭头角度
+            const before = pathNode.getPointAtLength(Math.max(0, length - 2));
+            const after = pathNode.getPointAtLength(Math.min(totalLength, length + 2));
+            const angleRad = Math.atan2(after.y - before.y, after.x - before.x);
+            let bestAngle = (angleRad * 180) / Math.PI + 180; // 旋转180度修正方向
+
+            // 添加箭头
+            d3.select(parentNode)
+                .append("g")
+                .attr("class", "distance-arrow")
+                .attr(
+                    "transform",
+                    `translate(${pt.x}, ${pt.y}) rotate(${bestAngle})`,
+                )
+                .append("path")
+                .attr(
+                    "d",
+                    `M ${-finalArrowSize / 2} 0 L ${finalArrowSize / 2} ${-finalArrowSize / 2} L ${finalArrowSize / 2} ${finalArrowSize / 2} Z`,
+                )
+                .attr("fill", sourceColor)
+                .attr("stroke", sourceColor)
+                .attr("stroke-width", 1.2)
+                .attr("stroke-linejoin", "round")
+                .attr("opacity", 1);
+        };
+
         // --- 更新顶部标题和返回按钮 ---
         let header = this.node.querySelector('.galaxy-header') as HTMLDivElement;
         if (!header) {
@@ -247,7 +324,7 @@ export class LeftSidebar extends Widget {
             header.style.gap = '8px';
             this.node.appendChild(header);
         }
-        
+
         // 根据 selection 类型渲染标题和返回按钮
         if (this.selection?.type === 'stage') {
             header.innerHTML = `
@@ -270,7 +347,7 @@ export class LeftSidebar extends Widget {
         } else {
             header.innerHTML = '';
         }
-        
+
         // 绑定返回按钮的点击事件
         const backButton = header.querySelector('div');
         if (backButton) {
@@ -293,14 +370,10 @@ export class LeftSidebar extends Widget {
         this.svg.selectAll('*').remove();
         // const svgNode = this.svg.node()!;
         // 预留 legend 区域高度，保证legend始终可见且不重叠
-        const legendAreaHeight = 120;
-        const chartPadding = 40;  // 保证底部 legend 有空间
-        // 根据 stageData 中最后一个 stage 的 y 值和 block size 估算需要的逻辑高度
-        const lastStage = this.stageData[this.stageData.length - 1];
-        const lastY = (lastStage?.norm_pos ?? 1) * 1.0;  // 如果没有 norm_pos 则用 1
-        const estimatedVirtualHeight = d3.scaleLinear().domain([0, 1]).range([10, 800])(lastY) + 80;
-        // 最终逻辑高度（不包含legend）
-        const virtualHeight = Math.max(estimatedVirtualHeight, 1000);
+        const legendAreaHeight = 220; // 增加高度
+        const chartPadding = 30;  // 减少底部padding
+        // 计算SVG高度，基于yScale的范围
+        const virtualHeight = 1000; // 使用固定的逻辑高度
         // SVG总高度 = flowchart高度 + legend区域
         const svgHeight = virtualHeight + chartPadding + legendAreaHeight;
         // 设置 viewBox
@@ -367,10 +440,10 @@ export class LeftSidebar extends Widget {
             d.norm_pos = normVisibleStages.length > 1 ? i / (normVisibleStages.length - 1) : 0.5;
         });
 
-        // const yScale = d3.scaleLinear().domain([0, 1]).range([10, 850]);
-        const yScale = d3.scaleLinear().domain([0, 1]).range([10, virtualHeight]);
-        const maxCount = d3.max(this.stageData, (d) => d.count) || 1;
-        const sizeScale = d3.scaleLinear().domain([0, maxCount]).range([10, 60]);
+        // 使用yScale来分布block的位置
+        const yScale = d3.scaleLinear().domain([0, 1]).range([10, virtualHeight + 100]);
+        const renderMaxCount = d3.max(this.stageData, (d) => d.count) || 1;
+        const sizeScale = d3.scaleLinear().domain([0, renderMaxCount]).range([20, 80]);
         const colorMap = this.colorMap;
 
         // flow 粗细最大值不超过 block 最小边长的 60%
@@ -403,8 +476,8 @@ export class LeftSidebar extends Widget {
 
         const svg = this.svg;
         const defs = svg.append("defs");
-        const g = svg.append("g").attr("transform", "translate(200, 50)");
-        
+        const g = svg.append("g").attr("transform", "translate(200, 0)");
+
         // 添加SVG背景点击事件，用于清除selection
         svg.on("click", (event) => {
             // 如果点击的是SVG背景（不是具体的元素），则清除selection
@@ -426,18 +499,22 @@ export class LeftSidebar extends Widget {
         const visibleStages = this.stageData.filter(d => !this.hiddenStages.has(d.stage) && d.count > 0);
         // 重新构建 stageMap 只包含可见且 count>0 的 stage
         const stageMap = new Map<string, { x: number; y: number; width: number; height: number; centerX: number; centerY: number }>();
+
         visibleStages.forEach((d) => {
-            const y = yScale(d.norm_pos!);
-            const size = sizeScale(d.count);
+            const width = 60; // 固定宽度
+            const height = sizeScale(d.count); // 高度根据count变化
+            const x = -width / 2; // 居中
+            const y = yScale(d.norm_pos!); // 使用yScale分布位置
+
             d.y = y;
-            d.size = size;
+            d.size = height;
             stageMap.set(d.stage, {
-                x: 0,
+                x,
                 y,
-                width: size,
-                height: size,
-                centerX: size,
-                centerY: y + size / 2
+                width,
+                height,
+                centerX: x + width / 2,
+                centerY: y + height / 2
             });
         });
 
@@ -454,8 +531,11 @@ export class LeftSidebar extends Widget {
                 if (Math.abs(event.y - dragStartY) > 3) {
                     isDragging = true;
                 }
-                d3.select(event.sourceEvent.target)
-                    .attr('y', event.y - d.size! / 2);
+                const stageInfo = stageMap.get(d.stage);
+                if (stageInfo) {
+                    d3.select(event.sourceEvent.target)
+                        .attr('y', event.y - stageInfo.height / 2);
+                }
             })
             .on('end', (event, d) => {
                 if (isDragging) {
@@ -500,10 +580,10 @@ export class LeftSidebar extends Widget {
             const toPos = stageMap.get(to);
             if (!fromPos || !toPos) return; // 只渲染可见的
 
-            const x1 = fromPos.x;
-            const y1 = fromPos.y;
-            const x2 = toPos.x;
-            const y2 = toPos.y;
+            const x1 = fromPos.centerX;
+            const y1 = fromPos.centerY;
+            const x2 = toPos.centerX;
+            const y2 = toPos.centerY;
             const side = y2 > y1 ? 1 : -1;
 
             const dy = Math.abs(y2 - y1);
@@ -527,6 +607,8 @@ export class LeftSidebar extends Widget {
                 .attr("d", `M${x1},${y1} C${ctrlX1},${y1} ${ctrlX2},${y2} ${x2},${y2}`)
                 .attr("stroke", `url(#${gradientId})`)
                 .attr("stroke-width", strokeScale(count))
+                .attr("data-original-stroke-width", strokeScale(count))
+                .attr("data-from-stage", from)
                 .attr("fill", "none")
                 .attr("opacity", 0.7)
                 .attr("class", (d) => `flow-link link-from-${from} link-to-${to}` + (this.selection && this.selection.type === 'flow' && this.selection.from === from && this.selection.to === to ? ' selected' : ''))
@@ -534,8 +616,16 @@ export class LeftSidebar extends Widget {
                     // 只有在没有选中状态时才应用hover效果
                     if (!this.selection) {
                         d3.selectAll(".flow-link").attr("opacity", 0.05);
-                        d3.selectAll(`.link-from-${from}.link-to-${to}`).attr("opacity", 1);
-                        // hover flow时不改变border样式，只高亮flow link
+                        const highlightedLinks = d3.selectAll(`.link-from-${from}.link-to-${to}`).attr("opacity", 1);
+
+                        // 添加箭头
+                        highlightedLinks.each(function () {
+                            const linkElement = d3.select(this);
+                            const strokeWidth = parseFloat(linkElement.attr("data-original-stroke-width") || "1");
+                            const arrowSize = Math.max(8, strokeWidth * 1.5);
+                            addDistanceBasedArrow(linkElement as any, arrowSize);
+                        });
+
                         // 联动高亮 matrix pattern
                         window.dispatchEvent(new CustomEvent('galaxy-transition-hover', { detail: { from, to } }));
                     }
@@ -553,15 +643,15 @@ export class LeftSidebar extends Widget {
                     // 只有在没有选中状态时才恢复默认样式
                     if (!this.selection) {
                         d3.selectAll(".flow-link").attr("opacity", 0.7);
+                        // 清除动态创建的箭头
+                        d3.selectAll(".distance-arrow").remove();
                         // hover离开时恢复默认的border样式
                         d3.selectAll(`.stage-rect`).each((d, i, nodes) => {
                             const rect = d3.select(nodes[i]);
                             const stage = rect.datum() as StageDatum;
                             const group = STAGE_GROUP_MAP[stage.stage];
-                            if (group === 'Data-oriented') {
-                                rect.attr("stroke", "#2E86AB").attr("stroke-width", 2).attr("stroke-dasharray", "none");
-                            } else if (group === 'Model-oriented') {
-                                rect.attr("stroke", "#A23B72").attr("stroke-width", 2).attr("stroke-dasharray", "4,2");
+                            if (group === 'Data-oriented' || group === 'Model-oriented') {
+                                rect.attr("stroke", "#666666").attr("stroke-width", 2).attr("stroke-dasharray", group === 'Model-oriented' ? "4,2" : "none");
                             } else {
                                 rect.attr("stroke", "none").attr("stroke-width", 0);
                             }
@@ -607,18 +697,18 @@ export class LeftSidebar extends Widget {
             .data(visibleStages)
             .enter()
             .append('rect')
-            .attr('x', (d) => stageMap.get(d.stage)!.x - sizeScale(d.count) / 2)
-            .attr('y', (d) => stageMap.get(d.stage)!.y - sizeScale(d.count) / 2)
-            .attr('width', (d) => sizeScale(d.count))
-            .attr('height', (d) => sizeScale(d.count))
+            .attr('x', (d) => stageMap.get(d.stage)!.x)
+            .attr('y', (d) => stageMap.get(d.stage)!.y)
+            .attr('width', (d) => stageMap.get(d.stage)!.width)
+            .attr('height', (d) => stageMap.get(d.stage)!.height)
+            .attr('rx', 6) // 添加圆角
+            .attr('ry', 6) // 添加圆角
             .attr('fill', (d) => colorMap.get(d.stage) || '#ccc')
             .attr('class', (d) => `stage-rect stage-${d.stage}` + (this.selection && this.selection.type === 'stage' && this.selection.stage === d.stage ? ' selected' : ''))
             .attr('stroke', (d) => {
                 const group = STAGE_GROUP_MAP[d.stage];
-                if (group === 'Data-oriented') {
-                    return '#2E86AB'; // 蓝色实线
-                } else if (group === 'Model-oriented') {
-                    return '#A23B72'; // 紫色虚线
+                if (group === 'Data-oriented' || group === 'Model-oriented') {
+                    return '#666666'; // 统一使用灰色
                 }
                 return 'none'; // 其他类别无border
             })
@@ -636,67 +726,80 @@ export class LeftSidebar extends Widget {
                 }
                 return 'none'; // 实线样式
             })
-                            .on("mouseover", (event, d) => {
-                    const stage = d.stage;
-                    // 只有在没有选中状态时才应用hover效果
-                    if (!this.selection) {
-                        d3.selectAll(".flow-link").attr("opacity", 0.05);
-                        d3.selectAll(`.link-from-${stage}, .link-to-${stage}`).attr("opacity", 0.9);
-                        // hover时不改变border样式，只高亮flow links
-                        // 联动高亮
-                        window.dispatchEvent(new CustomEvent('galaxy-stage-hover', { detail: { stage } }));
-                    } else {
-                        // 如果有选中状态，不触发hover事件，避免minimap高亮
-                    }
-                    // tooltip
-                    const tooltip = document.getElementById('galaxy-tooltip');
-                    tooltip!.innerHTML = `${LABEL_MAP[stage] ?? stage}<br>Count: ${d.count}`;
-                    tooltip!.style.display = 'block';
-                })
+            .on("mouseover", (event, d) => {
+                const stage = d.stage;
+                // 只有在没有选中状态时才应用hover效果
+                if (!this.selection) {
+                    d3.selectAll(".flow-link").attr("opacity", 0.05);
+                    const highlightedLinks = d3.selectAll(`.link-from-${stage}, .link-to-${stage}`).attr("opacity", 0.9);
+
+                    // 添加箭头
+                    highlightedLinks.each(function () {
+                        const linkElement = d3.select(this);
+                        const strokeWidth = parseFloat(linkElement.attr("data-original-stroke-width") || "1");
+                        const arrowSize = Math.max(8, strokeWidth * 1.5);
+                        addDistanceBasedArrow(linkElement as any, arrowSize);
+                    });
+
+                    // 联动高亮
+                    window.dispatchEvent(new CustomEvent('galaxy-stage-hover', { detail: { stage } }));
+                } else {
+                    // 如果有选中状态，不触发hover事件，避免minimap高亮
+                }
+                // tooltip
+                const tooltip = document.getElementById('galaxy-tooltip');
+                const group = STAGE_GROUP_MAP[stage];
+                // 只有 Data-oriented 和 Model-oriented 需要标注
+                const groupLabel = (group === 'Data-oriented' || group === 'Model-oriented') ? ` (${group})` : '';
+                tooltip!.innerHTML = `${LABEL_MAP[stage] ?? stage}${groupLabel}<br>Count: ${d.count}`;
+                tooltip!.style.display = 'block';
+            })
             .on("mousemove", (event) => {
                 const tooltip = document.getElementById('galaxy-tooltip');
                 tooltip!.style.left = event.clientX + 12 + 'px';
                 tooltip!.style.top = event.clientY + 12 + 'px';
             })
-                            .on("mouseout", (event, d) => {
-                                            // 只有在没有选中状态时才恢复默认样式
-                        if (!this.selection) {
-                            d3.selectAll(".flow-link").attr("opacity", 0.7);
-                            // hover离开时恢复默认的border样式
-                            d3.selectAll(`.stage-rect`).each((d, i, nodes) => {
-                                const rect = d3.select(nodes[i]);
-                                const stage = rect.datum() as StageDatum;
-                                const group = STAGE_GROUP_MAP[stage.stage];
-                                if (group === 'Data-oriented') {
-                                    rect.attr("stroke", "#2E86AB").attr("stroke-width", 2).attr("stroke-dasharray", "none");
-                                } else if (group === 'Model-oriented') {
-                                    rect.attr("stroke", "#A23B72").attr("stroke-width", 2).attr("stroke-dasharray", "4,2");
-                                } else {
-                                    rect.attr("stroke", "none").attr("stroke-width", 0);
-                                }
-                            });
-                            // 联动高亮取消
-                            window.dispatchEvent(new CustomEvent('galaxy-stage-hover', { detail: { stage: null } }));
+            .on("mouseout", (event, d) => {
+                // 只有在没有选中状态时才恢复默认样式
+                if (!this.selection) {
+                    d3.selectAll(".flow-link").attr("opacity", 0.7);
+                    // 清除动态创建的箭头
+                    d3.selectAll(".distance-arrow").remove();
+                    // hover离开时恢复默认的border样式
+                    d3.selectAll(`.stage-rect`).each((d, i, nodes) => {
+                        const rect = d3.select(nodes[i]);
+                        const stage = rect.datum() as StageDatum;
+                        const group = STAGE_GROUP_MAP[stage.stage];
+                        if (group === 'Data-oriented' || group === 'Model-oriented') {
+                            rect.attr("stroke", "#666666").attr("stroke-width", 2).attr("stroke-dasharray", group === 'Model-oriented' ? "4,2" : "none");
                         } else {
-                            // 如果有选中状态，直接应用选中效果
-                            if (this.selection.type === 'flow') {
-                                d3.selectAll(".flow-link").attr("opacity", 0.05);
-                                d3.selectAll(`.link-from-${this.selection.from}.link-to-${this.selection.to}`).attr("opacity", 1);
-                                // 选中状态下保持原有border样式，只增加宽度
-                                d3.selectAll(`.stage-${this.selection.from}, .stage-${this.selection.to}`)
-                                    .attr("stroke-width", 3);
-                            } else if (this.selection.type === 'stage') {
-                                d3.selectAll(".flow-link").attr("opacity", 0.05);
-                                d3.selectAll(`.link-from-${this.selection.stage}, .link-to-${this.selection.stage}`).attr("opacity", 0.9);
-                                // 选中状态下保持原有border样式，只增加宽度
-                                d3.selectAll(`.stage-${this.selection.stage}`)
-                                    .attr("stroke-width", 4);
-                            }
+                            rect.attr("stroke", "none").attr("stroke-width", 0);
                         }
-                    // tooltip
-                    const tooltip = document.getElementById('galaxy-tooltip');
-                    tooltip!.style.display = 'none';
-                })
+                    });
+                    // 联动高亮取消
+                    window.dispatchEvent(new CustomEvent('galaxy-stage-hover', { detail: { stage: null } }));
+                } else {
+                    // 如果有选中状态，直接应用选中效果
+                    if (this.selection.type === 'flow') {
+                        d3.selectAll(".flow-link").attr("opacity", 0.05);
+                        d3.selectAll(`.link-from-${this.selection.from}.link-to-${this.selection.to}`).attr("opacity", 1);
+                        // 选中状态下保持原有border样式，只增加宽度
+                        d3.selectAll(`.stage-${this.selection.from}, .stage-${this.selection.to}`)
+                            .attr("stroke", "#666666")
+                            .attr("stroke-width", 3);
+                    } else if (this.selection.type === 'stage') {
+                        d3.selectAll(".flow-link").attr("opacity", 0.05);
+                        d3.selectAll(`.link-from-${this.selection.stage}, .link-to-${this.selection.stage}`).attr("opacity", 0.9);
+                        // 选中状态下保持原有border样式，只增加宽度
+                        d3.selectAll(`.stage-${this.selection.stage}`)
+                            .attr("stroke", "#666666")
+                            .attr("stroke-width", 4);
+                    }
+                }
+                // tooltip
+                const tooltip = document.getElementById('galaxy-tooltip');
+                tooltip!.style.display = 'none';
+            })
             .on("pointerup", (event, d) => {
                 if (isDragging) return;
                 this.selection = { type: 'stage', stage: d.stage };
@@ -725,83 +828,343 @@ export class LeftSidebar extends Widget {
 
         // --- legend 渲染到底部 div ---
         this.legendDiv.innerHTML = '';
-        // legend 分两列，左右总数尽量相等，所有隐藏项都放右列末尾
-        const legendVisibleStages = this.stageData.filter(d => !this.hiddenStages.has(d.stage) && d.count > 0);
-        const legendHiddenStages = this.stageData.filter(d => this.hiddenStages.has(d.stage) && d.count > 0);
-        const total = legendVisibleStages.length + legendHiddenStages.length;
-        const leftCount = Math.ceil(total / 2);
-        let leftCol: typeof this.stageData = [];
-        let rightCol: typeof this.stageData = [];
-        let visibleLeftCount = Math.min(leftCount, legendVisibleStages.length);
-        leftCol = legendVisibleStages.slice(0, visibleLeftCount);
-        rightCol = legendVisibleStages.slice(visibleLeftCount);
-        // 把所有隐藏项加到右列末尾
-        rightCol = rightCol.concat(legendHiddenStages);
-        const legendFlex = document.createElement('div');
-        legendFlex.style.display = 'flex';
-        legendFlex.style.flexDirection = 'row';
-        legendFlex.style.width = '100%';
-        // makeCol 保持不变
-        const makeCol = (colData: typeof this.stageData) => {
-            const col = document.createElement('div');
-            col.style.display = 'flex';
-            col.style.flexDirection = 'column';
-            col.style.flex = '1';
-            colData.forEach((d) => {
-                const item = document.createElement('div');
-                item.style.display = 'flex';
-                item.style.alignItems = 'center';
-                item.style.marginBottom = '6px';
-                item.style.cursor = 'pointer';
-                // 判断是否隐藏
-                const isHidden = this.hiddenStages.has(d.stage);
-                const colorBox = document.createElement('span');
-                colorBox.style.display = 'inline-block';
-                colorBox.style.width = '10px';
-                colorBox.style.height = '12px';
-                colorBox.style.background = this.colorMap.get(d.stage) || '#ccc';
-                colorBox.style.marginRight = '8px';
-                colorBox.style.opacity = isHidden ? '0.3' : '1';
-                const label = document.createElement('span');
-                label.style.fontSize = '10px';
-                label.textContent = LABEL_MAP[d.stage] ?? d.stage;
-                label.style.opacity = isHidden ? '0.3' : '1';
-                item.appendChild(colorBox);
-                item.appendChild(label);
-                // 点击切换显示/隐藏
-                item.onclick = () => {
-                    if (isHidden) {
-                        this.hiddenStages.delete(d.stage);
-                    } else {
-                        this.hiddenStages.add(d.stage);
-                    }
-                    // 每次变更后派发事件
-                    window.dispatchEvent(new CustomEvent('galaxy-hidden-stages-changed', {
-                        detail: { hiddenStages: Array.from(this.hiddenStages) }
-                    }));
-                    this.saveFilterState();
-                    this.render();
-                };
-                col.appendChild(item);
+
+        // 特殊处理：Environment 原地隐藏，其他组将隐藏项移到末尾
+        const processGroups = () => {
+            const allStages = this.stageData.filter(d => d.count > 0);
+            const groups: Record<string, typeof this.stageData> = {
+                'Environment': [],
+                'Data-oriented': [],
+                'Model-oriented': [],
+                'Data export': [],
+                'Other': []
+            };
+
+            allStages.forEach(stage => {
+                const group = STAGE_GROUP_MAP[stage.stage] || 'Other';
+                if (groups[group]) {
+                    groups[group].push(stage);
+                }
             });
-            return col;
+
+            // 对每个组进行排序：显示的在前，隐藏的在后
+            Object.keys(groups).forEach(groupName => {
+                // 所有组：显示的在前，隐藏的在后
+                groups[groupName].sort((a, b) => {
+                    const aHidden = this.hiddenStages.has(a.stage);
+                    const bHidden = this.hiddenStages.has(b.stage);
+                    if (aHidden === bHidden) {
+                        // 如果都是显示或都是隐藏，按stage ID排序
+                        // Commented (10) 排在 Other (12) 前面
+                        if (a.stage === '10' && b.stage === '12') return -1;
+                        if (a.stage === '12' && b.stage === '10') return 1;
+                        return 0;
+                    }
+                    return aHidden ? 1 : -1; // 隐藏的排在后面
+                });
+            });
+
+            return groups;
         };
-        legendFlex.appendChild(makeCol(leftCol));
-        legendFlex.appendChild(makeCol(rightCol));
-        this.legendDiv.appendChild(legendFlex);
+
+        const processedGroups = processGroups();
+
+        // 创建主容器
+        const legendContainer = document.createElement('div');
+        legendContainer.style.display = 'flex';
+        legendContainer.style.flexDirection = 'column';
+        legendContainer.style.width = '100%';
+        legendContainer.style.gap = '4px'; // 减少垂直间隔
+
+        // 创建单个组件的函数
+        const createGroupBox = (groupName: string, stages: typeof this.stageData, isHidden: boolean = false) => {
+            if (stages.length === 0) return null;
+
+            const groupBox = document.createElement('div');
+
+            // 只有 Data-oriented 和 Model-oriented 有边框
+            const shouldHaveBox = groupName === 'Data-oriented' || groupName === 'Model-oriented';
+            if (shouldHaveBox) {
+                groupBox.style.border = '1px solid #ddd';
+                groupBox.style.borderRadius = '4px';
+                groupBox.style.padding = '8px';
+                groupBox.style.backgroundColor = '#f9f9f9';
+                // Model-oriented 使用虚线边框
+                if (groupName === 'Model-oriented') {
+                    groupBox.style.borderStyle = 'dashed';
+                }
+            }
+            groupBox.style.marginBottom = '2px'; // 减少group之间的间隔
+
+            // 组标题 - 只有 Data-oriented 和 Model-oriented 显示标题
+            if (shouldHaveBox) {
+                const groupTitle = document.createElement('div');
+                groupTitle.style.fontSize = '11px';
+                groupTitle.style.fontWeight = '600';
+                groupTitle.style.color = '#555';
+                groupTitle.style.marginBottom = '6px';
+                groupTitle.style.opacity = isHidden ? '0.5' : '1';
+                groupTitle.textContent = groupName;
+                groupBox.appendChild(groupTitle);
+            }
+
+            // 组内容 - Data-oriented 和 Model-oriented 分三列，Other 分两列
+            const groupContent = document.createElement('div');
+            if (shouldHaveBox) {
+                // 三列布局
+                groupContent.style.display = 'flex';
+                groupContent.style.flexDirection = 'row';
+                groupContent.style.gap = '6px';
+
+                // 分三列
+                const colSize = Math.ceil(stages.length / 3);
+                const col1 = stages.slice(0, colSize);
+                const col2 = stages.slice(colSize, colSize * 2);
+                const col3 = stages.slice(colSize * 2);
+
+                const createColumn = (colStages: typeof this.stageData) => {
+                    const col = document.createElement('div');
+                    col.style.display = 'flex';
+                    col.style.flexDirection = 'column';
+                    col.style.flex = '1';
+                    col.style.gap = '4px';
+
+                    colStages.forEach((d) => {
+                        const item = document.createElement('div');
+                        item.style.display = 'flex';
+                        item.style.alignItems = 'center';
+                        item.style.cursor = 'pointer';
+                        item.style.padding = '2px 4px';
+                        item.style.borderRadius = '2px';
+
+                        const isStageHidden = this.hiddenStages.has(d.stage);
+                        const colorBox = document.createElement('span');
+                        colorBox.style.display = 'inline-block';
+                        colorBox.style.width = '8px';
+                        colorBox.style.height = '10px';
+                        colorBox.style.borderRadius = '2px'; // 添加圆角
+                        colorBox.style.background = this.colorMap.get(d.stage) || '#ccc';
+                        colorBox.style.marginRight = '6px';
+                        colorBox.style.opacity = isStageHidden ? '0.3' : '1';
+                        
+                        // 为Data-oriented和Model-oriented添加border
+                        const group = STAGE_GROUP_MAP[d.stage];
+                        if (group === 'Data-oriented' || group === 'Model-oriented') {
+                            colorBox.style.border = '1px solid #666666';
+                            if (group === 'Model-oriented') {
+                                colorBox.style.borderStyle = 'dashed';
+                            }
+                        }
+
+                        const label = document.createElement('span');
+                        label.style.fontSize = '9px';
+                        label.textContent = LABEL_MAP[d.stage] ?? d.stage;
+                        label.style.opacity = isStageHidden ? '0.3' : '1';
+
+                        item.appendChild(colorBox);
+                        item.appendChild(label);
+
+                        // 点击切换显示/隐藏
+                        item.onclick = () => {
+                            if (isStageHidden) {
+                                this.hiddenStages.delete(d.stage);
+                            } else {
+                                this.hiddenStages.add(d.stage);
+                            }
+                            // 每次变更后派发事件
+                            window.dispatchEvent(new CustomEvent('galaxy-hidden-stages-changed', {
+                                detail: { hiddenStages: Array.from(this.hiddenStages) }
+                            }));
+                            this.saveFilterState();
+                            this.render();
+                        };
+
+                        col.appendChild(item);
+                    });
+
+                    return col;
+                };
+
+                groupContent.appendChild(createColumn(col1));
+                groupContent.appendChild(createColumn(col2));
+                groupContent.appendChild(createColumn(col3));
+            } else if (groupName === 'Other') {
+                // Other 组：两列布局
+                groupContent.style.display = 'flex';
+                groupContent.style.flexDirection = 'row';
+                groupContent.style.gap = '8px';
+
+                // 分两列
+                const midPoint = Math.ceil(stages.length / 2);
+                const leftCol = stages.slice(0, midPoint);
+                const rightCol = stages.slice(midPoint);
+
+                const createColumn = (colStages: typeof this.stageData) => {
+                    const col = document.createElement('div');
+                    col.style.display = 'flex';
+                    col.style.flexDirection = 'column';
+                    col.style.flex = '1';
+                    col.style.gap = '4px';
+
+                    colStages.forEach((d) => {
+                        const item = document.createElement('div');
+                        item.style.display = 'flex';
+                        item.style.alignItems = 'center';
+                        item.style.cursor = 'pointer';
+                        item.style.padding = '2px 4px';
+                        item.style.borderRadius = '2px';
+
+                        const isStageHidden = this.hiddenStages.has(d.stage);
+                        const colorBox = document.createElement('span');
+                        colorBox.style.display = 'inline-block';
+                        colorBox.style.width = '8px';
+                        colorBox.style.height = '10px';
+                        colorBox.style.borderRadius = '2px'; // 添加圆角
+                        colorBox.style.background = this.colorMap.get(d.stage) || '#ccc';
+                        colorBox.style.marginRight = '6px';
+                        colorBox.style.opacity = isStageHidden ? '0.3' : '1';
+                        
+                        // 为Data-oriented和Model-oriented添加border
+                        const group = STAGE_GROUP_MAP[d.stage];
+                        if (group === 'Data-oriented' || group === 'Model-oriented') {
+                            colorBox.style.border = '1px solid #666666';
+                            if (group === 'Model-oriented') {
+                                colorBox.style.borderStyle = 'dashed';
+                            }
+                        }
+
+                        const label = document.createElement('span');
+                        label.style.fontSize = '9px';
+                        label.textContent = LABEL_MAP[d.stage] ?? d.stage;
+                        label.style.opacity = isStageHidden ? '0.3' : '1';
+
+                        item.appendChild(colorBox);
+                        item.appendChild(label);
+
+                        // 点击切换显示/隐藏
+                        item.onclick = () => {
+                            if (isStageHidden) {
+                                this.hiddenStages.delete(d.stage);
+                            } else {
+                                this.hiddenStages.add(d.stage);
+                            }
+                            // 每次变更后派发事件
+                            window.dispatchEvent(new CustomEvent('galaxy-hidden-stages-changed', {
+                                detail: { hiddenStages: Array.from(this.hiddenStages) }
+                            }));
+                            this.saveFilterState();
+                            this.render();
+                        };
+
+                        col.appendChild(item);
+                    });
+
+                    return col;
+                };
+
+                groupContent.appendChild(createColumn(leftCol));
+                groupContent.appendChild(createColumn(rightCol));
+            } else {
+                // 单列布局
+                groupContent.style.display = 'flex';
+                groupContent.style.flexDirection = 'column';
+                groupContent.style.gap = '4px';
+
+                stages.forEach((d) => {
+                    const item = document.createElement('div');
+                    item.style.display = 'flex';
+                    item.style.alignItems = 'center';
+                    item.style.cursor = 'pointer';
+                    item.style.padding = '2px 4px';
+                    item.style.borderRadius = '2px';
+
+                    const isStageHidden = this.hiddenStages.has(d.stage);
+                    const colorBox = document.createElement('span');
+                    colorBox.style.display = 'inline-block';
+                    colorBox.style.width = '8px';
+                    colorBox.style.height = '10px';
+                    colorBox.style.borderRadius = '2px'; // 添加圆角
+                    colorBox.style.background = this.colorMap.get(d.stage) || '#ccc';
+                    colorBox.style.marginRight = '6px';
+                    colorBox.style.opacity = isStageHidden ? '0.3' : '1';
+                    
+                    // 为Data-oriented和Model-oriented添加border
+                    const group = STAGE_GROUP_MAP[d.stage];
+                    if (group === 'Data-oriented' || group === 'Model-oriented') {
+                        colorBox.style.border = '1px solid #666666';
+                        if (group === 'Model-oriented') {
+                            colorBox.style.borderStyle = 'dashed';
+                        }
+                    }
+
+                    const label = document.createElement('span');
+                    label.style.fontSize = '9px';
+                    label.textContent = LABEL_MAP[d.stage] ?? d.stage;
+                    label.style.opacity = isStageHidden ? '0.3' : '1';
+
+                    item.appendChild(colorBox);
+                    item.appendChild(label);
+
+                    // 点击切换显示/隐藏
+                    item.onclick = () => {
+                        if (isStageHidden) {
+                            this.hiddenStages.delete(d.stage);
+                        } else {
+                            this.hiddenStages.add(d.stage);
+                        }
+                        // 每次变更后派发事件
+                        window.dispatchEvent(new CustomEvent('galaxy-hidden-stages-changed', {
+                            detail: { hiddenStages: Array.from(this.hiddenStages) }
+                        }));
+                        this.saveFilterState();
+                        this.render();
+                    };
+
+                    groupContent.appendChild(item);
+                });
+            }
+
+            groupBox.appendChild(groupContent);
+            return groupBox;
+        };
+
+        // 按顺序添加组：Environment, Data-oriented, Model-oriented, Data export, Other
+        const groupOrder = ['Environment', 'Data-oriented', 'Model-oriented', 'Data export', 'Other'];
+
+        groupOrder.forEach(groupName => {
+            const group = createGroupBox(groupName, processedGroups[groupName] || []);
+            if (group) {
+                legendContainer.appendChild(group);
+            }
+        });
+
+        this.legendDiv.appendChild(legendContainer);
         this.legendDiv.style.border = '';
 
         // === legend SVG 渲染（width legend 和 size legend）放到所有背景之后 ===
         if (renderedFlowCounts.length > 0) {
             const min = Math.min(...renderedFlowCounts);
             const max = Math.max(...renderedFlowCounts);
-            // 只采样三条线：min, (min+max)/2, max
-            const samples = [min, Math.round((min + max) / 2), max];
+            // 采样点：如果样本数量少于5个，就画实际数量
+            let samples: number[];
+            if (renderedFlowCounts.length < 5) {
+                // 如果样本数量少于5个，就画实际数量
+                samples = [...renderedFlowCounts].sort((a, b) => a - b);
+            } else {
+                // 如果样本数量大于等于5个，采样5个点
+                samples = [
+                    min,
+                    Math.round(min + 0.25 * (max - min)),
+                    Math.round(min + 0.5 * (max - min)),
+                    Math.round(min + 0.75 * (max - min)),
+                    max
+                ];
+            }
             const uniqSamples = Array.from(new Set(samples));
             const svgW = 220;
-            const barY = 40;
+
             // legend始终画在SVG底部区域，且不与背景重叠
-            const minLegendY = svgHeight - legendAreaHeight + 40;
+            const minLegendY = svgHeight - legendAreaHeight + 110; // 往下移一点，给flow chart留更多空间
             // const maxBgY = Math.max(...bgRects.map(r => r.y + r.height)) + 60;
             const bottomY = minLegendY;
 
@@ -809,17 +1172,13 @@ export class LeftSidebar extends Widget {
             const stageCounts = this.stageData.map(d => d.count);
             const minCount = Math.min(...stageCounts);
             const maxCount = Math.max(...stageCounts);
-            const maxSize = sizeScale(maxCount);
-            const sizeSamples = [minCount, Math.round((minCount + maxCount) / 2), maxCount];
-            const cx = 30;  // 同心矩形中心点 x
-            const cy = 60;  // 同心矩形中心点 y
 
             // width legend - 更优雅的布局
             const legendG = svg.append("g").attr("transform", `translate(0, ${bottomY})`);
 
-            // 添加标题
+            // 添加标题，居中对齐到sample区域
             legendG.append("text")
-                .attr("x", 110)
+                .attr("x", 28 + svgW / 2) // 居中对齐到sample区域
                 .attr("y", 15)
                 .attr("text-anchor", "middle")
                 .attr("font-size", "20")
@@ -828,49 +1187,55 @@ export class LeftSidebar extends Widget {
                 .text("Flow Frequency");
 
             // 绘制宽度示例线条
+            const lineY = 100; // 增加标题和sample之间的距离
             uniqSamples.forEach((count, i) => {
                 const x = 28 + i * ((svgW - 56) / (uniqSamples.length - 1));
                 const w = strokeScale(count);
-                const lineY = barY + 5;
 
-                // 绘制方形来展示线宽
+                // 绘制方形来展示线宽，使用和flow chart一样的尺寸
                 legendG.append("rect")
                     .attr("x", x - w / 2)
-                    .attr("y", lineY - maxSize / 2 + 15)
+                    .attr("y", lineY - 60) // 底部对齐到lineY
                     .attr("width", w)
-                    .attr("height", maxSize)
+                    .attr("height", 60) // 使用固定高度，和flow chart保持一致
                     .attr("fill", "#666")
                     .attr("opacity", 0.8);
 
-                // 添加数值标签
+            });
+
+            // 在sample同一排的左右两边添加具体数值标签
+            legendG.append("text")
+                .attr("x", 10)
+                .attr("y", lineY - 30) // 垂直居中对齐到柱子中心
+                .attr("text-anchor", "start")
+                .attr("font-size", "15")
+                .attr("fill", "#666")
+                .text(min.toLocaleString());
+
+            // 只有当有多个柱子时才显示右边的label
+            if (uniqSamples.length > 1) {
                 legendG.append("text")
-                    .attr("x", x)
-                    .attr("y", lineY + maxSize / 2 + 35)
-                    .attr("text-anchor", "middle")
+                    .attr("x", 28 + svgW - 8)
+                    .attr("y", lineY - 30) // 垂直居中对齐到柱子中心
+                    .attr("text-anchor", "end")
                     .attr("font-size", "15")
                     .attr("fill", "#666")
-                    .text(count.toLocaleString());
-            });
+                    .text(max.toLocaleString());
+            }
 
-            // === 添加 stage rect size 的 legend（同心矩形）===
-            // size legend - 更优雅的布局
+            // === 添加 stage rect size 的 legend（矩形高度表示count）===
+            // size legend - 固定宽度，高度表示count
             const sizeLegendG = svg.append("g").attr("transform", `translate(260, ${bottomY})`);
 
-            // 先计算所有labelX和最大矩形半径
-            const labelXs: number[] = [];
-            sizeSamples.sort((a, b) => b - a).forEach((count, i) => {
-                const size = sizeScale(count);
-                const r = size / 2;
-                const extendLength = 40 + ((sizeSamples.length - 1 - i) * 30);
-                const labelX = cx + r + extendLength;
-                labelXs.push(labelX);
-            });
-            const maxLabelX = Math.max(...labelXs);
-            const titleX = (2 * cx + maxLabelX) / 3;
+            // 绘制一个不填充的矩形，从顶部到延伸线的距离代表高度
+            const rectWidth = 60; // 矩形宽度，和flow chart保持一致
+            const rectHeight = sizeScale(maxCount); // 矩形高度，使用最大count对应的高度
+            const rectX = 30; // 矩形x位置
+            const rectY = 25; // 矩形y位置，底部和flow frequency对齐
 
-            // 添加标题
+            // 添加标题，居中对齐到sample区域
             sizeLegendG.append("text")
-                .attr("x", titleX)
+                .attr("x", rectX + rectWidth / 2) // 居中对齐到矩形区域
                 .attr("y", 15)
                 .attr("text-anchor", "middle")
                 .attr("font-size", "20")
@@ -878,67 +1243,59 @@ export class LeftSidebar extends Widget {
                 .attr("fill", "#555")
                 .text("Stage Frequency");
 
-            // 再绘制同心矩形和标注
-            sizeSamples.sort((a, b) => b - a).forEach((count, i) => {
-                const size = sizeScale(count);
-                const r = size / 2;
+            // 绘制不填充的矩形
+            sizeLegendG.append("rect")
+                .attr("x", rectX)
+                .attr("y", rectY)
+                .attr("width", rectWidth)
+                .attr("height", rectHeight)
+                .attr("rx", 6) // 添加圆角
+                .attr("ry", 6) // 添加圆角
+                .attr("fill", "none")
+                .attr("stroke", "#666")
+                .attr("stroke-width", 2)
+                .attr("opacity", 0.8);
 
-                sizeLegendG.append("rect")
-                    .attr("x", cx - r)
-                    .attr("y", cy - r)
-                    .attr("width", size)
-                    .attr("height", size)
-                    .attr("fill", "none")
-                    .attr("stroke", "#444")
-                    .attr("stroke-width", 1.5)
-                    .attr("stroke-dasharray", "none")
+            // 采样3个点：min, (min+max)/2, max
+            const stageSamples = [minCount, Math.round((minCount + maxCount) / 2), maxCount];
+
+            stageSamples.forEach((count, i) => {
+                // 计算从顶部到延伸线的距离，这个距离代表高度
+                // 使用和flow chart一样的sizeScale计算高度
+                const actualHeight = sizeScale(count);
+                const lineY = rectY + actualHeight;
+
+                // 绘制水平线
+                sizeLegendG.append("line")
+                    .attr("x1", rectX)
+                    .attr("y1", lineY)
+                    .attr("x2", rectX + rectWidth)
+                    .attr("y2", lineY)
+                    .attr("stroke", "#666")
+                    .attr("stroke-width", 1)
                     .attr("opacity", 0.8);
 
-                const extendLength = 40 + ((sizeSamples.length - 1 - i) * 30);
-                const labelX = cx + r + extendLength;
-                const labelY = cy;
+                // 添加延伸线到标签
+                const labelX = rectX + rectWidth + 15;
+
+                // 水平延伸线
                 sizeLegendG.append("line")
-                    .attr("x1", cx + r)
-                    .attr("y1", cy - r)
-                    .attr("x2", cx + r + extendLength)
-                    .attr("y2", cy - r)
+                    .attr("x1", rectX + rectWidth)
+                    .attr("y1", lineY)
+                    .attr("x2", labelX)
+                    .attr("y2", lineY)
                     .attr("stroke", "#666")
                     .attr("stroke-width", 1)
                     .attr("stroke-dasharray", "2,2")
                     .attr("opacity", 0.6);
-                sizeLegendG.append("line")
-                    .attr("x1", cx + r)
-                    .attr("y1", cy + r)
-                    .attr("x2", cx + r + extendLength)
-                    .attr("y2", cy + r)
-                    .attr("stroke", "#666")
-                    .attr("stroke-width", 1)
-                    .attr("stroke-dasharray", "2,2")
-                    .attr("opacity", 0.6);
-                sizeLegendG.append("line")
-                    .attr("x1", cx + r + extendLength)
-                    .attr("y1", cy - r)
-                    .attr("x2", cx + r + extendLength)
-                    .attr("y2", labelY - 5)
-                    .attr("stroke", "#666")
-                    .attr("stroke-width", 1)
-                    .attr("stroke-dasharray", "2,2")
-                    .attr("opacity", 0.6);
-                sizeLegendG.append("line")
-                    .attr("x1", cx + r + extendLength)
-                    .attr("y1", cy + r)
-                    .attr("x2", cx + r + extendLength)
-                    .attr("y2", labelY + 5)
-                    .attr("stroke", "#666")
-                    .attr("stroke-width", 1)
-                    .attr("stroke-dasharray", "2,2")
-                    .attr("opacity", 0.6);
+
+                // 添加数值标签
                 sizeLegendG.append("text")
-                    .attr("x", labelX)
-                    .attr("y", labelY + 5)
+                    .attr("x", labelX + 5)
+                    .attr("y", lineY + 4)
                     .attr("font-size", "15")
                     .attr("fill", "#666")
-                    .attr("text-anchor", "middle")
+                    .attr("text-anchor", "start")
                     .text(count.toLocaleString());
             });
         }
@@ -970,22 +1327,21 @@ export class LeftSidebar extends Widget {
                 d3.selectAll(`.link-from-${this.selection.from}.link-to-${this.selection.to}`).attr("opacity", 1);
                 // 选中状态下保持原有border样式，只增加宽度
                 d3.selectAll(`.stage-${this.selection.from}, .stage-${this.selection.to}`)
+                    .attr("stroke", "#666666")
                     .attr("stroke-width", 3);
-        } else {
-            // 没有选中状态时，恢复默认的border样式
-            d3.selectAll(`.stage-rect`).each((d, i, nodes) => {
-                const rect = d3.select(nodes[i]);
-                const stage = rect.datum() as StageDatum;
-                const group = STAGE_GROUP_MAP[stage.stage];
-                if (group === 'Data-oriented') {
-                    rect.attr("stroke", "#2E86AB").attr("stroke-width", 2).attr("stroke-dasharray", "none");
-                } else if (group === 'Model-oriented') {
-                    rect.attr("stroke", "#A23B72").attr("stroke-width", 2).attr("stroke-dasharray", "4,2");
-                } else {
-                    rect.attr("stroke", "none").attr("stroke-width", 0);
-                }
-            });
-                
+            } else {
+                // 没有选中状态时，恢复默认的border样式
+                d3.selectAll(`.stage-rect`).each((d, i, nodes) => {
+                    const rect = d3.select(nodes[i]);
+                    const stage = rect.datum() as StageDatum;
+                    const group = STAGE_GROUP_MAP[stage.stage];
+                    if (group === 'Data-oriented' || group === 'Model-oriented') {
+                        rect.attr("stroke", "#666666").attr("stroke-width", 2).attr("stroke-dasharray", group === 'Model-oriented' ? "4,2" : "none");
+                    } else {
+                        rect.attr("stroke", "none").attr("stroke-width", 0);
+                    }
+                });
+
                 // 确保选中的transition保持原有的线宽
                 const selectedTransition = this.transitions.get(`${this.selection.from}->${this.selection.to}`);
                 if (selectedTransition !== undefined) {
@@ -995,7 +1351,7 @@ export class LeftSidebar extends Widget {
                     const minFlowCount = d3.min(countValues) || 0;
                     const minWidth = 2;
                     const maxWidth = 26;
-                    
+
                     const strokeScale = (count: number) => {
                         if (count <= 0) return 0;
                         if (maxFlowCount <= 5) {
@@ -1004,7 +1360,7 @@ export class LeftSidebar extends Widget {
                         const t = (count - minFlowCount) / (maxFlowCount - minFlowCount);
                         return minWidth + Math.pow(t, 0.4) * (maxWidth - minWidth);
                     };
-                    
+
                     d3.selectAll(`.link-from-${this.selection.from}.link-to-${this.selection.to}`)
                         .attr("stroke-width", strokeScale(selectedTransition));
                 }
@@ -1045,7 +1401,7 @@ export class LeftSidebar extends Widget {
     onAfterAttach(msg: any): void {
         // 恢复之前的筛选状态
         this.restoreFilterState();
-        
+
         // 先断开旧的 observer 和定时器
         if (this._resizeObserver) {
             this._resizeObserver.disconnect();
@@ -1143,7 +1499,7 @@ export class LeftSidebar extends Widget {
         const stateKey = `_galaxyLeftSidebarFilterState_${tabId}`;
         const flowSelectionKey = `_galaxyFlowSelection_${tabId}`;
         const stageSelectionKey = `_galaxyStageSelection_${tabId}`;
-        
+
         // 保存到按tab隔离的全局变量
         if (this.selection) {
             if (this.selection.type === 'stage') {
@@ -1157,7 +1513,7 @@ export class LeftSidebar extends Widget {
             (window as any)[stageSelectionKey] = null;
             (window as any)[flowSelectionKey] = null;
         }
-        
+
         // 保存到原有的状态对象
         (window as any)[stateKey] = {
             selection: this.selection,
@@ -1184,20 +1540,20 @@ export class LeftSidebar extends Widget {
     private restoreFilterState() {
         // 切换tab时隐藏所有tooltip
         this.hideAllTooltips();
-        
+
         const tabId = this.getTabId();
         const stateKey = `_galaxyLeftSidebarFilterState_${tabId}`;
         const flowSelectionKey = `_galaxyFlowSelection_${tabId}`;
         const stageSelectionKey = `_galaxyStageSelection_${tabId}`;
         const savedState = (window as any)[stateKey];
-        
+
         if (savedState) {
             this.selection = savedState.selection;
             this.hiddenStages = new Set(savedState.hiddenStages || ['10', '12']);
             if (savedState.stageData) {
                 this.stageData = savedState.stageData;
             }
-            
+
             // 恢复按tab隔离的全局变量
             if (this.selection) {
                 if (this.selection.type === 'stage') {
@@ -1211,7 +1567,7 @@ export class LeftSidebar extends Widget {
                 (window as any)[stageSelectionKey] = null;
                 (window as any)[flowSelectionKey] = null;
             }
-            
+
             // 恢复状态后重新渲染
             this.render();
         } else {
