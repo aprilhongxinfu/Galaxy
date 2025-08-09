@@ -1,6 +1,7 @@
 import { Widget } from '@lumino/widgets';
 import * as d3 from 'd3';
 import { LABEL_MAP } from './labelMap';
+import { STAGE_GROUP_MAP } from './stage_hierarchy';
 
 type Cell = {
     cellId: number;
@@ -534,10 +535,7 @@ export class LeftSidebar extends Widget {
                     if (!this.selection) {
                         d3.selectAll(".flow-link").attr("opacity", 0.05);
                         d3.selectAll(`.link-from-${from}.link-to-${to}`).attr("opacity", 1);
-                        d3.selectAll(".stage-rect").attr("stroke-width", 0);
-                        d3.selectAll(`.stage-${from}, .stage-${to}`)
-                            .attr("stroke", "#000")
-                            .attr("stroke-width", 2);
+                        // hover flow时不改变border样式，只高亮flow link
                         // 联动高亮 matrix pattern
                         window.dispatchEvent(new CustomEvent('galaxy-transition-hover', { detail: { from, to } }));
                     }
@@ -555,9 +553,19 @@ export class LeftSidebar extends Widget {
                     // 只有在没有选中状态时才恢复默认样式
                     if (!this.selection) {
                         d3.selectAll(".flow-link").attr("opacity", 0.7);
-                        d3.selectAll(".stage-rect")
-                            .attr("stroke", "none")
-                            .attr("stroke-width", 0);
+                        // hover离开时恢复默认的border样式
+                        d3.selectAll(`.stage-rect`).each((d, i, nodes) => {
+                            const rect = d3.select(nodes[i]);
+                            const stage = rect.datum() as StageDatum;
+                            const group = STAGE_GROUP_MAP[stage.stage];
+                            if (group === 'Data-oriented') {
+                                rect.attr("stroke", "#2E86AB").attr("stroke-width", 2).attr("stroke-dasharray", "none");
+                            } else if (group === 'Model-oriented') {
+                                rect.attr("stroke", "#A23B72").attr("stroke-width", 2).attr("stroke-dasharray", "4,2");
+                            } else {
+                                rect.attr("stroke", "none").attr("stroke-width", 0);
+                            }
+                        });
                         // 取消联动高亮
                         window.dispatchEvent(new CustomEvent('galaxy-transition-hover', { detail: { from: null, to: null } }));
                     } else {
@@ -565,17 +573,15 @@ export class LeftSidebar extends Widget {
                         if (this.selection.type === 'flow') {
                             d3.selectAll(".flow-link").attr("opacity", 0.05);
                             d3.selectAll(`.link-from-${this.selection.from}.link-to-${this.selection.to}`).attr("opacity", 1);
-                            d3.selectAll(".stage-rect").attr("stroke-width", 0);
+                            // 选中状态下保持原有border样式，只增加宽度
                             d3.selectAll(`.stage-${this.selection.from}, .stage-${this.selection.to}`)
-                                .attr("stroke", "#000")
-                                .attr("stroke-width", 2);
+                                .attr("stroke-width", 3);
                         } else if (this.selection.type === 'stage') {
                             d3.selectAll(".flow-link").attr("opacity", 0.05);
                             d3.selectAll(`.link-from-${this.selection.stage}, .link-to-${this.selection.stage}`).attr("opacity", 0.9);
-                            d3.selectAll(`.stage-rect`).attr("stroke-width", 0);
+                            // 选中状态下保持原有border样式，只增加宽度
                             d3.selectAll(`.stage-${this.selection.stage}`)
-                                .attr("stroke", "#000")
-                                .attr("stroke-width", 3);
+                                .attr("stroke-width", 4);
                         }
                     }
                     // tooltip
@@ -607,16 +613,36 @@ export class LeftSidebar extends Widget {
             .attr('height', (d) => sizeScale(d.count))
             .attr('fill', (d) => colorMap.get(d.stage) || '#ccc')
             .attr('class', (d) => `stage-rect stage-${d.stage}` + (this.selection && this.selection.type === 'stage' && this.selection.stage === d.stage ? ' selected' : ''))
+            .attr('stroke', (d) => {
+                const group = STAGE_GROUP_MAP[d.stage];
+                if (group === 'Data-oriented') {
+                    return '#2E86AB'; // 蓝色实线
+                } else if (group === 'Model-oriented') {
+                    return '#A23B72'; // 紫色虚线
+                }
+                return 'none'; // 其他类别无border
+            })
+            .attr('stroke-width', (d) => {
+                const group = STAGE_GROUP_MAP[d.stage];
+                if (group === 'Data-oriented' || group === 'Model-oriented') {
+                    return 2;
+                }
+                return 0;
+            })
+            .attr('stroke-dasharray', (d) => {
+                const group = STAGE_GROUP_MAP[d.stage];
+                if (group === 'Model-oriented') {
+                    return '4,2'; // 虚线样式
+                }
+                return 'none'; // 实线样式
+            })
                             .on("mouseover", (event, d) => {
                     const stage = d.stage;
                     // 只有在没有选中状态时才应用hover效果
                     if (!this.selection) {
                         d3.selectAll(".flow-link").attr("opacity", 0.05);
                         d3.selectAll(`.link-from-${stage}, .link-to-${stage}`).attr("opacity", 0.9);
-                        d3.selectAll(`.stage-rect`).attr("stroke-width", 0);
-                        d3.selectAll(`.stage-${stage}`)
-                            .attr("stroke", "#000")
-                            .attr("stroke-width", 2);
+                        // hover时不改变border样式，只高亮flow links
                         // 联动高亮
                         window.dispatchEvent(new CustomEvent('galaxy-stage-hover', { detail: { stage } }));
                     } else {
@@ -633,30 +659,40 @@ export class LeftSidebar extends Widget {
                 tooltip!.style.top = event.clientY + 12 + 'px';
             })
                             .on("mouseout", (event, d) => {
-                    // 只有在没有选中状态时才恢复默认样式
-                    if (!this.selection) {
-                        d3.selectAll(".flow-link").attr("opacity", 0.7);
-                        d3.selectAll(`.stage-rect`).attr("stroke", "none").attr("stroke-width", 0);
-                        // 联动高亮取消
-                        window.dispatchEvent(new CustomEvent('galaxy-stage-hover', { detail: { stage: null } }));
-                    } else {
-                        // 如果有选中状态，直接应用选中效果
-                        if (this.selection.type === 'flow') {
-                            d3.selectAll(".flow-link").attr("opacity", 0.05);
-                            d3.selectAll(`.link-from-${this.selection.from}.link-to-${this.selection.to}`).attr("opacity", 1);
-                            d3.selectAll(".stage-rect").attr("stroke-width", 0);
-                            d3.selectAll(`.stage-${this.selection.from}, .stage-${this.selection.to}`)
-                                .attr("stroke", "#000")
-                                .attr("stroke-width", 2);
-                        } else if (this.selection.type === 'stage') {
-                            d3.selectAll(".flow-link").attr("opacity", 0.05);
-                            d3.selectAll(`.link-from-${this.selection.stage}, .link-to-${this.selection.stage}`).attr("opacity", 0.9);
-                            d3.selectAll(`.stage-rect`).attr("stroke-width", 0);
-                            d3.selectAll(`.stage-${this.selection.stage}`)
-                                .attr("stroke", "#000")
-                                .attr("stroke-width", 3);
+                                            // 只有在没有选中状态时才恢复默认样式
+                        if (!this.selection) {
+                            d3.selectAll(".flow-link").attr("opacity", 0.7);
+                            // hover离开时恢复默认的border样式
+                            d3.selectAll(`.stage-rect`).each((d, i, nodes) => {
+                                const rect = d3.select(nodes[i]);
+                                const stage = rect.datum() as StageDatum;
+                                const group = STAGE_GROUP_MAP[stage.stage];
+                                if (group === 'Data-oriented') {
+                                    rect.attr("stroke", "#2E86AB").attr("stroke-width", 2).attr("stroke-dasharray", "none");
+                                } else if (group === 'Model-oriented') {
+                                    rect.attr("stroke", "#A23B72").attr("stroke-width", 2).attr("stroke-dasharray", "4,2");
+                                } else {
+                                    rect.attr("stroke", "none").attr("stroke-width", 0);
+                                }
+                            });
+                            // 联动高亮取消
+                            window.dispatchEvent(new CustomEvent('galaxy-stage-hover', { detail: { stage: null } }));
+                        } else {
+                            // 如果有选中状态，直接应用选中效果
+                            if (this.selection.type === 'flow') {
+                                d3.selectAll(".flow-link").attr("opacity", 0.05);
+                                d3.selectAll(`.link-from-${this.selection.from}.link-to-${this.selection.to}`).attr("opacity", 1);
+                                // 选中状态下保持原有border样式，只增加宽度
+                                d3.selectAll(`.stage-${this.selection.from}, .stage-${this.selection.to}`)
+                                    .attr("stroke-width", 3);
+                            } else if (this.selection.type === 'stage') {
+                                d3.selectAll(".flow-link").attr("opacity", 0.05);
+                                d3.selectAll(`.link-from-${this.selection.stage}, .link-to-${this.selection.stage}`).attr("opacity", 0.9);
+                                // 选中状态下保持原有border样式，只增加宽度
+                                d3.selectAll(`.stage-${this.selection.stage}`)
+                                    .attr("stroke-width", 4);
+                            }
                         }
-                    }
                     // tooltip
                     const tooltip = document.getElementById('galaxy-tooltip');
                     tooltip!.style.display = 'none';
@@ -925,18 +961,30 @@ export class LeftSidebar extends Widget {
                 // 高亮选中的stage
                 d3.selectAll(".flow-link").attr("opacity", 0.05);
                 d3.selectAll(`.link-from-${this.selection.stage}, .link-to-${this.selection.stage}`).attr("opacity", 0.9);
-                d3.selectAll(`.stage-rect`).attr("stroke-width", 0);
+                // 选中状态下保持原有border样式，只增加宽度
                 d3.selectAll(`.stage-${this.selection.stage}`)
-                    .attr("stroke", "#000")
-                    .attr("stroke-width", 3);
+                    .attr("stroke-width", 4);
             } else if (this.selection.type === 'flow') {
                 // 高亮选中的flow
                 d3.selectAll(".flow-link").attr("opacity", 0.05);
                 d3.selectAll(`.link-from-${this.selection.from}.link-to-${this.selection.to}`).attr("opacity", 1);
-                d3.selectAll(".stage-rect").attr("stroke-width", 0);
+                // 选中状态下保持原有border样式，只增加宽度
                 d3.selectAll(`.stage-${this.selection.from}, .stage-${this.selection.to}`)
-                    .attr("stroke", "#000")
-                    .attr("stroke-width", 2);
+                    .attr("stroke-width", 3);
+        } else {
+            // 没有选中状态时，恢复默认的border样式
+            d3.selectAll(`.stage-rect`).each((d, i, nodes) => {
+                const rect = d3.select(nodes[i]);
+                const stage = rect.datum() as StageDatum;
+                const group = STAGE_GROUP_MAP[stage.stage];
+                if (group === 'Data-oriented') {
+                    rect.attr("stroke", "#2E86AB").attr("stroke-width", 2).attr("stroke-dasharray", "none");
+                } else if (group === 'Model-oriented') {
+                    rect.attr("stroke", "#A23B72").attr("stroke-width", 2).attr("stroke-dasharray", "4,2");
+                } else {
+                    rect.attr("stroke", "none").attr("stroke-width", 0);
+                }
+            });
                 
                 // 确保选中的transition保持原有的线宽
                 const selectedTransition = this.transitions.get(`${this.selection.from}->${this.selection.to}`);
