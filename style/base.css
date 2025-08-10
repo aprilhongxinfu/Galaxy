@@ -1,32 +1,9 @@
-/*
-    See the JupyterLab Developer Guide for useful CSS Patterns:
 
-    https://jupyterlab.readthedocs.io/en/stable/developer/css.html
-*/
-.test {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  overflow: auto;
-}
 
-.tooltip-div {
-  position: absolute;
-  display: none;
-  pointer-events: none;
-  background-color: rgba(0, 0, 0, 0.75);
-  color: white;
-  padding: 6px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-  z-index: 9999;
-  max-width: 200px;
-  white-space: nowrap;
-}
+
 
 .matrix-cell.matrix-highlight {
   opacity: 1 !important;
-  /* stroke: none; */
   transform: scale(1.2);
   transform-box: fill-box;
   transform-origin: 50% 50%;
@@ -50,18 +27,14 @@
   cursor: pointer;
 }
 
-/* 选中状态的高亮样式 */
-.stage-rect.selected {
-  stroke: #000 !important;
-  stroke-width: 3px !important;
-}
-
-.flow-link.selected {
-  opacity: 1 !important;
-  /* stroke-width: 4px !important; 移除这行，让JavaScript控制线宽 */
-}
 
 /* Detail sidebar 内部标题样式 */
 #detail-sidebar-title {
   color: inherit;
 }
+
+/* 确保stage-rect不显示抓取光标 */
+.stage-rect {
+  cursor: pointer !important;
+}
+

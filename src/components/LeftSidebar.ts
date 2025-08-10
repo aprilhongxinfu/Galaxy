@@ -16,8 +16,6 @@ type Notebook = {
 
 type StageDatum = {
     stage: string;
-    avg_pos: number;
-    avg_first: number;
     count: number;
     norm_pos?: number;
     y?: number;
@@ -30,13 +28,11 @@ export class LeftSidebar extends Widget {
     private stageData: StageDatum[] = [];
     private colorMap: Map<string, string>;
     private legendDiv: HTMLDivElement;
-    private transitions: Map<string, number> = new Map();
-    private stageFreq: Record<string, number> = {};
     private selection: any = null;
     private initialStageOrder: string[] = [];
     private _resizeObserver: ResizeObserver | null = null;
-    private _resizeInterval: any = null;
     private hiddenStages: Set<string> = new Set(); // 隐藏的 stage
+    private _renderTimeout: any = null; // 防抖定时器
 
     constructor(data: Notebook[], colorMap: Map<string, string>) {
         super();
@@ -51,28 +47,22 @@ export class LeftSidebar extends Widget {
         this.hiddenStages = new Set(['10', '12']);
 
         // 初始化 stageData 顺序（只做一次）
-        const stageStats = new Map<string, { positions: number[]; firstPositions: number[]; count: number }>();
+        const stageStats = new Map<string, { count: number }>();
         this.data.forEach((nb) => {
             const cells = [...nb.cells]
                 .sort((a, b) => a.cellId - b.cellId)
                 .filter((d) => d.cellType === 'code');
-            const stageSeq: string[] = [];
             cells.forEach((cell) => {
                 const stage = String(cell["1st-level label"] ?? "None");
                 if (!stageStats.has(stage)) {
                     stageStats.set(stage, {
-                        positions: [],
-                        firstPositions: [],
                         count: 0
                     });
                 }
                 stageStats.get(stage)!.count++;
-                if (stageSeq.length === 0 || stageSeq[stageSeq.length - 1] !== stage) {
-                    stageSeq.push(stage);
-                }
             });
         });
-        this.stageData = Array.from(stageStats.keys()).map(stage => ({ stage: String(stage), avg_pos: 0, avg_first: 0, count: 0 }));
+        this.stageData = Array.from(stageStats.keys()).map(stage => ({ stage: String(stage), count: 0 }));
         // 保存初始顺序
         this.initialStageOrder = this.stageData.map(d => d.stage);
 
@@ -157,15 +147,12 @@ export class LeftSidebar extends Widget {
 
         window.addEventListener('galaxy-selection-cleared', (e: any) => {
             const { tabId } = e.detail || {};
-            // console.log('[LeftSidebar] galaxy-selection-cleared event received:', { tabId, detail: e.detail });
             // 如果是 overview 模式，处理所有 notebook detail 的清除事件
             // 如果是 notebook detail 模式，只处理当前 tab 的事件
             const currentTabId = this.getTabId();
-            // console.log('[LeftSidebar] Current tabId:', currentTabId, 'Event tabId:', tabId);
 
             // 如果事件来自 notebook detail widget，总是处理（因为 overview 需要响应所有 notebook 的清除）
             if (tabId && tabId.startsWith('notebook-detail-widget-')) {
-                // console.log('[LeftSidebar] Processing selection clear event from notebook detail widget');
                 this.selection = null;
                 // 清除全局筛选状态变量
                 const flowSelectionKey = `_galaxyFlowSelection_${tabId}`;
@@ -178,7 +165,7 @@ export class LeftSidebar extends Widget {
                 this.saveFilterState();
                 this.render();
             } else if (currentTabId === 'overview' || tabId === currentTabId) {
-                console.log('[LeftSidebar] Processing selection clear event');
+
                 this.selection = null;
                 // 清除全局筛选状态变量
                 const flowSelectionKey = `_galaxyFlowSelection_${tabId}`;
@@ -190,8 +177,6 @@ export class LeftSidebar extends Widget {
                 (window as any)._galaxyFlowHoverInfo = null;
                 this.saveFilterState();
                 this.render();
-            } else {
-                console.log('[LeftSidebar] Skipping selection clear event - tab mismatch');
             }
         });
         // 监听 stage 选中事件（按tab隔离）
@@ -222,16 +207,32 @@ export class LeftSidebar extends Widget {
             this.setData(filteredData, this.colorMap);
         });
 
-        // 监听 notebook 排序变化事件，保持 selection 状态
-        window.addEventListener('galaxy-notebook-order-changed', (e: any) => {
-            // 重新渲染以应用视觉效果
-            this.render();
-        });
+
 
         this.render();
     }
 
     private render(): void {
+        // 防抖处理，避免频繁渲染
+        if (this._renderTimeout) {
+            clearTimeout(this._renderTimeout);
+        }
+        
+        this._renderTimeout = setTimeout(() => {
+            this._renderInternal();
+        }, 16); // 约60fps的刷新率
+    }
+
+    // 立即渲染，不经过防抖（用于拖拽等需要即时反馈的场景）
+    private renderImmediate(): void {
+        if (this._renderTimeout) {
+            clearTimeout(this._renderTimeout);
+            this._renderTimeout = null;
+        }
+        this._renderInternal();
+    }
+
+    private _renderInternal(): void {
         // 添加距离比例箭头
         const addDistanceBasedArrow = (path: d3.Selection<SVGPathElement, unknown, null, undefined>, arrowSize = 6) => {
             const pathNode = path.node();
@@ -280,6 +281,10 @@ export class LeftSidebar extends Widget {
             const parentNode = pathNode.parentNode as Element;
             if (!parentNode) return;
 
+            // 检查是否已经存在箭头，避免重复添加
+            const existingArrow = d3.select(parentNode).select(`.distance-arrow[data-path-id="${pathNode.getAttribute('data-path-id')}"]`);
+            if (!existingArrow.empty()) return;
+
             // 在指定位置添加单个箭头
             const length = totalLength * arrowPosition;
             const pt = pathNode.getPointAtLength(length);
@@ -294,6 +299,7 @@ export class LeftSidebar extends Widget {
             d3.select(parentNode)
                 .append("g")
                 .attr("class", "distance-arrow")
+                .attr("data-path-id", pathNode.getAttribute('data-path-id'))
                 .attr(
                     "transform",
                     `translate(${pt.x}, ${pt.y}) rotate(${bestAngle})`,
@@ -368,7 +374,6 @@ export class LeftSidebar extends Widget {
         }
 
         this.svg.selectAll('*').remove();
-        // const svgNode = this.svg.node()!;
         // 预留 legend 区域高度，保证legend始终可见且不重叠
         const legendAreaHeight = 220; // 增加高度
         const chartPadding = 30;  // 减少底部padding
@@ -390,9 +395,8 @@ export class LeftSidebar extends Widget {
                 console.warn('colorMap 缺少 stage:', d.stage);
             }
         });
-        const stageStats = new Map<string, { positions: number[]; firstPositions: number[]; count: number }>();
+        const stageStats = new Map<string, { count: number }>();
         const transitions: Map<string, number> = new Map();
-        const stageFreq: Record<string, number> = {};
 
         this.data.forEach((nb) => {
             // 只保留 code cell
@@ -404,8 +408,6 @@ export class LeftSidebar extends Widget {
                 const stage = String(cell["1st-level label"] ?? "None");
                 if (!stageStats.has(stage)) {
                     stageStats.set(stage, {
-                        positions: [],
-                        firstPositions: [],
                         count: 0
                     });
                 }
@@ -428,9 +430,7 @@ export class LeftSidebar extends Widget {
 
         // 只更新统计信息，不重排顺序
         this.stageData.forEach((d) => {
-            const info = stageStats.get(d.stage) || { positions: [], firstPositions: [], count: 0 };
-            d.avg_pos = d3.mean(info.positions) || 0;
-            d.avg_first = d3.mean(info.firstPositions) || 0;
+            const info = stageStats.get(d.stage) || { count: 0 };
             d.count = info.count;
         });
 
@@ -444,10 +444,6 @@ export class LeftSidebar extends Widget {
         const yScale = d3.scaleLinear().domain([0, 1]).range([10, virtualHeight + 100]);
         const renderMaxCount = d3.max(this.stageData, (d) => d.count) || 1;
         const sizeScale = d3.scaleLinear().domain([0, renderMaxCount]).range([20, 80]);
-        const colorMap = this.colorMap;
-
-        // flow 粗细最大值不超过 block 最小边长的 60%
-        // const minBlock = 10; // sizeScale 最小值
 
         const countValues = Array.from(transitions.values());
         const maxFlowCount = d3.max(countValues) || 1;
@@ -455,21 +451,12 @@ export class LeftSidebar extends Widget {
         const minWidth = 2;
         const maxWidth = 26;
 
-        // const strokeScale = (count: number) => {
-        //     if (maxFlowCount === minFlowCount) return (minWidth + maxWidth) / 2;
-        //     // 幂次缩放，主干线更粗
-        //     const t = (count - minFlowCount) / (maxFlowCount - minFlowCount);
-        //     return minWidth + Math.pow(t, 0.4) * (maxWidth - minWidth);
-        // };
         const strokeScale = (count: number) => {
             if (count <= 0) return 0;
             if (maxFlowCount <= 5) {
                 // 离散情况直接写死
                 return [0, 2, 4][count] || 5;
             }
-            // const logCount = Math.log1p(count);
-            // const maxLog = Math.log1p(maxFlowCount);
-            // const norm = logCount / maxLog;
             const t = (count - minFlowCount) / (maxFlowCount - minFlowCount);
             return minWidth + Math.pow(t, 0.4) * (maxWidth - minWidth);
         };
@@ -493,7 +480,7 @@ export class LeftSidebar extends Widget {
                 window.dispatchEvent(new CustomEvent('galaxy-selection-cleared', { detail: { tabId: this.getTabId() } }));
             }
         });
-        // const legendG = svg.append("g").attr("transform", "translate(0, 740)");
+
 
         // 过滤掉隐藏的 stage 和 count=0 的 stage
         const visibleStages = this.stageData.filter(d => !this.hiddenStages.has(d.stage) && d.count > 0);
@@ -521,23 +508,65 @@ export class LeftSidebar extends Widget {
         // 拖拽行为
         let isDragging = false;
         let dragStartY = 0;
+        let draggedElement: d3.Selection<SVGRectElement, StageDatum, any, any> | null = null;
+        let animationFrameId: number | null = null;
+        
         const drag = d3.drag<SVGRectElement, StageDatum>()
             .on('start', function (event, d) {
                 dragStartY = event.y;
                 isDragging = false;
-                d3.select(this).raise().attr('stroke', '#333').attr('stroke-width', 3);
+                draggedElement = d3.select(this);
+                draggedElement.raise();
+                
+                // 添加拖拽时的视觉反馈 - 使用CSS类而不是内联样式
+                draggedElement.classed('dragging', true);
             })
             .on('drag', (event, d) => {
-                if (Math.abs(event.y - dragStartY) > 3) {
+                // 降低拖拽阈值，提高响应性
+                if (Math.abs(event.y - dragStartY) > 2) {
                     isDragging = true;
                 }
-                const stageInfo = stageMap.get(d.stage);
-                if (stageInfo) {
-                    d3.select(event.sourceEvent.target)
-                        .attr('y', event.y - stageInfo.height / 2);
+                
+                if (isDragging && draggedElement) {
+                    // 使用requestAnimationFrame优化拖拽性能
+                    if (animationFrameId) {
+                        cancelAnimationFrame(animationFrameId);
+                    }
+                    
+                    animationFrameId = requestAnimationFrame(() => {
+                        const stageInfo = stageMap.get(d.stage);
+                        if (stageInfo && draggedElement) {
+                            const newY = event.y - stageInfo.height / 2;
+                            const originalY = stageInfo.y;
+                            const deltaY = newY - originalY;
+                            // 使用transform而不是改变y属性，提高性能
+                            draggedElement.style('transform', `translateY(${deltaY}px)`);
+                        }
+                    });
                 }
             })
             .on('end', (event, d) => {
+                // 清理动画帧
+                if (animationFrameId) {
+                    cancelAnimationFrame(animationFrameId);
+                    animationFrameId = null;
+                }
+                
+                if (draggedElement) {
+                    // 恢复视觉样式
+                    draggedElement.classed('dragging', false);
+                    // 添加恢复动画类
+                    draggedElement.classed('dragging-end', true);
+                    // 清除transform
+                    draggedElement.style('transform', '');
+                    // 移除恢复动画类
+                    setTimeout(() => {
+                        if (draggedElement) {
+                            draggedElement.classed('dragging-end', false);
+                        }
+                    }, 150);
+                }
+                
                 if (isDragging) {
                     // 拖动才重排
                     let closest = this.stageData[0];
@@ -556,19 +585,17 @@ export class LeftSidebar extends Widget {
                         arr.splice(oldIdx, 1);
                         arr.splice(newIdx, 0, d);
                         this.stageData = arr;
-                        this.render();
+                        // 使用立即渲染来确保拖拽结束后的即时反馈
+                        this.renderImmediate();
                     } else {
-                        this.render();
+                        // 如果没有位置变化，清除transform即可
+                        if (draggedElement) {
+                            draggedElement.style('transform', '');
+                        }
                     }
-                } else {
-                    this.selection = { type: 'stage', stage: d.stage };
-                    // 设置全局选中状态（按tab隔离）
-                    const tabId = this.getTabId();
-                    const flowSelectionKey = `_galaxyFlowSelection_${tabId}`;
-                    const stageSelectionKey = `_galaxyStageSelection_${tabId}`;
-                    (window as any)[stageSelectionKey] = d.stage;
-                    (window as any)[flowSelectionKey] = null;
                 }
+                
+                draggedElement = null;
                 // 关键：短暂延迟后重置 isDragging，保证 pointerup 能正确识别
                 setTimeout(() => { isDragging = false; }, 0);
             });
@@ -600,8 +627,8 @@ export class LeftSidebar extends Widget {
                 .attr("x2", x2)
                 .attr("y2", y2);
 
-            grad.append("stop").attr("offset", "0%").attr("stop-color", colorMap.get(from) || '#ccc').attr("stop-opacity", 1);
-            grad.append("stop").attr("offset", "100%").attr("stop-color", colorMap.get(to) || '#ccc').attr("stop-opacity", 0.2);
+            grad.append("stop").attr("offset", "0%").attr("stop-color", this.colorMap.get(from) || '#ccc').attr("stop-opacity", 1);
+            grad.append("stop").attr("offset", "100%").attr("stop-color", this.colorMap.get(to) || '#ccc').attr("stop-opacity", 0.2);
 
             g.append("path")
                 .attr("d", `M${x1},${y1} C${ctrlX1},${y1} ${ctrlX2},${y2} ${x2},${y2}`)
@@ -609,10 +636,14 @@ export class LeftSidebar extends Widget {
                 .attr("stroke-width", strokeScale(count))
                 .attr("data-original-stroke-width", strokeScale(count))
                 .attr("data-from-stage", from)
+                .attr("data-path-id", `flow-${from}-${to}`)
                 .attr("fill", "none")
                 .attr("opacity", 0.7)
-                .attr("class", (d) => `flow-link link-from-${from} link-to-${to}` + (this.selection && this.selection.type === 'flow' && this.selection.from === from && this.selection.to === to ? ' selected' : ''))
+                .attr("class", (d) => `flow-link link-from-${from} link-to-${to}`)
                 .on("mouseover", (event) => {
+                    // 在拖拽过程中忽略hover效果
+                    if (isDragging) return;
+                    
                     // 只有在没有选中状态时才应用hover效果
                     if (!this.selection) {
                         d3.selectAll(".flow-link").attr("opacity", 0.05);
@@ -635,6 +666,9 @@ export class LeftSidebar extends Widget {
                     tooltip!.style.display = 'block';
                 })
                 .on("mousemove", (event) => {
+                    // 在拖拽过程中忽略tooltip移动
+                    if (isDragging) return;
+                    
                     const tooltip = document.getElementById('galaxy-tooltip');
                     tooltip!.style.left = event.clientX + 12 + 'px';
                     tooltip!.style.top = event.clientY + 12 + 'px';
@@ -670,10 +704,17 @@ export class LeftSidebar extends Widget {
                                 const arrowSize = Math.max(8, strokeWidth * 1.5);
                                 addDistanceBasedArrow(linkElement as any, arrowSize);
                             });
-                            // 选中状态下保持原有border样式，只增加宽度
-                            d3.selectAll(`.stage-${this.selection.from}, .stage-${this.selection.to}`)
-                                .attr("stroke", "#666666")
-                                .attr("stroke-width", 3);
+                            // 选中状态下保持原有样式，只有原本有边框的才保持边框
+                            d3.selectAll(`.stage-${this.selection.from}, .stage-${this.selection.to}`).each((d, i, nodes) => {
+                                const rect = d3.select(nodes[i]);
+                                const stage = rect.datum() as StageDatum;
+                                const group = STAGE_GROUP_MAP[stage.stage];
+                                if (group === 'Data-oriented' || group === 'Model-oriented') {
+                                    rect.attr("stroke", "#666666").attr("stroke-width", 2).attr("stroke-dasharray", group === 'Model-oriented' ? "4,2" : "none");
+                                } else {
+                                    rect.attr("stroke", "none").attr("stroke-width", 0);
+                                }
+                            });
                         } else if (this.selection.type === 'stage') {
                             d3.selectAll(".flow-link").attr("opacity", 0.05);
                             const highlightedLinks = d3.selectAll(`.link-from-${this.selection.stage}, .link-to-${this.selection.stage}`).attr("opacity", 0.9);
@@ -684,10 +725,17 @@ export class LeftSidebar extends Widget {
                                 const arrowSize = Math.max(8, strokeWidth * 1.5);
                                 addDistanceBasedArrow(linkElement as any, arrowSize);
                             });
-                            // 选中状态下保持原有border样式，只增加宽度
-                            d3.selectAll(`.stage-${this.selection.stage}`)
-                                .attr("stroke", "#666666")
-                                .attr("stroke-width", 4);
+                            // 选中状态下保持原有样式，只有原本有边框的才保持边框
+                            d3.selectAll(`.stage-${this.selection.stage}`).each((d, i, nodes) => {
+                                const rect = d3.select(nodes[i]);
+                                const stage = rect.datum() as StageDatum;
+                                const group = STAGE_GROUP_MAP[stage.stage];
+                                if (group === 'Data-oriented' || group === 'Model-oriented') {
+                                    rect.attr("stroke", "#666666").attr("stroke-width", 2).attr("stroke-dasharray", group === 'Model-oriented' ? "4,2" : "none");
+                                } else {
+                                    rect.attr("stroke", "none").attr("stroke-width", 0);
+                                }
+                            });
                         }
                     }
                     // tooltip
@@ -734,8 +782,8 @@ export class LeftSidebar extends Widget {
             .attr('height', (d) => stageMap.get(d.stage)!.height)
             .attr('rx', 6) // 添加圆角
             .attr('ry', 6) // 添加圆角
-            .attr('fill', (d) => colorMap.get(d.stage) || '#ccc')
-            .attr('class', (d) => `stage-rect stage-${d.stage}` + (this.selection && this.selection.type === 'stage' && this.selection.stage === d.stage ? ' selected' : ''))
+            .attr('fill', (d) => this.colorMap.get(d.stage) || '#ccc')
+            .attr('class', (d) => `stage-rect stage-${d.stage}`)
             .attr('stroke', (d) => {
                 const group = STAGE_GROUP_MAP[d.stage];
                 if (group === 'Data-oriented' || group === 'Model-oriented') {
@@ -759,6 +807,9 @@ export class LeftSidebar extends Widget {
             })
             .on("mouseover", (event, d) => {
                 const stage = d.stage;
+                // 在拖拽过程中忽略hover效果
+                if (isDragging) return;
+                
                 // 只有在没有选中状态时才应用hover效果
                 if (!this.selection) {
                     d3.selectAll(".flow-link").attr("opacity", 0.05);
@@ -786,6 +837,9 @@ export class LeftSidebar extends Widget {
                 tooltip!.style.display = 'block';
             })
             .on("mousemove", (event) => {
+                // 在拖拽过程中忽略tooltip移动
+                if (isDragging) return;
+                
                 const tooltip = document.getElementById('galaxy-tooltip');
                 tooltip!.style.left = event.clientX + 12 + 'px';
                 tooltip!.style.top = event.clientY + 12 + 'px';
@@ -821,10 +875,17 @@ export class LeftSidebar extends Widget {
                             const arrowSize = Math.max(8, strokeWidth * 1.5);
                             addDistanceBasedArrow(linkElement as any, arrowSize);
                         });
-                        // 选中状态下保持原有border样式，只增加宽度
-                        d3.selectAll(`.stage-${this.selection.from}, .stage-${this.selection.to}`)
-                            .attr("stroke", "#666666")
-                            .attr("stroke-width", 3);
+                        // 选中状态下保持原有样式，只有原本有边框的才保持边框
+                        d3.selectAll(`.stage-${this.selection.from}, .stage-${this.selection.to}`).each((d, i, nodes) => {
+                            const rect = d3.select(nodes[i]);
+                            const stage = rect.datum() as StageDatum;
+                            const group = STAGE_GROUP_MAP[stage.stage];
+                            if (group === 'Data-oriented' || group === 'Model-oriented') {
+                                rect.attr("stroke", "#666666").attr("stroke-width", 2).attr("stroke-dasharray", group === 'Model-oriented' ? "4,2" : "none");
+                            } else {
+                                rect.attr("stroke", "none").attr("stroke-width", 0);
+                            }
+                        });
                     } else if (this.selection.type === 'stage') {
                         d3.selectAll(".flow-link").attr("opacity", 0.05);
                         const highlightedLinks = d3.selectAll(`.link-from-${this.selection.stage}, .link-to-${this.selection.stage}`).attr("opacity", 0.9);
@@ -835,10 +896,17 @@ export class LeftSidebar extends Widget {
                             const arrowSize = Math.max(8, strokeWidth * 1.5);
                             addDistanceBasedArrow(linkElement as any, arrowSize);
                         });
-                        // 选中状态下保持原有border样式，只增加宽度
-                        d3.selectAll(`.stage-${this.selection.stage}`)
-                            .attr("stroke", "#666666")
-                            .attr("stroke-width", 4);
+                        // 选中状态下保持原有样式，只有原本有边框的才保持边框
+                        d3.selectAll(`.stage-${this.selection.stage}`).each((d, i, nodes) => {
+                            const rect = d3.select(nodes[i]);
+                            const stage = rect.datum() as StageDatum;
+                            const group = STAGE_GROUP_MAP[stage.stage];
+                            if (group === 'Data-oriented' || group === 'Model-oriented') {
+                                rect.attr("stroke", "#666666").attr("stroke-width", 2).attr("stroke-dasharray", group === 'Model-oriented' ? "4,2" : "none");
+                            } else {
+                                rect.attr("stroke", "none").attr("stroke-width", 0);
+                            }
+                        });
                     }
                 }
                 // tooltip
@@ -858,6 +926,7 @@ export class LeftSidebar extends Widget {
                     (window as any)[stageSelectionKey] = null;
                     (window as any)[flowSelectionKey] = null;
                     this.saveFilterState();
+                    // 避免重复渲染，只在状态真正改变时渲染
                     this.render();
                     window.dispatchEvent(new CustomEvent('galaxy-selection-cleared', { detail: { tabId: this.getTabId() } }));
                 } else {
@@ -870,6 +939,7 @@ export class LeftSidebar extends Widget {
                     (window as any)[stageSelectionKey] = d.stage;
                     (window as any)[flowSelectionKey] = null;
                     this.saveFilterState();
+                    // 避免重复渲染，只在状态真正改变时渲染
                     this.render();
                     window.dispatchEvent(new CustomEvent('galaxy-stage-selected', { detail: { stage: d.stage, tabId: this.getTabId() } }));
                 }
@@ -938,7 +1008,7 @@ export class LeftSidebar extends Widget {
         legendContainer.style.gap = '2px'; // 进一步减少垂直间隔
 
         // 创建单个组件的函数
-        const createGroupBox = (groupName: string, stages: typeof this.stageData, isHidden: boolean = false) => {
+        const createGroupBox = (groupName: string, stages: typeof this.stageData) => {
             if (stages.length === 0) return null;
 
             const groupBox = document.createElement('div');
@@ -964,7 +1034,7 @@ export class LeftSidebar extends Widget {
                 groupTitle.style.fontWeight = '600';
                 groupTitle.style.color = '#555';
                 groupTitle.style.marginBottom = '4px';
-                groupTitle.style.opacity = isHidden ? '0.5' : '1';
+                groupTitle.style.opacity = '1';
                 groupTitle.textContent = groupName;
                 groupBox.appendChild(groupTitle);
             }
@@ -1226,7 +1296,6 @@ export class LeftSidebar extends Widget {
 
             // legend始终画在SVG底部区域，且不与背景重叠
             const minLegendY = svgHeight - legendAreaHeight + 110; // 往下移一点，给flow chart留更多空间
-            // const maxBgY = Math.max(...bgRects.map(r => r.y + r.height)) + 60;
             const bottomY = minLegendY;
 
             // 统一声明legend相关变量
@@ -1370,8 +1439,7 @@ export class LeftSidebar extends Widget {
             }
         });
 
-        this.transitions = transitions;
-        this.stageFreq = stageFreq;
+
 
         // 根据selection状态应用高亮效果
         if (this.selection) {
@@ -1388,9 +1456,17 @@ export class LeftSidebar extends Widget {
                     addDistanceBasedArrow(linkElement as any, arrowSize);
                 });
 
-                // 选中状态下保持原有border样式，只增加宽度
-                d3.selectAll(`.stage-${this.selection.stage}`)
-                    .attr("stroke-width", 4);
+                // 选中状态下保持原有样式，只有原本有边框的才保持边框
+                d3.selectAll(`.stage-${this.selection.stage}`).each((d, i, nodes) => {
+                    const rect = d3.select(nodes[i]);
+                    const stage = rect.datum() as StageDatum;
+                    const group = STAGE_GROUP_MAP[stage.stage];
+                    if (group === 'Data-oriented' || group === 'Model-oriented') {
+                        rect.attr("stroke", "#666666").attr("stroke-width", 2).attr("stroke-dasharray", group === 'Model-oriented' ? "4,2" : "none");
+                    } else {
+                        rect.attr("stroke", "none").attr("stroke-width", 0);
+                    }
+                });
             } else if (this.selection.type === 'flow') {
                 // 高亮选中的flow
                 d3.selectAll(".flow-link").attr("opacity", 0.05);
@@ -1404,13 +1480,8 @@ export class LeftSidebar extends Widget {
                     addDistanceBasedArrow(linkElement as any, arrowSize);
                 });
 
-                // 选中状态下保持原有border样式，只增加宽度
-                d3.selectAll(`.stage-${this.selection.from}, .stage-${this.selection.to}`)
-                    .attr("stroke", "#666666")
-                    .attr("stroke-width", 3);
-            } else {
-                // 没有选中状态时，恢复默认的border样式
-                d3.selectAll(`.stage-rect`).each((d, i, nodes) => {
+                // 选中状态下保持原有样式，只有原本有边框的才保持边框
+                d3.selectAll(`.stage-${this.selection.from}, .stage-${this.selection.to}`).each((d, i, nodes) => {
                     const rect = d3.select(nodes[i]);
                     const stage = rect.datum() as StageDatum;
                     const group = STAGE_GROUP_MAP[stage.stage];
@@ -1420,59 +1491,34 @@ export class LeftSidebar extends Widget {
                         rect.attr("stroke", "none").attr("stroke-width", 0);
                     }
                 });
-
-                // 确保选中的transition保持原有的线宽
-                const selectedTransition = this.transitions.get(`${this.selection.from}->${this.selection.to}`);
-                if (selectedTransition !== undefined) {
-                    // 重新计算stroke-width，与渲染时保持一致
-                    const countValues = Array.from(this.transitions.values());
-                    const maxFlowCount = d3.max(countValues) || 1;
-                    const minFlowCount = d3.min(countValues) || 0;
-                    const minWidth = 2;
-                    const maxWidth = 26;
-
-                    const strokeScale = (count: number) => {
-                        if (count <= 0) return 0;
-                        if (maxFlowCount <= 5) {
-                            return [0, 2, 4][count] || 5;
-                        }
-                        const t = (count - minFlowCount) / (maxFlowCount - minFlowCount);
-                        return minWidth + Math.pow(t, 0.4) * (maxWidth - minWidth);
-                    };
-
-                    d3.selectAll(`.link-from-${this.selection.from}.link-to-${this.selection.to}`)
-                        .attr("stroke-width", strokeScale(selectedTransition));
-                }
             }
+        } else {
+            // 没有选中状态时，恢复默认的border样式
+            d3.selectAll(`.stage-rect`).each((d, i, nodes) => {
+                const rect = d3.select(nodes[i]);
+                const stage = rect.datum() as StageDatum;
+                const group = STAGE_GROUP_MAP[stage.stage];
+                if (group === 'Data-oriented' || group === 'Model-oriented') {
+                    rect.attr("stroke", "#666666").attr("stroke-width", 2).attr("stroke-dasharray", group === 'Model-oriented' ? "4,2" : "none");
+                } else {
+                    rect.attr("stroke", "none").attr("stroke-width", 0);
+                }
+            });
         }
 
         // 选中状态下不触发hover事件，避免minimap高亮
     }
 
-    getMostFrequentStageAndFlow() {
-        const mostFreqStage = Object.entries(this.stageFreq).sort((a, b) => b[1] - a[1])[0]?.[0] ?? '';
-        // 过滤掉 None/None、from==to、from或to为None
-        const validFlows = Array.from(this.transitions.entries()).filter(([key, count]) => {
-            const [from, to] = key.split('->');
-            return from !== 'None' && to !== 'None' && from !== to;
-        });
-        const mostFreqFlow = validFlows.sort((a, b) => b[1] - a[1])[0]?.[0] ?? '';
-        return { mostFreqStage, mostFreqFlow };
-    }
 
-    setSelection(selection: any) {
-        this.selection = selection;
-        this.render();
-    }
 
     dispose(): void {
         if (this._resizeObserver) {
             this._resizeObserver.disconnect();
             this._resizeObserver = null;
         }
-        if (this._resizeInterval) {
-            clearInterval(this._resizeInterval);
-            this._resizeInterval = null;
+        if (this._renderTimeout) {
+            clearTimeout(this._renderTimeout);
+            this._renderTimeout = null;
         }
         super.dispose();
     }
@@ -1481,18 +1527,31 @@ export class LeftSidebar extends Widget {
         // 恢复之前的筛选状态
         this.restoreFilterState();
 
-        // 先断开旧的 observer 和定时器
+        // 先断开旧的 observer
         if (this._resizeObserver) {
             this._resizeObserver.disconnect();
             this._resizeObserver = null;
         }
-        if (this._resizeInterval) {
-            clearInterval(this._resizeInterval);
-            this._resizeInterval = null;
-        }
         const svgElement = this.svg?.node();
         if (svgElement) {
-            const sidebarElem = this._findSidebarContainer(this.node);
+            // 向上查找带有特定 class 的父元素
+            let sidebarElem: HTMLElement = this.node;
+            let el: HTMLElement | null = this.node;
+            while (el) {
+                if (
+                    el.classList.contains('jp-SidePanel') ||
+                    el.classList.contains('p-SidePanel') ||
+                    el.classList.contains('jp-LeftArea') ||
+                    el.classList.contains('jp-RightArea')
+                ) {
+                    sidebarElem = el;
+                    break;
+                }
+                el = el.parentElement;
+            }
+            if (!sidebarElem) {
+                sidebarElem = this.node.parentElement || this.node;
+            }
             let lastWidth = sidebarElem.offsetWidth;
             const setSvgMarginBottom = () => {
                 const sidebarWidth = sidebarElem.offsetWidth;
@@ -1504,29 +1563,11 @@ export class LeftSidebar extends Widget {
             setSvgMarginBottom();
             this._resizeObserver = new ResizeObserver(setSvgMarginBottom);
             this._resizeObserver.observe(sidebarElem);
-            // 兜底：定时检查
-            this._resizeInterval = setInterval(setSvgMarginBottom, 300);
         }
         super.onAfterAttach?.(msg);
     }
 
-    // 工具函数：向上查找带有特定 class 的父元素
-    private _findSidebarContainer(node: HTMLElement): HTMLElement {
-        let el: HTMLElement | null = node;
-        while (el) {
-            if (
-                el.classList.contains('jp-SidePanel') ||
-                el.classList.contains('p-SidePanel') ||
-                el.classList.contains('jp-LeftArea') ||
-                el.classList.contains('jp-RightArea')
-            ) {
-                return el;
-            }
-            el = el.parentElement;
-        }
-        // fallback
-        return node.parentElement || node;
-    }
+
 
     // 根据筛选结果更新数据并重渲染
     setData(data: Notebook[], colorMap: Map<string, string>) {
@@ -1535,28 +1576,22 @@ export class LeftSidebar extends Widget {
         // 保持当前的selection状态，不清除
         // this.selection = null;
         // 重新初始化 stageData 和 initialStageOrder
-        const stageStats = new Map<string, { positions: number[]; firstPositions: number[]; count: number }>();
+        const stageStats = new Map<string, { count: number }>();
         this.data.forEach((nb) => {
             const cells = [...nb.cells]
                 .sort((a, b) => a.cellId - b.cellId)
                 .filter((d) => d.cellType === 'code');
-            const stageSeq: string[] = [];
             cells.forEach((cell) => {
                 const stage = String(cell["1st-level label"] ?? "None");
                 if (!stageStats.has(stage)) {
                     stageStats.set(stage, {
-                        positions: [],
-                        firstPositions: [],
                         count: 0
                     });
                 }
                 stageStats.get(stage)!.count++;
-                if (stageSeq.length === 0 || stageSeq[stageSeq.length - 1] !== stage) {
-                    stageSeq.push(stage);
-                }
             });
         });
-        this.stageData = Array.from(stageStats.keys()).map(stage => ({ stage: String(stage), avg_pos: 0, avg_first: 0, count: 0 }));
+        this.stageData = Array.from(stageStats.keys()).map(stage => ({ stage: String(stage), count: 0 }));
         this.initialStageOrder = this.stageData.map(d => d.stage);
         this.render();
     }
@@ -1601,24 +1636,58 @@ export class LeftSidebar extends Widget {
         };
     }
 
-    // 隐藏所有tooltip
-    private hideAllTooltips() {
-        // 隐藏galaxy-tooltip
-        const galaxyTooltip = document.getElementById('galaxy-tooltip');
-        if (galaxyTooltip) {
-            galaxyTooltip.style.display = 'none';
-        }
-        // 隐藏tooltip
-        const tooltip = document.getElementById('tooltip');
-        if (tooltip) {
-            tooltip.style.opacity = '0';
-        }
+
+
+    // 获取最频繁的stage和flow
+    getMostFrequentStageAndFlow() {
+        const mostFreqStage = this.stageData.reduce((max, current) => 
+            current.count > max.count ? current : max, this.stageData[0]);
+        
+        // 计算最频繁的flow
+        const transitions: Map<string, number> = new Map();
+        this.data.forEach((nb) => {
+            const cells = [...nb.cells]
+                .sort((a, b) => a.cellId - b.cellId)
+                .filter((d) => d.cellType === 'code');
+            const stageSeq: string[] = [];
+            cells.forEach((cell) => {
+                const stage = String(cell["1st-level label"] ?? "None");
+                if (stageSeq.length === 0 || stageSeq[stageSeq.length - 1] !== stage) {
+                    stageSeq.push(stage);
+                }
+            });
+            
+            for (let i = 0; i < stageSeq.length - 1; i++) {
+                const from = stageSeq[i];
+                const to = stageSeq[i + 1];
+                if (from !== "None" && to !== "None") {
+                    const key = `${from}->${to}`;
+                    transitions.set(key, (transitions.get(key) || 0) + 1);
+                }
+            }
+        });
+        
+        let mostFreqFlow = { from: '', to: '', count: 0 };
+        transitions.forEach((count, key) => {
+            const [from, to] = key.split("->");
+            if (count > mostFreqFlow.count) {
+                mostFreqFlow = { from, to, count };
+            }
+        });
+        
+        return {
+            mostFreqStage: mostFreqStage?.stage || '',
+            mostFreqFlow: mostFreqFlow.from && mostFreqFlow.to ? `${mostFreqFlow.from}->${mostFreqFlow.to}` : ''
+        };
     }
 
     // 从全局变量恢复筛选状态（按tab隔离）
     private restoreFilterState() {
         // 切换tab时隐藏所有tooltip
-        this.hideAllTooltips();
+        const galaxyTooltip = document.getElementById('galaxy-tooltip');
+        if (galaxyTooltip) {
+            galaxyTooltip.style.display = 'none';
+        }
 
         const tabId = this.getTabId();
         const stateKey = `_galaxyLeftSidebarFilterState_${tabId}`;
