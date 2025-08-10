@@ -19,11 +19,12 @@ export class DetailSidebar extends Widget {
   private _mostFreqStage: string | undefined;
   private _mostFreqFlow: string | undefined;
   private _hiddenStages?: Set<string>;
+  private similarityGroups: any[] = []; // 存储similarity groups数据
   private currentNotebook: any = null; // 保存当前 notebook detail
   private _currentTitle: string = 'Notebook Overview'; // 跟踪当前标题
   private _currentSelection: any = null; // 跟踪当前选中状态
   private rendermime: RenderMimeRegistry;
-  
+
   private _getTitleStyle(): string {
     if (!this._currentSelection) return 'color: #222';
     if (this._currentSelection.type === 'stage') {
@@ -106,11 +107,12 @@ export class DetailSidebar extends Widget {
       document.head.appendChild(link);
     }
   }
-  
-  constructor(colorMap: Map<string, string>, notebookOrder: number[], hiddenStages?: Set<string>) {
+
+  constructor(colorMap: Map<string, string>, notebookOrder: number[], hiddenStages?: Set<string>, similarityGroups?: any[]) {
     super();
     this.colorMap = colorMap;
     this.notebookOrder = notebookOrder || []; // 保存notebook的原始排序
+    this.similarityGroups = similarityGroups || []; // 保存similarity groups数据
     this.id = 'galaxy-detail-sidebar';
     this.title.label = 'Details';
     this.title.closable = true;
@@ -128,11 +130,11 @@ export class DetailSidebar extends Widget {
       this._hiddenStages = new Set(arr);
       if (this._allData && this._allData.length > 0) {
         if (this.filter) {
-          this.setSummary(this._allData, this._mostFreqStage, this._mostFreqFlow);
+          this.setSummary(this._allData, this._mostFreqStage, this._mostFreqFlow, this.notebookOrder);
         } else if (this.currentNotebook) {
           this.setNotebookDetail(this.currentNotebook, true); // 跳过事件派发，避免循环
         } else {
-          this.setSummary(this._allData, this._mostFreqStage, this._mostFreqFlow);
+          this.setSummary(this._allData, this._mostFreqStage, this._mostFreqFlow, this.notebookOrder);
         }
       }
     });
@@ -140,10 +142,10 @@ export class DetailSidebar extends Widget {
     window.addEventListener('galaxy-matrix-filtered', (e: any) => {
       const filteredData = e.detail?.notebooks ?? [];
       if (!this.currentNotebook) {
-        this.setSummary(filteredData, this._mostFreqStage, this._mostFreqFlow);
+        this.setSummary(filteredData, this._mostFreqStage, this._mostFreqFlow, this.notebookOrder);
       }
     });
-    // 监听 notebook order 变化事件
+    // 监听 notebook order 变化事件 - 只更新notebookOrder，不重新渲染
     window.addEventListener('galaxy-notebook-order-changed', (e: any) => {
       this.notebookOrder = e.detail?.notebookOrder ?? [];
     });
@@ -178,11 +180,11 @@ export class DetailSidebar extends Widget {
     if (nb && nb.index === undefined) {
       nb.index = 0;
     }
-    
+
     // 设置notebook的默认标题
     this._currentTitle = nb.notebook_name ?? nb.kernelVersionId ?? `Notebook ${nb.globalIndex || nb.index || 0}`;
     this.saveDetailFilterState();
-    
+
     // 只有在不跳过事件派发时才派发notebook选中事件
     if (!skipEventDispatch) {
       const notebookObj = { ...nb, index: nb.globalIndex };
@@ -190,7 +192,7 @@ export class DetailSidebar extends Widget {
         detail: { notebook: notebookObj }
       }));
     }
-    
+
     // 使用所有cell，与LeftSidebar保持一致
     const cells = nb.cells ?? [];
     const total = cells.length;
@@ -199,13 +201,13 @@ export class DetailSidebar extends Widget {
     // 统计最常见stage和flow（与flowchart一致）
     const stageFreq: Record<string, number> = {};
     const transitions: Record<string, number> = {};
-    
+
     // 只考虑code cell，与LeftSidebar保持一致
     const codeCells = cells.filter((c: any) => c.cellType === 'code');
-    
+
     // 获取被隐藏的stage列表
     const hiddenStages = this._hiddenStages ?? new Set(['6', '1']);
-    
+
     // 统计stage频率，排除被隐藏的stage
     for (let i = 0; i < codeCells.length; i++) {
       const stage = String(codeCells[i]["1st-level label"] ?? 'None');
@@ -213,7 +215,7 @@ export class DetailSidebar extends Widget {
         stageFreq[stage] = (stageFreq[stage] || 0) + 1;
       }
     }
-    
+
     // 构建stage序列（连续的相同stage合并）
     const stageSeq: string[] = [];
     for (let i = 0; i < codeCells.length; i++) {
@@ -222,7 +224,7 @@ export class DetailSidebar extends Widget {
         stageSeq.push(stage);
       }
     }
-    
+
     // 计算stage序列中的transitions，排除被隐藏的stage
     for (let i = 0; i < stageSeq.length - 1; i++) {
       const from = stageSeq[i];
@@ -324,7 +326,7 @@ export class DetailSidebar extends Widget {
     // 计算选中stage和transition的统计信息
     let selectedStageInfo = '';
     let selectedTransitionInfo = '';
-    
+
     if (this.filter && this.filter.type === 'stage') {
       const stageCells = cells.filter((cell: any) => {
         const stage = String(cell["1st-level label"] ?? 'None');
@@ -363,7 +365,7 @@ export class DetailSidebar extends Widget {
       let flowCount = 0;
       let totalLines = 0;
       let codeCellCount = 0;
-      
+
       // 先构建stage序列（连续的相同stage合并）
       const stageSeq: string[] = [];
       // 只考虑code cell，与LeftSidebar保持一致
@@ -374,7 +376,7 @@ export class DetailSidebar extends Widget {
           stageSeq.push(stage);
         }
       }
-      
+
       // 计算stage序列中的transitions
       for (let i = 0; i < stageSeq.length - 1; i++) {
         const from = stageSeq[i];
@@ -383,7 +385,7 @@ export class DetailSidebar extends Widget {
           flowCount++;
         }
       }
-      
+
       // 单独计算from stage的code cells平均行数
       for (let i = 0; i < cells.length; i++) {
         const cellStage = String(cells[i]["1st-level label"] ?? 'None');
@@ -416,7 +418,7 @@ export class DetailSidebar extends Widget {
         </div>
       `;
     }
-    
+
     // 插入内容
     this.node.innerHTML = `
       <div style="padding:28px 18px 18px 18px; font-size:15px; color:#222; max-width:420px; margin:0 auto;">
@@ -474,15 +476,15 @@ export class DetailSidebar extends Widget {
         <div style="margin:18px 0 8px 0; font-weight:600; font-size:15px;">Table of Contents</div>
         <div class="toc-scroll" style="background:#f8f9fa; border-radius:8px; padding:20px; margin-bottom:16px; max-height:300px; overflow-y:auto; overflow-x:hidden; border:1px solid #e0e0e0;">
           ${nb.toc.map((item: any) => {
-            // 统计#数量，决定层级
-            const match = item.heading.match(/^(#+)\s+/);
-            const level = match ? match[1].length : 1;
-            const marginLeft = 12 * (level - 1);
-            const fontSize = level === 1 ? 15 : (level === 2 ? 14 : 13);
-            const fontWeight = level === 1 ? 600 : (level === 2 ? 500 : 400);
-            const color = level === 1 ? '#1976d2' : (level === 2 ? '#1565c0' : '#666');
-            const padding = level === 1 ? '8px 0' : (level === 2 ? '6px 0' : '4px 0');
-            return `
+      // 统计#数量，决定层级
+      const match = item.heading.match(/^(#+)\s+/);
+      const level = match ? match[1].length : 1;
+      const marginLeft = 12 * (level - 1);
+      const fontSize = level === 1 ? 15 : (level === 2 ? 14 : 13);
+      const fontWeight = level === 1 ? 600 : (level === 2 ? 500 : 400);
+      const color = level === 1 ? '#1976d2' : (level === 2 ? '#1565c0' : '#666');
+      const padding = level === 1 ? '8px 0' : (level === 2 ? '6px 0' : '4px 0');
+      return `
               <div style="margin-bottom:2px; margin-left:${marginLeft}px;">
                 <div class="toc-item" data-cell-id="${item.cellId}" 
                      style="color:${color}; font-size:${fontSize}px; font-weight:${fontWeight}; cursor:pointer; line-height:1.4; padding:${padding}; border-radius:4px; transition:all 0.2s ease;"
@@ -492,7 +494,7 @@ export class DetailSidebar extends Widget {
                 </div>
               </div>
             `;
-          }).join('')}
+    }).join('')}
         </div>
         ` : `
         <div style="margin:18px 0 8px 0; font-weight:600; font-size:15px;">Table of Contents</div>
@@ -598,7 +600,6 @@ export class DetailSidebar extends Widget {
           e.preventDefault();
           const cellId = (item as HTMLElement).getAttribute('data-cell-id');
           if (cellId) {
-            console.log('TOC item clicked in DetailSidebar (first setTimeout):', cellId);
             window.dispatchEvent(new CustomEvent('galaxy-toc-item-clicked', {
               detail: { cellId: cellId }
             }));
@@ -682,7 +683,6 @@ export class DetailSidebar extends Widget {
           e.preventDefault();
           const cellId = (item as HTMLElement).getAttribute('data-cell-id');
           if (cellId) {
-            console.log('TOC item clicked in DetailSidebar:', cellId);
             window.dispatchEvent(new CustomEvent('galaxy-toc-item-clicked', {
               detail: { cellId: cellId }
             }));
@@ -816,32 +816,32 @@ export class DetailSidebar extends Widget {
         .map((c: any, i: number) => ({ ...c, cellIndex: i }))
         .filter((c: any) => c["1st-level label"] === stage && c.cellIndex !== cell.cellIndex);
       if (!cells.length) return '<div style="color:#aaa; font-size:13px; margin-bottom:12px;">No other cells in this stage in this notebook.</div>';
-      
+
       // 创建容器div
       const containerDiv = document.createElement('div');
       containerDiv.style.display = 'flex';
       containerDiv.style.flexDirection = 'column';
       containerDiv.style.gap = '14px';
       containerDiv.style.marginBottom = '12px';
-      
+
       cells.forEach((c: any) => {
         const content = c.source ?? c.code ?? '';
         const cellIdx = c.cellIndex !== undefined ? c.cellIndex + 1 : '';
         const nbIdx = c.notebookIndex !== undefined ? c.notebookIndex : (nb.index !== undefined ? nb.index : 0);
-        
+
         // cell外层div
         const wrapper = document.createElement('div');
         wrapper.style.display = 'flex';
         wrapper.style.flexDirection = 'row';
         wrapper.style.alignItems = 'stretch';
-        
+
         // 左侧序号栏
         const left = document.createElement('div');
         left.style.position = 'relative';
         left.style.minWidth = '36px';
         left.style.marginRight = '8px';
         left.style.height = '100%';
-        
+
         const idxDiv = document.createElement('div');
         idxDiv.style.color = '#888';
         idxDiv.style.fontSize = '15px';
@@ -854,7 +854,7 @@ export class DetailSidebar extends Widget {
         idxDiv.style.alignItems = 'flex-end';
         idxDiv.textContent = `[${cellIdx}]`;
         left.appendChild(idxDiv);
-        
+
         // 跳转图标
         const jumpIcon = document.createElement('div');
         jumpIcon.className = 'nbd-jump-icon';
@@ -867,7 +867,7 @@ export class DetailSidebar extends Widget {
         jumpIcon.style.color = '#999';
         jumpIcon.innerHTML = '<svg width="18" height="18" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="10" cy="10" r="7" stroke="#1976d2" stroke-width="2"/><circle cx="10" cy="10" r="2.5" fill="#1976d2"/><line x1="10" y1="3" x2="10" y2="0" stroke="#1976d2" stroke-width="1.5"/><line x1="10" y1="17" x2="10" y2="20" stroke="#1976d2" stroke-width="1.5"/><line x1="3" y1="10" x2="0" y2="10" stroke="#1976d2" stroke-width="1.5"/><line x1="17" y1="10" x2="20" y2="10" stroke="#1976d2" stroke-width="1.5"/></svg>';
         left.appendChild(jumpIcon);
-        
+
         // cell内容区
         const cellDiv = document.createElement('div');
         cellDiv.className = 'nbd-cell';
@@ -878,7 +878,7 @@ export class DetailSidebar extends Widget {
         cellDiv.style.borderRadius = '6px';
         cellDiv.style.boxShadow = '0 1px 4px #0001';
         cellDiv.style.background = '#fff';
-        
+
         // stage色条
         const colorBar = document.createElement('div');
         colorBar.style.width = '6px';
@@ -886,19 +886,19 @@ export class DetailSidebar extends Widget {
         colorBar.style.background = stageColor;
         colorBar.style.marginRight = '0';
         cellDiv.appendChild(colorBar);
-        
+
         // 内容区
         const contentDiv = document.createElement('div');
         contentDiv.style.flex = '1';
         contentDiv.style.padding = '14px 18px 10px 14px';
         contentDiv.style.minWidth = '0';
-        
+
         // 渲染内容
         if (c.cellType === 'markdown') {
           try {
             // 确保JupyterLab样式已加载
             this.ensureJupyterlabThemeStyle();
-            
+
             // 尝试使用HTML渲染器
             const htmlWidget = this.rendermime.createRenderer('text/html');
             const htmlContent = this.markdownToHtml(content);
@@ -907,7 +907,7 @@ export class DetailSidebar extends Widget {
               metadata: {},
               trusted: true
             });
-            
+
             if (htmlWidget && htmlWidget.node) {
               htmlWidget.renderModel(model);
               contentDiv.appendChild(htmlWidget.node);
@@ -942,13 +942,13 @@ export class DetailSidebar extends Widget {
           // 其它类型直接显示
           contentDiv.textContent = content;
         }
-        
+
         cellDiv.appendChild(contentDiv);
         wrapper.appendChild(left);
         wrapper.appendChild(cellDiv);
         containerDiv.appendChild(wrapper);
       });
-      
+
       return containerDiv.outerHTML;
     }
     // tab content
@@ -1099,7 +1099,7 @@ export class DetailSidebar extends Widget {
           cellListDiv.innerHTML = renderStageCellCards(allNotebooksArr[nbIdx], cell["1st-level label"] ?? "");
           // 重新绑定 jump icon 事件
           bindJumpIconEvents(cellListDiv as HTMLElement);
-          
+
           // 激活Prism.js行号
           setTimeout(() => {
             const Prism = (window as any).Prism;
@@ -1194,7 +1194,7 @@ export class DetailSidebar extends Widget {
         });
       });
     }, 0);
-    
+
     // 激活Prism.js行号
     setTimeout(() => {
       const Prism = (window as any).Prism;
@@ -1207,7 +1207,7 @@ export class DetailSidebar extends Widget {
   setFilter(selection: any, skipEventDispatch: boolean = false) {
     this.filter = selection;
     this._currentSelection = selection; // 更新当前选中状态
-    
+
     // 设置全局筛选状态，供NotebookDetailWidget使用
     if (selection) {
       if (selection.type === 'stage') {
@@ -1225,14 +1225,14 @@ export class DetailSidebar extends Widget {
       (window as any)._galaxyFlowSelection = null;
       this._currentTitle = this.currentNotebook ? 'Notebook Detail' : 'Notebook Overview';
     }
-    
+
     this.saveDetailFilterState();
-    
+
     // 只有在不跳过事件派发时才触发事件
     if (!skipEventDispatch) {
       // 触发筛选状态变化事件，通知NotebookDetailWidget重新渲染
       window.dispatchEvent(new CustomEvent('galaxy-flow-selection-changed', { detail: selection }));
-      
+
       // 触发MatrixWidget和flowchart的事件通知
       if (selection) {
         if (selection.type === 'stage') {
@@ -1250,13 +1250,13 @@ export class DetailSidebar extends Widget {
         window.dispatchEvent(new CustomEvent('galaxy-selection-cleared', { detail: { tabId } }));
       }
     }
-    
+
     // 根据当前状态调用相应的方法
     if (this.currentNotebook) {
       // 在notebook detail状态下，重新渲染notebook detail
       this.setNotebookDetail(this.currentNotebook, true); // 跳过事件派发，避免循环
     } else {
-      this.setSummary(this._allData, this._mostFreqStage, this._mostFreqFlow);
+      this.setSummary(this._allData, this._mostFreqStage, this._mostFreqFlow, this.notebookOrder);
     }
   }
 
@@ -1314,14 +1314,14 @@ export class DetailSidebar extends Widget {
     }
     // 统计
     const notebookCount = filteredData.length;
-    
+
     // 根据是否有filter显示不同的统计信息
     if (this.filter) {
       // 有filter时：显示选中stage/flow的统计
       let totalOccurrences = 0;
       let containingNotebooks = 0;
       let avgPerNotebook = 0;
-      
+
       if (this.filter.type === 'stage') {
         // 统计选中的stage
         filteredData.forEach(nb => {
@@ -1357,16 +1357,25 @@ export class DetailSidebar extends Widget {
         });
         avgPerNotebook = containingNotebooks > 0 ? (totalOccurrences / containingNotebooks) : 0;
       }
-      
+
       // 按原始顺序排序filteredData
       const sortedFilteredData = [...filteredData].sort((a, b) => {
-        const aIndex = this.notebookOrder.indexOf(a.globalIndex - 1);
-        const bIndex = this.notebookOrder.indexOf(b.globalIndex - 1);
-        return aIndex - bIndex;
+        // 找到notebook在原始数据中的索引
+        const aOrigIndex = this._allData.findIndex(item =>
+          item.kernelVersionId && a.kernelVersionId && item.kernelVersionId === a.kernelVersionId
+        );
+        const bOrigIndex = this._allData.findIndex(item =>
+          item.kernelVersionId && b.kernelVersionId && item.kernelVersionId === b.kernelVersionId
+        );
+
+        // 根据notebookOrder中的位置排序
+        const aOrderIndex = this.notebookOrder.indexOf(aOrigIndex);
+        const bOrderIndex = this.notebookOrder.indexOf(bOrigIndex);
+        return aOrderIndex - bOrderIndex;
       });
-      
+
       // 渲染选中项的统计信息和筛选后的列表
-      const notebookTableHtml = sortedFilteredData.map((nb, index) => {
+      const notebookTableHtml = sortedFilteredData.map((nb, displayIndex) => {
         let occurrenceCount = 0;
         if (this.filter.type === 'stage') {
           nb.cells?.forEach((cell: any) => {
@@ -1385,16 +1394,21 @@ export class DetailSidebar extends Widget {
             }
           }
         }
-        
-        const globalIndex = nb.globalIndex || (index + 1);
+
+        // 获取cluster_id
+        const kernelId = nb.kernelVersionId?.toString();
+        const simRow = kernelId ? this.similarityGroups.find((row: any) => row.kernelVersionId === kernelId) : null;
+        const clusterId = simRow ? simRow.cluster_id : '-';
+
         return `
-          <tr class="filtered-notebook-item" data-notebook-index="${index}" style="cursor:pointer; transition:background-color 0.15s;">
-            <td style="padding:8px 12px; border-bottom:1px solid #eee; text-align:center; color:#888; font-size:12px; width:40px;">${globalIndex}</td>
-            <td style="padding:8px 12px; border-bottom:1px solid #eee; font-weight:500; color:#333;">${nb.notebook_name ?? nb.kernelVersionId ?? `Notebook ${globalIndex}`}</td>
+          <tr class="filtered-notebook-item" data-notebook-index="${displayIndex}" style="cursor:pointer; transition:background-color 0.15s;">
+            <td style="padding:8px 12px; border-bottom:1px solid #eee; text-align:center; color:#888; font-size:12px; width:40px;">${nb.globalIndex}</td>
+            <td style="padding:8px 12px; border-bottom:1px solid #eee; text-align:center; color:#666; font-size:12px; width:60px;">${clusterId}</td>
+            <td style="padding:8px 12px; border-bottom:1px solid #eee; font-weight:500; color:#333;">${nb.notebook_name ?? nb.kernelVersionId ?? `Notebook ${nb.globalIndex}`}</td>
             <td style="padding:8px 12px; border-bottom:1px solid #eee; text-align:right; color:#666;">${occurrenceCount}</td>
           </tr>`;
       }).join('');
-      
+
       this.node.innerHTML = `
         <div style="padding:20px 18px 18px 18px; font-size:14px; line-height:1.7; color:#222;">
           <div style="font-size:18px; font-weight:600; margin-bottom:14px;" id="detail-sidebar-title"><span style="${this._getTitleStyle()}">${this._currentTitle}</span></div>
@@ -1420,6 +1434,7 @@ export class DetailSidebar extends Widget {
                 <thead>
                   <tr style="background:#f5f5f5;">
                     <th style="padding:8px 12px; text-align:center; font-weight:600; color:#333; border-bottom:2px solid #ddd; width:40px;">#</th>
+                    <th style="padding:8px 12px; text-align:center; font-weight:600; color:#333; border-bottom:2px solid #ddd; width:60px;">Cluster</th>
                     <th style="padding:8px 12px; text-align:left; font-weight:600; color:#333; border-bottom:2px solid #ddd;">Notebook</th>
                     <th style="padding:8px 12px; text-align:right; font-weight:600; color:#333; border-bottom:2px solid #ddd;">Occurrences</th>
                   </tr>
@@ -1431,7 +1446,7 @@ export class DetailSidebar extends Widget {
             </div>
           </div>
         </div>`;
-      
+
       // 绑定点击事件和悬停效果
       setTimeout(() => {
         const notebookItems = this.node.querySelectorAll('.filtered-notebook-item');
@@ -1442,7 +1457,7 @@ export class DetailSidebar extends Widget {
               this.setNotebookDetail(notebook);
             }
           });
-          
+
           // 添加悬停效果
           item.addEventListener('mouseenter', () => {
             (item as HTMLElement).style.backgroundColor = '#f0f8ff';
@@ -1451,12 +1466,12 @@ export class DetailSidebar extends Widget {
             (item as HTMLElement).style.backgroundColor = '';
           });
         });
-        
+
         // 绑定排序按钮事件
         const sortBtn = this.node.querySelector('#sort-occurrences-btn');
         if (sortBtn) {
           let sortMode = 'original'; // 'original', 'desc', 'asc'
-          
+
           sortBtn.addEventListener('click', () => {
             // 切换排序模式：original -> desc -> asc -> original
             if (sortMode === 'original') {
@@ -1466,7 +1481,7 @@ export class DetailSidebar extends Widget {
             } else {
               sortMode = 'original';
             }
-            
+
             // 更新图标和提示文本
             const svg = sortBtn.querySelector('svg');
             if (svg) {
@@ -1484,7 +1499,7 @@ export class DetailSidebar extends Widget {
                 (sortBtn as HTMLButtonElement).title = 'Occurrences ascending (click for original order)';
               }
             }
-            
+
             // 重新排序数据
             let sortedData;
             if (sortMode === 'original') {
@@ -1498,7 +1513,7 @@ export class DetailSidebar extends Widget {
               // 按occurrences排序
               sortedData = [...filteredData].sort((a, b) => {
                 let aCount = 0, bCount = 0;
-                
+
                 if (this.filter.type === 'stage') {
                   a.cells?.forEach((cell: any) => {
                     const stage = String(cell["1st-level label"] ?? 'None');
@@ -1522,13 +1537,13 @@ export class DetailSidebar extends Widget {
                     if (from === this.filter.from && to === this.filter.to) bCount++;
                   }
                 }
-                
+
                 return sortMode === 'desc' ? bCount - aCount : aCount - bCount;
               });
             }
-            
+
             // 重新生成表格HTML
-            const newTableHtml = sortedData.map((nb, index) => {
+            const newTableHtml = sortedData.map((nb, displayIndex) => {
               let occurrenceCount = 0;
               if (this.filter.type === 'stage') {
                 nb.cells?.forEach((cell: any) => {
@@ -1547,20 +1562,26 @@ export class DetailSidebar extends Widget {
                   }
                 }
               }
-              
+
+              // 获取cluster_id
+              const kernelId = nb.kernelVersionId?.toString();
+              const simRow = kernelId ? this.similarityGroups.find((row: any) => row.kernelVersionId === kernelId) : null;
+              const clusterId = simRow ? simRow.cluster_id : '-';
+
               return `
-                <tr class="filtered-notebook-item" data-notebook-index="${index}" style="cursor:pointer; transition:background-color 0.15s;">
+                <tr class="filtered-notebook-item" data-notebook-index="${displayIndex}" style="cursor:pointer; transition:background-color 0.15s;">
                   <td style="padding:8px 12px; border-bottom:1px solid #eee; text-align:center; color:#888; font-size:12px; width:40px;">${nb.globalIndex}</td>
+                  <td style="padding:8px 12px; border-bottom:1px solid #eee; text-align:center; color:#666; font-size:12px; width:60px;">${clusterId}</td>
                   <td style="padding:8px 12px; border-bottom:1px solid #eee; font-weight:500; color:#333;">${nb.notebook_name ?? nb.kernelVersionId ?? `Notebook ${nb.globalIndex}`}</td>
                   <td style="padding:8px 12px; border-bottom:1px solid #eee; text-align:right; color:#666;">${occurrenceCount}</td>
                 </tr>`;
             }).join('');
-            
+
             // 更新表格内容
             const tbody = this.node.querySelector('#filtered-notebooks-tbody');
             if (tbody) {
               tbody.innerHTML = newTableHtml;
-              
+
               // 重新绑定点击事件
               const newNotebookItems = tbody.querySelectorAll('.filtered-notebook-item');
               newNotebookItems.forEach((item, index) => {
@@ -1570,7 +1591,7 @@ export class DetailSidebar extends Widget {
                     this.setNotebookDetail(notebook);
                   }
                 });
-                
+
                 // 重新绑定悬停效果
                 item.addEventListener('mouseenter', () => {
                   (item as HTMLElement).style.backgroundColor = '#f0f8ff';
@@ -1583,10 +1604,10 @@ export class DetailSidebar extends Widget {
           });
         }
       }, 0);
-      
+
       return;
     }
-    
+
     // 没有filter时：显示原来的统计信息
     // 统计真实cell数并保留全局globalIndex
     const cellCountsWithIndex = data.map(nb => {
@@ -1725,21 +1746,48 @@ export class DetailSidebar extends Widget {
 
     // Notebook kernelVersionId 列表
     let notebookListHtml = '';
+
     if (!this.filter && notebookOrder) {
       // 只有在没有筛选时才允许排序
-      notebookListHtml = notebookOrder.map(idx => {
-        const nb = filteredData[idx];
-        if (!nb) return '';
+      // 根据notebookOrder重新排序filteredData
+      const sortedFilteredData = [...filteredData].sort((a, b) => {
+        // 找到notebook在原始数据中的索引
+        const aOrigIndex = this._allData.findIndex(item =>
+          item.kernelVersionId && a.kernelVersionId && item.kernelVersionId === a.kernelVersionId
+        );
+        const bOrigIndex = this._allData.findIndex(item =>
+          item.kernelVersionId && b.kernelVersionId && item.kernelVersionId === b.kernelVersionId
+        );
+
+        // 根据notebookOrder中的位置排序
+        const aOrderIndex = this.notebookOrder.indexOf(aOrigIndex);
+        const bOrderIndex = this.notebookOrder.indexOf(bOrigIndex);
+        return aOrderIndex - bOrderIndex;
+      });
+
+      notebookListHtml = sortedFilteredData.map((nb, displayIndex) => {
+        // 获取cluster_id
+        const kernelId = nb.kernelVersionId?.toString();
+        const simRow = kernelId ? this.similarityGroups.find((row: any) => row.kernelVersionId === kernelId) : null;
+        const clusterId = simRow ? simRow.cluster_id : '-';
+
         return `<tr class="overview-notebook-item" data-notebook-index="${nb.globalIndex}" style="cursor:pointer; transition:background-color 0.15s;">
           <td style="padding:8px 12px; border-bottom:1px solid #eee; text-align:center; color:#888; font-size:12px; width:40px;">${nb.globalIndex}</td>
+          <td style="padding:8px 12px; border-bottom:1px solid #eee; text-align:center; color:#666; font-size:12px; width:60px;">${clusterId}</td>
           <td style="padding:8px 12px; border-bottom:1px solid #eee; font-weight:500; color:#333;">${nb.notebook_name ?? nb.kernelVersionId}</td>
         </tr>`;
       }).join('');
     } else {
       // 有筛选时保持filteredData顺序
-      notebookListHtml = filteredData.map(nb => {
+      notebookListHtml = filteredData.map((nb, displayIndex) => {
+        // 获取cluster_id
+        const kernelId = nb.kernelVersionId?.toString();
+        const simRow = kernelId ? this.similarityGroups.find((row: any) => row.kernelVersionId === kernelId) : null;
+        const clusterId = simRow ? simRow.cluster_id : '-';
+
         return `<tr class="overview-notebook-item" data-notebook-index="${nb.globalIndex}" style="cursor:pointer; transition:background-color 0.15s;">
           <td style="padding:8px 12px; border-bottom:1px solid #eee; text-align:center; color:#888; font-size:12px; width:40px;">${nb.globalIndex}</td>
+          <td style="padding:8px 12px; border-bottom:1px solid #eee; text-align:center; color:#666; font-size:12px; width:60px;">${clusterId}</td>
           <td style="padding:8px 12px; border-bottom:1px solid #eee; font-weight:500; color:#333;">${nb.notebook_name ?? nb.kernelVersionId}</td>
         </tr>`;
       }).join('');
@@ -1797,6 +1845,7 @@ export class DetailSidebar extends Widget {
             <thead>
               <tr style="background:#f5f5f5;">
                 <th style="padding:8px 12px; text-align:center; font-weight:600; color:#333; border-bottom:2px solid #ddd; width:40px;">#</th>
+                <th style="padding:8px 12px; text-align:center; font-weight:600; color:#333; border-bottom:2px solid #ddd; width:60px;">Cluster</th>
                 <th style="padding:8px 12px; text-align:left; font-weight:600; color:#333; border-bottom:2px solid #ddd;">Notebook</th>
               </tr>
             </thead>
@@ -1807,40 +1856,40 @@ export class DetailSidebar extends Widget {
         </div>
       </div>
     `;
-          // 绑定 notebook 行点击事件和悬停效果
-      setTimeout(() => {
-        const notebookItems = this.node.querySelectorAll('.overview-notebook-item');
-        notebookItems.forEach((item) => {
-          const globalIdx = parseInt((item as HTMLElement).getAttribute('data-notebook-index') || '0', 10);
-          
-          item.addEventListener('click', () => {
-            if (this._allData && this._allData[globalIdx - 1]) { // globalIndex从1开始，所以需要减1
-              window.dispatchEvent(new CustomEvent('galaxy-notebook-selected', {
-                detail: { notebook: { ...this._allData[globalIdx - 1], index: globalIdx - 1 } }
-              }));
-              this.setNotebookDetail(this._allData[globalIdx - 1], true); // 跳过事件派发，避免循环
-            }
-          });
-          
-          // 添加悬停效果
-          item.addEventListener('mouseenter', () => {
-            (item as HTMLElement).style.backgroundColor = '#f0f8ff';
-          });
-          item.addEventListener('mouseleave', () => {
-            (item as HTMLElement).style.backgroundColor = '';
-          });
+    // 绑定 notebook 行点击事件和悬停效果
+    setTimeout(() => {
+      const notebookItems = this.node.querySelectorAll('.overview-notebook-item');
+      notebookItems.forEach((item) => {
+        const globalIdx = parseInt((item as HTMLElement).getAttribute('data-notebook-index') || '0', 10);
+
+        item.addEventListener('click', () => {
+          if (this._allData && this._allData[globalIdx - 1]) { // globalIndex从1开始，所以需要减1
+            window.dispatchEvent(new CustomEvent('galaxy-notebook-selected', {
+              detail: { notebook: { ...this._allData[globalIdx - 1], index: globalIdx - 1 } }
+            }));
+            this.setNotebookDetail(this._allData[globalIdx - 1], true); // 跳过事件派发，避免循环
+          }
         });
-        
-        // 添加表格行的悬停效果
-        const overviewItems = this.node.querySelectorAll('.overview-notebook-item');
-        overviewItems.forEach(item => {
-          item.addEventListener('mouseenter', () => {
-            (item as HTMLElement).style.backgroundColor = '#f0f8ff';
-          });
-          item.addEventListener('mouseleave', () => {
-            (item as HTMLElement).style.backgroundColor = '';
-          });
+
+        // 添加悬停效果
+        item.addEventListener('mouseenter', () => {
+          (item as HTMLElement).style.backgroundColor = '#f0f8ff';
         });
+        item.addEventListener('mouseleave', () => {
+          (item as HTMLElement).style.backgroundColor = '';
+        });
+      });
+
+      // 添加表格行的悬停效果
+      const overviewItems = this.node.querySelectorAll('.overview-notebook-item');
+      overviewItems.forEach(item => {
+        item.addEventListener('mouseenter', () => {
+          (item as HTMLElement).style.backgroundColor = '#f0f8ff';
+        });
+        item.addEventListener('mouseleave', () => {
+          (item as HTMLElement).style.backgroundColor = '';
+        });
+      });
 
       // 绑定最长和最短notebook跳转事件
       const longestLinks = this.node.querySelectorAll('.dsb-nb-longest-link');
@@ -2113,28 +2162,27 @@ export class DetailSidebar extends Widget {
   private restoreDetailFilterState() {
     // 切换tab时隐藏所有tooltip
     this.hideAllTooltips();
-    
+
     const tabId = this.getTabId();
     const stateKey = `_galaxyDetailSidebarFilterState_${tabId}`;
     const savedState = (window as any)[stateKey];
-    
+
     if (savedState) {
       this.filter = savedState.filter;
       this.currentNotebook = savedState.currentNotebook;
       this._currentTitle = savedState.currentTitle;
       this._currentSelection = savedState.currentSelection;
-      
+
       // 恢复状态后重新渲染
       if (this.currentNotebook) {
         // 确保notebook detail视图下没有选中状态
         this._currentSelection = null;
         this.setNotebookDetail(this.currentNotebook, true); // 跳过事件派发，避免循环
       } else if (this.filter) {
-        this.setSummary(this._allData, this._mostFreqStage, this._mostFreqFlow);
+        this.setSummary(this._allData, this._mostFreqStage, this._mostFreqFlow, this.notebookOrder);
       } else {
-        this.setSummary(this._allData, this._mostFreqStage, this._mostFreqFlow);
+        this.setSummary(this._allData, this._mostFreqStage, this._mostFreqFlow, this.notebookOrder);
       }
     }
-    // 如果没有保存的状态，不进行任何操作，保持当前状态
   }
 } 

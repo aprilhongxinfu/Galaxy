@@ -13,9 +13,7 @@ type Notebook = {
     globalIndex?: number;
 };
 
-// type StageDatum = {
-//     stage: string;
-// };
+
 
 export class MatrixWidget extends Widget {
     private data: Notebook[];
@@ -34,19 +32,13 @@ export class MatrixWidget extends Widget {
 
     constructor(data: Notebook[], colorScale: (label: string) => string, similarityGroups?: any[], kernelTitleMap?: Map<string, { title: string; creationDate: string; totalLines: number }>) {
         super();
-        this.data = data.map((nb, i) => ({ ...nb, globalIndex: i }));
+        this.data = data.map((nb, i) => ({ ...nb, globalIndex: i + 1 }));
         this.colorScale = colorScale;
         this.similarityGroups = similarityGroups || [];
         this.kernelTitleMap = kernelTitleMap || new Map();
-        
-        // 调试信息
-        console.log('MatrixWidget constructor:', {
-            dataLength: this.data.length,
-            kernelTitleMapSize: this.kernelTitleMap.size,
-            hasKernelTitleMap: !!kernelTitleMap,
-            sampleKernelIds: this.data.slice(0, 3).map(nb => (nb as any).kernelVersionId)
-        });
-        
+
+
+
         // 初始化时重置状态，确保每次创建都是全新的状态
         this.resetState();
         this.id = 'matrix-widget';
@@ -123,19 +115,19 @@ export class MatrixWidget extends Widget {
         this.sortButton.innerHTML = this.getSortIcon();
         this.sortButton.onclick = () => {
             if (this.sortState === 3) return; // similarity模式下禁用
-            
+
             // 保存当前的filter状态
             const currentFilter = this.filter;
-            
+
             this.sortState = (this.sortState + 1) % 3;
             this.updateNotebookOrder();
             this.sortButton.innerHTML = this.getSortIcon();
             this.similaritySortButton.classList.remove('active');
             this.updateSortButtonState();
-            
+
             // 恢复filter状态（在updateNotebookOrder之后）
             this.filter = currentFilter;
-            
+
             this.saveFilterState();
             this.drawMatrix();
             const filteredNotebooks = this.getFilteredNotebooks();
@@ -157,7 +149,7 @@ export class MatrixWidget extends Widget {
         this.similaritySortButton.onclick = () => {
             // 保存当前的filter状态
             const currentFilter = this.filter;
-            
+
             if (this.sortState === 3) {
                 this.sortState = 0;
                 this.similaritySortButton.classList.remove('active');
@@ -169,10 +161,10 @@ export class MatrixWidget extends Widget {
             this.sortButton.innerHTML = this.getSortIcon();
             this.similaritySortButton.innerHTML = this.getSimilaritySortIcon();
             this.updateSortButtonState();
-            
+
             // 恢复filter状态（在updateNotebookOrder之后）
             this.filter = currentFilter;
-            
+
             this.saveFilterState();
             this.drawMatrix();
             const filteredNotebooks = this.getFilteredNotebooks();
@@ -205,7 +197,7 @@ export class MatrixWidget extends Widget {
             this.drawMatrix();
         };
         sortBar.appendChild(this.cellHeightButton);
-        
+
         // markdown显示/隐藏按钮
         this.markdownButton = document.createElement('button');
         this.markdownButton.title = 'Toggle markdown cells visibility';
@@ -224,7 +216,7 @@ export class MatrixWidget extends Widget {
             this.drawMatrix();
         };
         sortBar.appendChild(this.markdownButton);
-        
+
         this.node.appendChild(sortBar);
         this.updateSortButtonState();
 
@@ -321,7 +313,7 @@ export class MatrixWidget extends Widget {
             const groupMap: Record<string, number[]> = {};
             const ungroupedNotebooks: number[] = [];
             const clusterOrder: string[] = []; // Track original order of clusters from CSV
-            
+
             // First pass: iterate through CSV data to establish cluster order
             this.similarityGroups.forEach((simRow: any) => {
                 if (simRow.cluster_id && !clusterOrder.includes(simRow.cluster_id)) {
@@ -329,7 +321,7 @@ export class MatrixWidget extends Widget {
                     groupMap[simRow.cluster_id] = [];
                 }
             });
-            
+
             // Second pass: map notebooks to clusters in CSV order
             this.similarityGroups.forEach((simRow: any) => {
                 if (simRow.cluster_id && simRow.kernelVersionId) {
@@ -338,7 +330,7 @@ export class MatrixWidget extends Widget {
                         const kernelId = (nb as any).kernelVersionId?.toString();
                         return kernelId === simRow.kernelVersionId.toString();
                     });
-                    
+
                     if (notebookIndex !== -1 && groupMap[simRow.cluster_id]) {
                         // Only add if not already added (avoid duplicates)
                         if (!groupMap[simRow.cluster_id].includes(notebookIndex)) {
@@ -347,12 +339,12 @@ export class MatrixWidget extends Widget {
                     }
                 }
             });
-            
+
             // Add any notebooks not found in CSV to ungrouped
             this.data.forEach((nb, i) => {
                 const kernelId = (nb as any).kernelVersionId?.toString();
                 const simRow = this.similarityGroups.find((row: any) => row.kernelVersionId === kernelId);
-                
+
                 if (!simRow || !simRow.cluster_id) {
                     ungroupedNotebooks.push(i);
                 } else {
@@ -363,15 +355,15 @@ export class MatrixWidget extends Widget {
                     }
                 }
             });
-            
+
             // Use original cluster appearance order from CSV
             this.notebookOrder = [];
-            
+
             // Add grouped notebooks in original CSV order
             clusterOrder.forEach(groupId => {
                 this.notebookOrder.push(...groupMap[groupId]);
             });
-            
+
             // Add ungrouped notebooks at the end
             this.notebookOrder.push(...ungroupedNotebooks);
         } else {
@@ -392,14 +384,14 @@ export class MatrixWidget extends Widget {
             // 恢复状态
             this.restoreFilterState();
             this.updateNotebookOrder();
-            
+
             // 绘制矩阵（restoreFilterState 中可能已经调用了 drawMatrix，所以这里检查一下）
             const existingContainer = this.node.querySelector('.matrix-container');
             if (!existingContainer) {
                 this.drawMatrix();
             }
         }, 50); // 添加小延迟，确保tab切换完成
-        
+
         window.addEventListener('galaxy-stage-hover', this.handleStageHover);
         window.addEventListener('galaxy-transition-hover', this.handleTransitionHover);
         window.addEventListener('galaxy-stage-selected', this.handleStageSelected);
@@ -420,7 +412,7 @@ export class MatrixWidget extends Widget {
         // 设置全局选中状态
         (window as any)._galaxyStageSelection = stage;
         (window as any)._galaxyFlowSelection = null;
-        
+
         // 筛选包含该stage的notebook
         this.filter = { type: 'stage', stage };
         this.saveFilterState();
@@ -432,7 +424,7 @@ export class MatrixWidget extends Widget {
         // 设置全局选中状态
         (window as any)._galaxyFlowSelection = { from, to };
         (window as any)._galaxyStageSelection = null;
-        
+
         // 筛选包含该flow的notebook
         this.filter = { type: 'flow', from, to };
         this.saveFilterState();
@@ -451,10 +443,10 @@ export class MatrixWidget extends Widget {
 
     private handleStageHover = (event: Event) => {
         const stage = (event as CustomEvent).detail.stage;
-        
+
         // 检查是否有选中的stage
         const hasStageSelection = (window as any)._galaxyStageSelection;
-        
+
         // 只有在没有选中状态时才应用hover效果
         if (!hasStageSelection) {
             if (!stage) {
@@ -475,10 +467,10 @@ export class MatrixWidget extends Widget {
     private handleTransitionHover = (event: Event) => {
         const { from, to } = (event as CustomEvent).detail;
         const root = d3.select(this.node);
-        
+
         // 检查是否有选中的flow
         const hasFlowSelection = (window as any)._galaxyFlowSelection;
-        
+
         // 只有在没有选中状态时才应用hover效果
         if (!hasFlowSelection) {
             if (!from || !to) {
@@ -494,7 +486,7 @@ export class MatrixWidget extends Widget {
                 this.notebookOrder.forEach((row, colIdx) => {
                     const nb = this.data[row];
                     const sortedCells = nb.cells.sort((a, b) => a.cellId - b.cellId);
-                    
+
                     // 找到所有符合transition的cell对（忽略中间的markdown cell）
                     const transitionPairs: number[][] = [];
                     for (let i = 0; i < sortedCells.length; i++) {
@@ -514,7 +506,7 @@ export class MatrixWidget extends Widget {
                             }
                         }
                     }
-                    
+
                     // 高亮所有找到的transition pairs
                     transitionPairs.forEach(([fromIdx, toIdx]) => {
                         // 向前找连续 from
@@ -523,7 +515,7 @@ export class MatrixWidget extends Widget {
                         // 向后找连续 to
                         let i1 = toIdx;
                         while (i1 + 1 < sortedCells.length && String(sortedCells[i1 + 1]["1st-level label"] ?? "None") === to) i1++;
-                        
+
                         // 高亮 from 段
                         for (let j = i0; j <= fromIdx; j++) {
                             root.select(`.matrix-cell[data-row="${row}"][data-index="${j}"]`)
@@ -577,7 +569,7 @@ export class MatrixWidget extends Widget {
         const baseCellHeight = 5;
         const cellWidth = 20;
         const rowPadding = 1;
-        
+
         // Calculate additional spacing for similarity groups
         let groupSpacing = 0;
         const groupGap = 20; // White space between groups
@@ -597,33 +589,33 @@ export class MatrixWidget extends Widget {
             });
             groupSpacing = Math.max(0, uniqueGroups.size - 1) * groupGap;
         }
-        
+
         const svgWidth = Math.max(1000, notebookOrder.length * (cellWidth + rowPadding) + groupSpacing + 100);
-        
+
         // 计算动态高度
         let totalHeight = 0;
         const cellHeights: number[][] = [];
         const cellYPositions: number[][] = [];
-        
+
         notebookOrder.forEach((row, colIdx) => {
             const nb = notebooks[row];
             const sortedCells = nb.cells.sort((a, b) => a.cellId - b.cellId);
             const heights: number[] = [];
             const yPositions: number[] = [];
             let currentY = 0;
-            
+
             // 工作流模式：合并相邻的相同stage
             let processedCells: any[] = [];
             if (this.cellHeightMode === 'workflow') {
                 // 先过滤markdown cell
-                const visibleCells = sortedCells.filter(cell => 
+                const visibleCells = sortedCells.filter(cell =>
                     this.showMarkdown || cell.cellType !== 'markdown'
                 );
-                
+
                 // 合并相邻的相同stage
                 let currentStage: string | null = null;
                 let currentGroup: any[] = [];
-                
+
                 visibleCells.forEach(cell => {
                     const cellStage = String(cell["1st-level label"] ?? "None");
                     if (currentStage === null) {
@@ -638,13 +630,13 @@ export class MatrixWidget extends Widget {
                             mergedCells: currentGroup
                         };
                         processedCells.push(mergedCell);
-                        
+
                         // 开始新的group
                         currentStage = cellStage;
                         currentGroup = [cell];
                     }
                 });
-                
+
                 // 处理最后一个group
                 if (currentGroup.length > 0) {
                     const mergedCell = {
@@ -655,11 +647,11 @@ export class MatrixWidget extends Widget {
                 }
             } else {
                 // 正常模式：直接使用原始cells
-                processedCells = sortedCells.filter(cell => 
+                processedCells = sortedCells.filter(cell =>
                     this.showMarkdown || cell.cellType !== 'markdown'
                 );
             }
-            
+
             processedCells.forEach((cell, i) => {
                 let cellHeight: number;
                 if (this.cellHeightMode === 'fixed') {
@@ -680,12 +672,12 @@ export class MatrixWidget extends Widget {
                 yPositions.push(currentY);
                 currentY += cellHeight + 0; // 减少cell间距，从1改为0
             });
-            
+
             cellHeights.push(heights);
             cellYPositions.push(yPositions);
             totalHeight = Math.max(totalHeight, currentY);
         });
-        
+
         // 计算内容高度
         const contentHeight = totalHeight + 100;
         // 获取容器高度（如为0可用默认值）
@@ -707,7 +699,7 @@ export class MatrixWidget extends Widget {
         container.addEventListener('scroll', () => {
             this.saveFilterState();
         });
-        
+
         this.node.appendChild(container);
 
         const svg = d3
@@ -720,51 +712,51 @@ export class MatrixWidget extends Widget {
         const g = svg.append('g').attr('transform', 'translate(20, 24)');
 
         const self = this;
-        
+
         // Calculate column positions with group spacing
         const columnPositions: number[] = [];
         let currentX = 0;
         let prevGroupId: string | null = null;
-        
+
         notebookOrder.forEach((row, colIdx) => {
             const nb = notebooks[row] as any;
-            
+
             // Check if we need to add group spacing
             if (this.sortState === 3 && this.similarityGroups && this.similarityGroups.length > 0) {
                 const kernelId = nb && nb.kernelVersionId ? nb.kernelVersionId.toString() : null;
                 const simRow = kernelId ? this.similarityGroups.find((simRow: any) => simRow.kernelVersionId === kernelId) : null;
                 const currentGroupId = simRow ? simRow.cluster_id : null;
-                
+
                 // Add spacing if this is a new group (but not for the first group)
                 if (prevGroupId !== null && currentGroupId !== prevGroupId && currentGroupId !== null) {
                     currentX += groupGap;
                 }
                 prevGroupId = currentGroupId;
             }
-            
+
             columnPositions.push(currentX);
             currentX += cellWidth + rowPadding;
         });
-        
+
         notebookOrder.forEach((row, colIdx) => {
             const nb = notebooks[row];
             const sortedCells = nb.cells.sort((a, b) => a.cellId - b.cellId);
 
             let prevStage: string | null = null;
             let visibleCellIndex = 0; // 用于跟踪可见cell的索引
-            
+
             // 工作流模式：合并相邻的相同stage
             let processedCells: any[] = [];
             if (this.cellHeightMode === 'workflow') {
                 // 先过滤markdown cell
-                const visibleCells = sortedCells.filter(cell => 
+                const visibleCells = sortedCells.filter(cell =>
                     this.showMarkdown || cell.cellType !== 'markdown'
                 );
-                
+
                 // 合并相邻的相同stage
                 let currentStage: string | null = null;
                 let currentGroup: any[] = [];
-                
+
                 visibleCells.forEach(cell => {
                     const cellStage = String(cell["1st-level label"] ?? "None");
                     if (currentStage === null) {
@@ -779,13 +771,13 @@ export class MatrixWidget extends Widget {
                             mergedCells: currentGroup
                         };
                         processedCells.push(mergedCell);
-                        
+
                         // 开始新的group
                         currentStage = cellStage;
                         currentGroup = [cell];
                     }
                 });
-                
+
                 // 处理最后一个group
                 if (currentGroup.length > 0) {
                     const mergedCell = {
@@ -796,11 +788,11 @@ export class MatrixWidget extends Widget {
                 }
             } else {
                 // 正常模式：直接使用原始cells
-                processedCells = sortedCells.filter(cell => 
+                processedCells = sortedCells.filter(cell =>
                     this.showMarkdown || cell.cellType !== 'markdown'
                 );
             }
-            
+
             processedCells.forEach((cell, i) => {
                 const currStage = String(cell["1st-level label"] ?? "None");
                 const currClass = currStage;
@@ -853,21 +845,13 @@ export class MatrixWidget extends Widget {
                         // 从kernelTitleMap中获取Title
                         const kernelId = (d as any)?.kernelVersionId?.toString();
                         const titleFromMap = kernelId ? self.kernelTitleMap.get(kernelId) : null;
-                        const notebookTitle = titleFromMap || kernelId || 'Unknown';
-                        
-                        // 调试信息
-                        console.log('Tooltip debug:', {
-                            kernelId,
-                            titleFromMap,
-                            notebookTitle,
-                            mapSize: self.kernelTitleMap.size,
-                            hasMap: !!self.kernelTitleMap
-                        });
-                        
+                        const notebookTitle = titleFromMap?.title || kernelId || 'Unknown';
+
+
                         let tooltipContent = `Stage: ${typeof LABEL_MAP !== 'undefined' ? (LABEL_MAP[String(d["1st-level label"] ?? "None")] ?? d["1st-level label"] ?? "None") : (d["1st-level label"] ?? "None")}` +
                             `<br>Notebook Title: ${notebookTitle}` +
                             `<br>Lines: ${lineCount}`;
-                        
+
                         // 工作流模式：显示合并信息
                         if (self.cellHeightMode === 'workflow' && (d as any).mergedCells) {
                             const mergedCells = (d as any).mergedCells;
@@ -878,7 +862,7 @@ export class MatrixWidget extends Widget {
                                 tooltipContent += `<br>• Cell ${cell.cellId}: ${cellLines} lines`;
                             });
                         }
-                        
+
                         tooltip.innerHTML = tooltipContent;
                         // 如果有 similarityGroups，显示 cluster_id, sequence_length, similarity, label_integers
                         if (self.similarityGroups && self.similarityGroups.length > 0) {
@@ -948,6 +932,7 @@ export class MatrixWidget extends Widget {
         // 添加列编号
         const headerG = g.append('g').attr('class', 'matrix-header');
         for (let col = 0; col < notebookOrder.length; col++) {
+            const nb = notebooks[notebookOrder[col]];
             headerG.append('text')
                 .attr('x', columnPositions[col] + cellWidth / 2)
                 .attr('y', -10)
@@ -955,9 +940,8 @@ export class MatrixWidget extends Widget {
                 .attr('font-size', '11px')
                 .attr('fill', '#555')
                 .style('cursor', 'pointer')
-                .text((notebooks[notebookOrder[col]]?.globalIndex ?? 0) + 1)
+                .text(nb?.globalIndex ?? (col + 1))
                 .on('click', () => {
-                    const nb = notebooks[notebookOrder[col]];
                     window.dispatchEvent(new CustomEvent('galaxy-notebook-selected', { detail: { notebook: { ...nb, index: nb?.globalIndex ?? 0 } } }));
                 });
         }
@@ -973,7 +957,7 @@ export class MatrixWidget extends Widget {
         const tabId = this.getTabId();
         const stateKey = `_galaxyMatrixFilterState_${tabId}`;
         const savedState = (window as any)[stateKey];
-        
+
         if (savedState && (savedState.scrollLeft !== undefined || savedState.scrollTop !== undefined)) {
             const matrixContainer = this.node.querySelector('.matrix-container') as HTMLElement;
             if (matrixContainer) {
@@ -981,11 +965,11 @@ export class MatrixWidget extends Widget {
                 const isContainerReady = () => {
                     const svg = matrixContainer.querySelector('svg');
                     const hasContent = svg && svg.children.length > 0;
-                    const hasScrollableContent = matrixContainer.scrollWidth > matrixContainer.clientWidth || 
-                                               matrixContainer.scrollHeight > matrixContainer.clientHeight;
+                    const hasScrollableContent = matrixContainer.scrollWidth > matrixContainer.clientWidth ||
+                        matrixContainer.scrollHeight > matrixContainer.clientHeight;
                     return hasContent && hasScrollableContent;
                 };
-                
+
                 const restoreScroll = () => {
                     if (isContainerReady()) {
                         matrixContainer.scrollLeft = savedState.scrollLeft || 0;
@@ -995,23 +979,23 @@ export class MatrixWidget extends Widget {
                         return false; // 需要重试
                     }
                 };
-                
+
                 // 使用递归重试机制，最多重试10次，每次间隔递增
                 let retryCount = 0;
                 const maxRetries = 10;
-                
+
                 const attemptRestore = () => {
                     if (retryCount >= maxRetries) {
                         return;
                     }
-                    
+
                     if (!restoreScroll()) {
                         retryCount++;
                         const delay = Math.min(100 * retryCount, 1000); // 递增延迟，最大1秒
                         setTimeout(attemptRestore, delay);
                     }
                 };
-                
+
                 // 开始尝试恢复
                 requestAnimationFrame(attemptRestore);
             }
@@ -1031,7 +1015,7 @@ export class MatrixWidget extends Widget {
         (this as any)._studentFilter = '';
         this.cellHeightMode = 'fixed';
         this.showMarkdown = true;
-        
+
         // 只有在DOM元素已经创建时才更新按钮状态
         if (this.sortButton) {
             this.sortButton.innerHTML = this.getSortIcon();
@@ -1046,7 +1030,7 @@ export class MatrixWidget extends Widget {
             this.markdownButton.innerHTML = this.getMarkdownIcon();
         }
         this.updateSortButtonState();
-        
+
         // 只有在DOM元素已经创建时才重置筛选器
         if (this.node) {
             const assignmentSelect = this.node.querySelector('select') as HTMLSelectElement;
@@ -1054,7 +1038,7 @@ export class MatrixWidget extends Widget {
             if (assignmentSelect) assignmentSelect.value = '';
             if (studentSelect) studentSelect.value = '';
         }
-        
+
         // 清除保存的状态
         const tabId = this.getTabId();
         const stateKey = `_galaxyMatrixFilterState_${tabId}`;
@@ -1102,19 +1086,19 @@ export class MatrixWidget extends Widget {
     private saveFilterState() {
         const tabId = this.getTabId();
         const stateKey = `_galaxyMatrixFilterState_${tabId}`;
-        
+
         // 获取之前保存的状态
         const previousState = (window as any)[stateKey];
-        
+
         // 保存当前滚动位置
         const matrixContainer = this.node.querySelector('.matrix-container') as HTMLElement;
         const scrollLeft = matrixContainer ? matrixContainer.scrollLeft : 0;
         const scrollTop = matrixContainer ? matrixContainer.scrollTop : 0;
-        
+
         // 如果当前滚动位置为0，但之前有有效的滚动位置，则保留之前的滚动位置
         const finalScrollLeft = (scrollLeft === 0 && previousState && previousState.scrollLeft > 0) ? previousState.scrollLeft : scrollLeft;
         const finalScrollTop = (scrollTop === 0 && previousState && previousState.scrollTop > 0) ? previousState.scrollTop : scrollTop;
-        
+
         (window as any)[stateKey] = {
             filter: this.filter,
             sortState: this.sortState,
@@ -1146,11 +1130,11 @@ export class MatrixWidget extends Widget {
     private restoreFilterState() {
         // 切换tab时隐藏所有tooltip
         this.hideAllTooltips();
-        
+
         const tabId = this.getTabId();
         const stateKey = `_galaxyMatrixFilterState_${tabId}`;
         const savedState = (window as any)[stateKey];
-        
+
         if (savedState) {
             this.filter = savedState.filter;
             this.sortState = savedState.sortState;
@@ -1159,20 +1143,20 @@ export class MatrixWidget extends Widget {
             (this as any)._studentFilter = savedState.studentFilter || '';
             this.cellHeightMode = savedState.cellHeightMode || 'fixed';
             this.showMarkdown = savedState.showMarkdown || true; // 恢复markdown显示状态
-            
+
             // 更新按钮状态
             this.sortButton.innerHTML = this.getSortIcon();
             this.similaritySortButton.innerHTML = this.getSimilaritySortIcon();
             this.cellHeightButton.innerHTML = this.getCellHeightIcon();
             this.markdownButton.innerHTML = this.getMarkdownIcon();
             this.updateSortButtonState();
-            
+
             // 恢复assignment和student筛选器的值
             const assignmentSelect = this.node.querySelector('select') as HTMLSelectElement;
             const studentSelect = this.node.querySelectorAll('select')[1] as HTMLSelectElement;
             if (assignmentSelect) assignmentSelect.value = (this as any)._assignmentFilter;
             if (studentSelect) studentSelect.value = (this as any)._studentFilter;
-            
+
             // 只有在没有现有容器时才重新绘制矩阵
             const existingContainer = this.node.querySelector('.matrix-container');
             if (!existingContainer) {
@@ -1196,20 +1180,20 @@ export class MatrixWidget extends Widget {
             (this as any)._studentFilter = '';
             this.cellHeightMode = 'fixed';
             this.showMarkdown = true; // 重置markdown显示状态
-            
+
             // 更新按钮状态
             this.sortButton.innerHTML = this.getSortIcon();
             this.similaritySortButton.innerHTML = this.getSimilaritySortIcon();
             this.cellHeightButton.innerHTML = this.getCellHeightIcon();
             this.markdownButton.innerHTML = this.getMarkdownIcon();
             this.updateSortButtonState();
-            
+
             // 重置筛选器
             const assignmentSelect = this.node.querySelector('select') as HTMLSelectElement;
             const studentSelect = this.node.querySelectorAll('select')[1] as HTMLSelectElement;
             if (assignmentSelect) assignmentSelect.value = '';
             if (studentSelect) studentSelect.value = '';
-            
+
             // 只有在没有现有容器时才重新绘制矩阵
             const existingContainer = this.node.querySelector('.matrix-container');
             if (!existingContainer) {
