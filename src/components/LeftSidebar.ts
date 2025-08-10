@@ -662,15 +662,31 @@ export class LeftSidebar extends Widget {
                         // 如果有选中状态，直接应用选中效果
                         if (this.selection.type === 'flow') {
                             d3.selectAll(".flow-link").attr("opacity", 0.05);
-                            d3.selectAll(`.link-from-${this.selection.from}.link-to-${this.selection.to}`).attr("opacity", 1);
+                            const highlightedLinks = d3.selectAll(`.link-from-${this.selection.from}.link-to-${this.selection.to}`).attr("opacity", 1);
+                            // 为选中的flow添加箭头
+                            highlightedLinks.each(function () {
+                                const linkElement = d3.select(this);
+                                const strokeWidth = parseFloat(linkElement.attr("data-original-stroke-width") || "1");
+                                const arrowSize = Math.max(8, strokeWidth * 1.5);
+                                addDistanceBasedArrow(linkElement as any, arrowSize);
+                            });
                             // 选中状态下保持原有border样式，只增加宽度
                             d3.selectAll(`.stage-${this.selection.from}, .stage-${this.selection.to}`)
+                                .attr("stroke", "#666666")
                                 .attr("stroke-width", 3);
                         } else if (this.selection.type === 'stage') {
                             d3.selectAll(".flow-link").attr("opacity", 0.05);
-                            d3.selectAll(`.link-from-${this.selection.stage}, .link-to-${this.selection.stage}`).attr("opacity", 0.9);
+                            const highlightedLinks = d3.selectAll(`.link-from-${this.selection.stage}, .link-to-${this.selection.stage}`).attr("opacity", 0.9);
+                            // 为选中的stage相关的flow添加箭头
+                            highlightedLinks.each(function () {
+                                const linkElement = d3.select(this);
+                                const strokeWidth = parseFloat(linkElement.attr("data-original-stroke-width") || "1");
+                                const arrowSize = Math.max(8, strokeWidth * 1.5);
+                                addDistanceBasedArrow(linkElement as any, arrowSize);
+                            });
                             // 选中状态下保持原有border样式，只增加宽度
                             d3.selectAll(`.stage-${this.selection.stage}`)
+                                .attr("stroke", "#666666")
                                 .attr("stroke-width", 4);
                         }
                     }
@@ -679,15 +695,30 @@ export class LeftSidebar extends Widget {
                     tooltip!.style.display = 'none';
                 })
                 .on("click", (event) => {
-                    this.selection = { type: 'flow', from, to };
-                    // 设置全局选中状态（按tab隔离）
-                    const tabId = this.getTabId();
-                    const flowSelectionKey = `_galaxyFlowSelection_${tabId}`;
-                    const stageSelectionKey = `_galaxyStageSelection_${tabId}`;
-                    (window as any)[flowSelectionKey] = { from, to };
-                    (window as any)[stageSelectionKey] = null;
-                    this.render();
-                    window.dispatchEvent(new CustomEvent('galaxy-flow-selected', { detail: { from, to, tabId: this.getTabId() } }));
+                    // 如果当前已经选中了这个flow，则取消选中
+                    if (this.selection && this.selection.type === 'flow' && this.selection.from === from && this.selection.to === to) {
+                        this.selection = null;
+                        // 清除全局选中状态（按tab隔离）
+                        const tabId = this.getTabId();
+                        const flowSelectionKey = `_galaxyFlowSelection_${tabId}`;
+                        const stageSelectionKey = `_galaxyStageSelection_${tabId}`;
+                        (window as any)[flowSelectionKey] = null;
+                        (window as any)[stageSelectionKey] = null;
+                        this.saveFilterState();
+                        this.render();
+                        window.dispatchEvent(new CustomEvent('galaxy-selection-cleared', { detail: { tabId: this.getTabId() } }));
+                    } else {
+                        // 选中新的flow
+                        this.selection = { type: 'flow', from, to };
+                        // 设置全局选中状态（按tab隔离）
+                        const tabId = this.getTabId();
+                        const flowSelectionKey = `_galaxyFlowSelection_${tabId}`;
+                        const stageSelectionKey = `_galaxyStageSelection_${tabId}`;
+                        (window as any)[flowSelectionKey] = { from, to };
+                        (window as any)[stageSelectionKey] = null;
+                        this.render();
+                        window.dispatchEvent(new CustomEvent('galaxy-flow-selected', { detail: { from, to, tabId: this.getTabId() } }));
+                    }
                 });
         });
         // === END transition ===
@@ -782,14 +813,28 @@ export class LeftSidebar extends Widget {
                     // 如果有选中状态，直接应用选中效果
                     if (this.selection.type === 'flow') {
                         d3.selectAll(".flow-link").attr("opacity", 0.05);
-                        d3.selectAll(`.link-from-${this.selection.from}.link-to-${this.selection.to}`).attr("opacity", 1);
+                        const highlightedLinks = d3.selectAll(`.link-from-${this.selection.from}.link-to-${this.selection.to}`).attr("opacity", 1);
+                        // 为选中的flow添加箭头
+                        highlightedLinks.each(function () {
+                            const linkElement = d3.select(this);
+                            const strokeWidth = parseFloat(linkElement.attr("data-original-stroke-width") || "1");
+                            const arrowSize = Math.max(8, strokeWidth * 1.5);
+                            addDistanceBasedArrow(linkElement as any, arrowSize);
+                        });
                         // 选中状态下保持原有border样式，只增加宽度
                         d3.selectAll(`.stage-${this.selection.from}, .stage-${this.selection.to}`)
                             .attr("stroke", "#666666")
                             .attr("stroke-width", 3);
                     } else if (this.selection.type === 'stage') {
                         d3.selectAll(".flow-link").attr("opacity", 0.05);
-                        d3.selectAll(`.link-from-${this.selection.stage}, .link-to-${this.selection.stage}`).attr("opacity", 0.9);
+                        const highlightedLinks = d3.selectAll(`.link-from-${this.selection.stage}, .link-to-${this.selection.stage}`).attr("opacity", 0.9);
+                        // 为选中的stage相关的flow添加箭头
+                        highlightedLinks.each(function () {
+                            const linkElement = d3.select(this);
+                            const strokeWidth = parseFloat(linkElement.attr("data-original-stroke-width") || "1");
+                            const arrowSize = Math.max(8, strokeWidth * 1.5);
+                            addDistanceBasedArrow(linkElement as any, arrowSize);
+                        });
                         // 选中状态下保持原有border样式，只增加宽度
                         d3.selectAll(`.stage-${this.selection.stage}`)
                             .attr("stroke", "#666666")
@@ -802,16 +847,32 @@ export class LeftSidebar extends Widget {
             })
             .on("pointerup", (event, d) => {
                 if (isDragging) return;
-                this.selection = { type: 'stage', stage: d.stage };
-                // 设置全局选中状态（按tab隔离）
-                const tabId = this.getTabId();
-                const flowSelectionKey = `_galaxyFlowSelection_${tabId}`;
-                const stageSelectionKey = `_galaxyStageSelection_${tabId}`;
-                (window as any)[stageSelectionKey] = d.stage;
-                (window as any)[flowSelectionKey] = null;
-                this.saveFilterState();
-                this.render();
-                window.dispatchEvent(new CustomEvent('galaxy-stage-selected', { detail: { stage: d.stage, tabId: this.getTabId() } }));
+                
+                // 如果当前已经选中了这个stage，则取消选中
+                if (this.selection && this.selection.type === 'stage' && this.selection.stage === d.stage) {
+                    this.selection = null;
+                    // 清除全局选中状态（按tab隔离）
+                    const tabId = this.getTabId();
+                    const flowSelectionKey = `_galaxyFlowSelection_${tabId}`;
+                    const stageSelectionKey = `_galaxyStageSelection_${tabId}`;
+                    (window as any)[stageSelectionKey] = null;
+                    (window as any)[flowSelectionKey] = null;
+                    this.saveFilterState();
+                    this.render();
+                    window.dispatchEvent(new CustomEvent('galaxy-selection-cleared', { detail: { tabId: this.getTabId() } }));
+                } else {
+                    // 选中新的stage
+                    this.selection = { type: 'stage', stage: d.stage };
+                    // 设置全局选中状态（按tab隔离）
+                    const tabId = this.getTabId();
+                    const flowSelectionKey = `_galaxyFlowSelection_${tabId}`;
+                    const stageSelectionKey = `_galaxyStageSelection_${tabId}`;
+                    (window as any)[stageSelectionKey] = d.stage;
+                    (window as any)[flowSelectionKey] = null;
+                    this.saveFilterState();
+                    this.render();
+                    window.dispatchEvent(new CustomEvent('galaxy-stage-selected', { detail: { stage: d.stage, tabId: this.getTabId() } }));
+                }
             })
             .call(drag);
         // === END block rect ===
@@ -946,7 +1007,7 @@ export class LeftSidebar extends Widget {
                         colorBox.style.background = this.colorMap.get(d.stage) || '#ccc';
                         colorBox.style.marginRight = '6px';
                         colorBox.style.opacity = isStageHidden ? '0.3' : '1';
-                        
+
                         // 为Data-oriented和Model-oriented添加border
                         const group = STAGE_GROUP_MAP[d.stage];
                         if (group === 'Data-oriented' || group === 'Model-oriented') {
@@ -1023,7 +1084,7 @@ export class LeftSidebar extends Widget {
                         colorBox.style.background = this.colorMap.get(d.stage) || '#ccc';
                         colorBox.style.marginRight = '6px';
                         colorBox.style.opacity = isStageHidden ? '0.3' : '1';
-                        
+
                         // 为Data-oriented和Model-oriented添加border
                         const group = STAGE_GROUP_MAP[d.stage];
                         if (group === 'Data-oriented' || group === 'Model-oriented') {
@@ -1087,7 +1148,7 @@ export class LeftSidebar extends Widget {
                     colorBox.style.background = this.colorMap.get(d.stage) || '#ccc';
                     colorBox.style.marginRight = '6px';
                     colorBox.style.opacity = isStageHidden ? '0.3' : '1';
-                    
+
                     // 为Data-oriented和Model-oriented添加border
                     const group = STAGE_GROUP_MAP[d.stage];
                     if (group === 'Data-oriented' || group === 'Model-oriented') {
@@ -1317,14 +1378,32 @@ export class LeftSidebar extends Widget {
             if (this.selection.type === 'stage') {
                 // 高亮选中的stage
                 d3.selectAll(".flow-link").attr("opacity", 0.05);
-                d3.selectAll(`.link-from-${this.selection.stage}, .link-to-${this.selection.stage}`).attr("opacity", 0.9);
+                const highlightedLinks = d3.selectAll(`.link-from-${this.selection.stage}, .link-to-${this.selection.stage}`).attr("opacity", 0.9);
+
+                // 为选中的stage相关的flow添加箭头
+                highlightedLinks.each(function () {
+                    const linkElement = d3.select(this);
+                    const strokeWidth = parseFloat(linkElement.attr("data-original-stroke-width") || "1");
+                    const arrowSize = Math.max(8, strokeWidth * 1.5);
+                    addDistanceBasedArrow(linkElement as any, arrowSize);
+                });
+
                 // 选中状态下保持原有border样式，只增加宽度
                 d3.selectAll(`.stage-${this.selection.stage}`)
                     .attr("stroke-width", 4);
             } else if (this.selection.type === 'flow') {
                 // 高亮选中的flow
                 d3.selectAll(".flow-link").attr("opacity", 0.05);
-                d3.selectAll(`.link-from-${this.selection.from}.link-to-${this.selection.to}`).attr("opacity", 1);
+                const highlightedLinks = d3.selectAll(`.link-from-${this.selection.from}.link-to-${this.selection.to}`).attr("opacity", 1);
+
+                // 为选中的flow添加箭头
+                highlightedLinks.each(function () {
+                    const linkElement = d3.select(this);
+                    const strokeWidth = parseFloat(linkElement.attr("data-original-stroke-width") || "1");
+                    const arrowSize = Math.max(8, strokeWidth * 1.5);
+                    addDistanceBasedArrow(linkElement as any, arrowSize);
+                });
+
                 // 选中状态下保持原有border样式，只增加宽度
                 d3.selectAll(`.stage-${this.selection.from}, .stage-${this.selection.to}`)
                     .attr("stroke", "#666666")
