@@ -124,7 +124,7 @@ export class LeftSidebar extends Widget {
         this.legendDiv.style.flex = 'none';
         this.legendDiv.style.margin = '0';
         this.legendDiv.style.padding = '0';
-        this.legendDiv.style.height = '180px'; // 增加高度
+        this.legendDiv.style.height = '160px'; // 增加高度
         this.node.appendChild(this.legendDiv);
 
         // SVG 渲染到中间
@@ -935,7 +935,7 @@ export class LeftSidebar extends Widget {
         legendContainer.style.display = 'flex';
         legendContainer.style.flexDirection = 'column';
         legendContainer.style.width = '100%';
-        legendContainer.style.gap = '4px'; // 减少垂直间隔
+        legendContainer.style.gap = '2px'; // 进一步减少垂直间隔
 
         // 创建单个组件的函数
         const createGroupBox = (groupName: string, stages: typeof this.stageData, isHidden: boolean = false) => {
@@ -949,13 +949,13 @@ export class LeftSidebar extends Widget {
                 groupBox.style.border = '1px solid #ddd';
                 groupBox.style.borderRadius = '4px';
                 groupBox.style.padding = '8px';
-                groupBox.style.backgroundColor = '#f9f9f9';
+                // groupBox.style.backgroundColor = '#f9f9f9';
                 // Model-oriented 使用虚线边框
                 if (groupName === 'Model-oriented') {
                     groupBox.style.borderStyle = 'dashed';
                 }
             }
-            groupBox.style.marginBottom = '2px'; // 减少group之间的间隔
+            groupBox.style.marginBottom = '1px'; // 进一步减少group之间的间隔
 
             // 组标题 - 只有 Data-oriented 和 Model-oriented 显示标题
             if (shouldHaveBox) {
@@ -963,7 +963,7 @@ export class LeftSidebar extends Widget {
                 groupTitle.style.fontSize = '11px';
                 groupTitle.style.fontWeight = '600';
                 groupTitle.style.color = '#555';
-                groupTitle.style.marginBottom = '6px';
+                groupTitle.style.marginBottom = '4px';
                 groupTitle.style.opacity = isHidden ? '0.5' : '1';
                 groupTitle.textContent = groupName;
                 groupBox.appendChild(groupTitle);
@@ -975,7 +975,7 @@ export class LeftSidebar extends Widget {
                 // 三列布局
                 groupContent.style.display = 'flex';
                 groupContent.style.flexDirection = 'row';
-                groupContent.style.gap = '6px';
+                groupContent.style.gap = '4px';
 
                 // 分三列
                 const colSize = Math.ceil(stages.length / 3);
@@ -988,14 +988,14 @@ export class LeftSidebar extends Widget {
                     col.style.display = 'flex';
                     col.style.flexDirection = 'column';
                     col.style.flex = '1';
-                    col.style.gap = '4px';
+                    col.style.gap = '2px';
 
                     colStages.forEach((d) => {
                         const item = document.createElement('div');
                         item.style.display = 'flex';
                         item.style.alignItems = 'center';
                         item.style.cursor = 'pointer';
-                        item.style.padding = '2px 4px';
+                        item.style.padding = '1px 4px';
                         item.style.borderRadius = '2px';
 
                         const isStageHidden = this.hiddenStages.has(d.stage);
@@ -1065,14 +1065,14 @@ export class LeftSidebar extends Widget {
                     col.style.display = 'flex';
                     col.style.flexDirection = 'column';
                     col.style.flex = '1';
-                    col.style.gap = '4px';
+                    col.style.gap = '2px';
 
                     colStages.forEach((d) => {
                         const item = document.createElement('div');
                         item.style.display = 'flex';
                         item.style.alignItems = 'center';
                         item.style.cursor = 'pointer';
-                        item.style.padding = '2px 4px';
+                        item.style.padding = '1px 4px';
                         item.style.borderRadius = '2px';
 
                         const isStageHidden = this.hiddenStages.has(d.stage);
@@ -1129,14 +1129,14 @@ export class LeftSidebar extends Widget {
                 // 单列布局
                 groupContent.style.display = 'flex';
                 groupContent.style.flexDirection = 'column';
-                groupContent.style.gap = '4px';
+                groupContent.style.gap = '2px';
 
                 stages.forEach((d) => {
                     const item = document.createElement('div');
                     item.style.display = 'flex';
                     item.style.alignItems = 'center';
                     item.style.cursor = 'pointer';
-                    item.style.padding = '2px 4px';
+                    item.style.padding = '1px 4px';
                     item.style.borderRadius = '2px';
 
                     const isStageHidden = this.hiddenStages.has(d.stage);
