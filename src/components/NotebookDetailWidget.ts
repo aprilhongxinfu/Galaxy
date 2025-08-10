@@ -33,6 +33,7 @@ export class NotebookDetailWidget extends Widget {
   private minimapEventsBound: boolean = false;
   private cellSelectionUpdatePending: boolean = false; // 防止重复调用 updateCellSelection
   private scrollTimeout: number | null = null; // 添加滚动防抖定时器
+  private isScrollLocked: boolean = false; // 添加滚动锁定状态
 
   // 获取当前tab ID
   private getTabId(): string {
@@ -215,6 +216,35 @@ export class NotebookDetailWidget extends Widget {
     window.addEventListener('galaxy-notebook-selected', this.notebookSelectedHandler);
   }
 
+  // 添加获取和设置锁定状态的方法
+  public isLocked(): boolean {
+    return this.isScrollLocked;
+  }
+
+  public setLocked(locked: boolean): void {
+    this.isScrollLocked = locked;
+    this.updateLockIcon();
+  }
+
+  public toggleLock(): void {
+    this.isScrollLocked = !this.isScrollLocked;
+    this.updateLockIcon();
+    
+    // 触发滚动同步状态更新
+    window.dispatchEvent(new CustomEvent('galaxy-scroll-sync-update', {
+      detail: { widgetId: this.id, locked: this.isScrollLocked }
+    }));
+  }
+
+  private updateLockIcon(): void {
+    // 更新按钮中的锁图标
+    const lockBtn = this.node.querySelector('#nbd-lock-btn') as HTMLButtonElement;
+    if (lockBtn) {
+      lockBtn.innerHTML = this.isScrollLocked ? '🔒' : '🔓';
+      lockBtn.title = this.isScrollLocked ? '解锁滚动同步' : '锁定滚动同步';
+    }
+  }
+
   onAfterAttach(): void {
     // 监听全局悬浮事件
     window.addEventListener('galaxy-stage-hover', this.stageHoverHandler);
@@ -280,6 +310,13 @@ export class NotebookDetailWidget extends Widget {
     if (this.scrollTimeout) {
       clearTimeout(this.scrollTimeout);
       this.scrollTimeout = null;
+    }
+
+    // 清理锁定状态
+    if (this.isScrollLocked) {
+      window.dispatchEvent(new CustomEvent('galaxy-scroll-sync-update', {
+        detail: { widgetId: this.id, locked: false }
+      }));
     }
   }
 
@@ -641,6 +678,13 @@ export class NotebookDetailWidget extends Widget {
     // 先渲染主结构和cell列表容器
     this.node.innerHTML = `
       <div style="padding:24px; max-width:900px; margin:0 auto; height:100%; box-sizing:border-box; display:flex; flex-direction:column; position:relative;">
+        <!-- 锁图标控件 -->
+        <div style="position:absolute; top:20px; right:20px; z-index:1000;">
+          <button id="nbd-lock-btn" style="background:rgba(255,255,255,0.95); backdrop-filter:blur(10px); border:1px solid #e0e0e0; border-radius:50%; width:40px; height:40px; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:16px; transition:all 0.2s; box-shadow:0 2px 8px rgba(0,0,0,0.1);" title="${this.isScrollLocked ? '解锁滚动同步' : '锁定滚动同步'}">
+            ${this.isScrollLocked ? '🔒' : '🔓'}
+          </button>
+        </div>
+        
         ${(() => {
         return filteredCellIndices.length > 0 ? `
         <div style="position:absolute; bottom:20px; left:50%; transform:translateX(-50%); z-index:1000;">
@@ -1193,6 +1237,26 @@ export class NotebookDetailWidget extends Widget {
           navClear.style.color = '#999';
         });
       }
+    }
+
+    // 绑定锁按钮事件
+    const lockBtn = this.node.querySelector('#nbd-lock-btn') as HTMLButtonElement;
+    if (lockBtn) {
+      lockBtn.addEventListener('click', () => {
+        this.toggleLock();
+      });
+
+      // 添加hover效果
+      lockBtn.addEventListener('mouseenter', () => {
+        lockBtn.style.background = this.isScrollLocked ? 'rgba(255,235,238,0.95)' : 'rgba(232,245,233,0.95)';
+        lockBtn.style.borderColor = this.isScrollLocked ? '#d32f2f' : '#4caf50';
+        lockBtn.style.transform = 'scale(1.05)';
+      });
+      lockBtn.addEventListener('mouseleave', () => {
+        lockBtn.style.background = 'rgba(255,255,255,0.95)';
+        lockBtn.style.borderColor = '#e0e0e0';
+        lockBtn.style.transform = 'scale(1)';
+      });
     }
 
     // 顶部 Overview 点击返回

@@ -193,6 +193,7 @@ let scrollSyncWidgets: Set<string> = new Set();
 let scrollSyncHandlers: Map<string, (e: Event) => void> = new Map();
 let scrollSyncUpdatePending = false; // 防止频繁更新
 let lastScrollSyncState = { hasMultiple: false }; // 记录上次状态
+let lockedWidgets: Set<string> = new Set(); // 记录被锁定的widget
 
 function activate(
   appInstance: JupyterFrontEnd,
@@ -392,24 +393,45 @@ function activate(
 
               const target = e.target as HTMLElement;
               const scrollTop = target.scrollTop;
+              const scrollHeight = target.scrollHeight;
+              const clientHeight = target.clientHeight;
               const sourceWidgetId = widgetId;
 
+              // 如果源widget被锁定，不进行同步
+              if (lockedWidgets.has(sourceWidgetId)) {
+                return;
+              }
+
+              // 计算滚动百分比
+              const maxScrollTop = scrollHeight - clientHeight;
+              const scrollPercentage = maxScrollTop > 0 ? scrollTop / maxScrollTop : 0;
+
               // 只在调试模式下输出滚动日志
-              // console.log('[Scroll Sync] Widget', sourceWidgetId, 'scrolled to:', scrollTop);
+              // console.log('[Scroll Sync] Widget', sourceWidgetId, 'scrolled to:', scrollTop, 'percentage:', scrollPercentage);
 
               // 临时禁用滚动同步，避免循环触发
               scrollSyncEnabled = false;
 
-              // 同步其他widget的滚动位置
+              // 同步其他widget的滚动位置（跳过被锁定的widget）
               scrollSyncWidgets.forEach(otherWidgetId => {
-                if (otherWidgetId !== sourceWidgetId) {
+                if (otherWidgetId !== sourceWidgetId && !lockedWidgets.has(otherWidgetId)) {
                   const otherWidgets = Array.from(app.shell.widgets('main'));
                   const otherWidget = otherWidgets.find(w => w.id === otherWidgetId);
                   if (otherWidget) {
                     const otherCellList = otherWidget.node.querySelector('#nbd-cell-list-scroll');
-                    if (otherCellList && otherCellList.scrollTop !== scrollTop) {
-                      // console.log('[Scroll Sync] Syncing widget', otherWidgetId, 'to scroll position:', scrollTop);
-                      otherCellList.scrollTop = scrollTop;
+                    if (otherCellList) {
+                      const otherScrollHeight = otherCellList.scrollHeight;
+                      const otherClientHeight = otherCellList.clientHeight;
+                      const otherMaxScrollTop = otherScrollHeight - otherClientHeight;
+                      
+                      // 根据百分比计算目标滚动位置
+                      const targetScrollTop = otherMaxScrollTop > 0 ? scrollPercentage * otherMaxScrollTop : 0;
+                      
+                      // 只有当目标位置与当前位置不同时才设置
+                      if (Math.abs(otherCellList.scrollTop - targetScrollTop) > 1) {
+                        // console.log('[Scroll Sync] Syncing widget', otherWidgetId, 'to percentage:', scrollPercentage, 'position:', targetScrollTop);
+                        otherCellList.scrollTop = targetScrollTop;
+                      }
                     }
                   }
                 }
@@ -1299,6 +1321,19 @@ function activate(
       setTimeout(() => {
         monitorMainWidgetDisposed();
       }, 0);
+    });
+
+    // 监听滚动同步锁定状态变化
+    window.addEventListener('galaxy-scroll-sync-update', (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const { widgetId, locked } = customEvent.detail;
+      if (locked) {
+        lockedWidgets.add(widgetId);
+        console.log('[Scroll Sync] Widget locked:', widgetId);
+      } else {
+        lockedWidgets.delete(widgetId);
+        console.log('[Scroll Sync] Widget unlocked:', widgetId);
+      }
     });
   }
 }
