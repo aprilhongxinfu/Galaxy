@@ -972,6 +972,15 @@
     ]
   },
   {
+    "kernelVersionId": "112158781",
+    "toc": [
+      {
+        "heading": "# Overview",
+        "cellId": "112158781_0"
+      }
+    ]
+  },
+  {
     "kernelVersionId": "111493466",
     "toc": [
       {
@@ -1228,6 +1237,10 @@
   },
   {
     "kernelVersionId": "102902743",
+    "toc": []
+  },
+  {
+    "kernelVersionId": "102902808",
     "toc": []
   },
   {
@@ -1671,6 +1684,10 @@
     ]
   },
   {
+    "kernelVersionId": "102875117",
+    "toc": []
+  },
+  {
     "kernelVersionId": "102875749",
     "toc": []
   },
@@ -1716,6 +1733,19 @@
       {
         "heading": "# 5 Fit the Data",
         "cellId": "102819556_46"
+      }
+    ]
+  },
+  {
+    "kernelVersionId": "102006557",
+    "toc": [
+      {
+        "heading": "### https://www.kaggle.com/code/finlay/pytorch-mlp-bagging-train-step",
+        "cellId": "102006557_0"
+      },
+      {
+        "heading": "### https://www.kaggle.com/code/finlay/pytorch-mlp-bagging-inference-step/",
+        "cellId": "102006557_0"
       }
     ]
   },
@@ -1777,6 +1807,15 @@
     ]
   },
   {
+    "kernelVersionId": "102704255",
+    "toc": [
+      {
+        "heading": "# For each dataset (train, pub, pri), calculate 'miss_next_payment'",
+        "cellId": "102704255_1"
+      }
+    ]
+  },
+  {
     "kernelVersionId": "102740950",
     "toc": [
       {
@@ -1808,6 +1847,10 @@
         "cellId": "102740950_35"
       }
     ]
+  },
+  {
+    "kernelVersionId": "102868878",
+    "toc": []
   },
   {
     "kernelVersionId": "102395878",
@@ -1931,6 +1974,15 @@
     ]
   },
   {
+    "kernelVersionId": "102951881",
+    "toc": [
+      {
+        "heading": "# Blend Boosting study American Express - Default Prediction",
+        "cellId": "102951881_1"
+      }
+    ]
+  },
+  {
     "kernelVersionId": "102174539",
     "toc": [
       {
@@ -2031,6 +2083,10 @@
   },
   {
     "kernelVersionId": "102796616",
+    "toc": []
+  },
+  {
+    "kernelVersionId": "102968475",
     "toc": []
   },
   {
@@ -2375,6 +2431,10 @@
     ]
   },
   {
+    "kernelVersionId": "102799884",
+    "toc": []
+  },
+  {
     "kernelVersionId": "102189264",
     "toc": [
       {
@@ -2450,6 +2510,34 @@
         "cellId": "102189264_74"
       }
     ]
+  },
+  {
+    "kernelVersionId": "102888200",
+    "toc": []
+  },
+  {
+    "kernelVersionId": "102888146",
+    "toc": []
+  },
+  {
+    "kernelVersionId": "102888161",
+    "toc": []
+  },
+  {
+    "kernelVersionId": "102888128",
+    "toc": []
+  },
+  {
+    "kernelVersionId": "102888232",
+    "toc": []
+  },
+  {
+    "kernelVersionId": "102888208",
+    "toc": []
+  },
+  {
+    "kernelVersionId": "102873051",
+    "toc": []
   },
   {
     "kernelVersionId": "102351390",
@@ -2614,6 +2702,10 @@
     "toc": []
   },
   {
+    "kernelVersionId": "102889642",
+    "toc": []
+  },
+  {
     "kernelVersionId": "102479955",
     "toc": [
       {
@@ -2729,6 +2821,10 @@
     ]
   },
   {
+    "kernelVersionId": "102327609",
+    "toc": []
+  },
+  {
     "kernelVersionId": "102204908",
     "toc": [
       {
@@ -2815,6 +2911,31 @@
     ]
   },
   {
+    "kernelVersionId": "102240011",
+    "toc": [
+      {
+        "heading": "### Thanks for the insights [Martin Kovacevic Buvinic](https://www.kaggle.com/ragnar123)",
+        "cellId": "102240011_0"
+      }
+    ]
+  },
+  {
+    "kernelVersionId": "102247289",
+    "toc": []
+  },
+  {
+    "kernelVersionId": "102871669",
+    "toc": []
+  },
+  {
+    "kernelVersionId": "102871770",
+    "toc": []
+  },
+  {
+    "kernelVersionId": "102871986",
+    "toc": []
+  },
+  {
     "kernelVersionId": "102265913",
     "toc": []
   },
@@ -2842,6 +2963,10 @@
         "cellId": "102078476_0"
       }
     ]
+  },
+  {
+    "kernelVersionId": "102407097",
+    "toc": []
   },
   {
     "kernelVersionId": "102407176",
@@ -2960,6 +3085,10 @@
     ]
   },
   {
+    "kernelVersionId": "102874010",
+    "toc": []
+  },
+  {
     "kernelVersionId": "102717389",
     "toc": [
       {
@@ -3056,6 +3185,10 @@
   },
   {
     "kernelVersionId": "102992818",
+    "toc": []
+  },
+  {
+    "kernelVersionId": "102313511",
     "toc": []
   },
   {
@@ -3656,6 +3789,31 @@
       {
         "heading": "## Personal Note:",
         "cellId": "105185408_405"
+      }
+    ]
+  },
+  {
+    "kernelVersionId": "105290516",
+    "toc": [
+      {
+        "heading": "# Import Libraries",
+        "cellId": "105290516_2"
+      },
+      {
+        "heading": "## Split and Save the Big Dataset into Chunks",
+        "cellId": "105290516_4"
+      },
+      {
+        "heading": "## Load the splitted chunk file and Optimize the Memory then concatenate",
+        "cellId": "105290516_7"
+      },
+      {
+        "heading": "## Now, we can load all the 25,00,000 rows in a dataframe",
+        "cellId": "105290516_11"
+      },
+      {
+        "heading": "## converting to feather format",
+        "cellId": "105290516_13"
       }
     ]
   },
@@ -4475,6 +4633,32 @@
     ]
   },
   {
+    "kernelVersionId": "110391230",
+    "toc": [
+      {
+        "heading": "# **American Express**",
+        "cellId": "8f2839f25d086af736a60e9eeb907d3b93b6e0e5"
+      },
+      {
+        "heading": "# **Titanic Disaster**",
+        "cellId": "110391230_9"
+      }
+    ]
+  },
+  {
+    "kernelVersionId": "110597231",
+    "toc": [
+      {
+        "heading": "# **Question 2**",
+        "cellId": "110597231_1"
+      },
+      {
+        "heading": "# **Question 3**",
+        "cellId": "110597231_3"
+      }
+    ]
+  },
+  {
     "kernelVersionId": "110114766",
     "toc": [
       {
@@ -4498,6 +4682,10 @@
         "cellId": "110114766_48"
       }
     ]
+  },
+  {
+    "kernelVersionId": "124302563",
+    "toc": []
   },
   {
     "kernelVersionId": "140442811",
@@ -4605,6 +4793,19 @@
     ]
   },
   {
+    "kernelVersionId": "92747770",
+    "toc": [
+      {
+        "heading": "## Amex Metric",
+        "cellId": "92747770_1"
+      },
+      {
+        "heading": "## Simple Benchmark",
+        "cellId": "92747770_3"
+      }
+    ]
+  },
+  {
     "kernelVersionId": "162754132",
     "toc": []
   },
@@ -4691,6 +4892,31 @@
     ]
   },
   {
+    "kernelVersionId": "96978743",
+    "toc": [
+      {
+        "heading": "#### @[Seeker](https://www.kaggle.com/taran8727) hypothesized in [this discussion](https://www.kaggle.com/competitions/amex-default-prediction/discussion/327602#1805287), that the last statement time is different for public and private parts of the test set. The ones with the last statement month of 2019-04 belong to the public, and those with 2019-10 belong to the private part.",
+        "cellId": "96978743_0"
+      },
+      {
+        "heading": "#### Here, I'll suggest a way to immediately utilize this information, especially for those who are struggling with memory issues, and also, I will \"prove\" that by changing the predictions that are made for the customers with the last statement month of 2019-10, of an existing submission that scores 0.791, and if this is correct, the score still be 0.791.",
+        "cellId": "96978743_0"
+      },
+      {
+        "heading": "#### Seeing this notebook's score as 0.791, should prove the point.",
+        "cellId": "96978743_2"
+      },
+      {
+        "heading": "#### Now to utilize this information, here's an option. Just using the data for the public dataset and throwing out the rest, until the late stages of the competition of course. This will halve the size of the test set and make inference a lot faster.",
+        "cellId": "96978743_4"
+      },
+      {
+        "heading": "#### When making a submission, just map the predictions using customer_ID and fill the nan's and it should work fine.",
+        "cellId": "96978743_4"
+      }
+    ]
+  },
+  {
     "kernelVersionId": "96787825",
     "toc": [
       {
@@ -4733,6 +4959,19 @@
     ]
   },
   {
+    "kernelVersionId": "96740626",
+    "toc": [
+      {
+        "heading": "# Keras Quickstart for the AMEX competition part 2: Inference",
+        "cellId": "8f2839f25d086af736a60e9eeb907d3b93b6e0e5"
+      },
+      {
+        "heading": "# Inference",
+        "cellId": "96740626_2"
+      }
+    ]
+  },
+  {
     "kernelVersionId": "96639106",
     "toc": [
       {
@@ -4744,6 +4983,10 @@
         "cellId": "96639106_17"
       }
     ]
+  },
+  {
+    "kernelVersionId": "96867267",
+    "toc": []
   },
   {
     "kernelVersionId": "96867344",
@@ -4819,6 +5062,15 @@
       {
         "heading": "# Inference",
         "cellId": "96867344_53"
+      }
+    ]
+  },
+  {
+    "kernelVersionId": "96578420",
+    "toc": [
+      {
+        "heading": "# Datatable",
+        "cellId": "96578420_0"
       }
     ]
   },
@@ -4899,6 +5151,27 @@
       {
         "heading": "# submission",
         "cellId": "96640402_20"
+      }
+    ]
+  },
+  {
+    "kernelVersionId": "96619325",
+    "toc": [
+      {
+        "heading": "## load data using Pandas",
+        "cellId": "96619325_1"
+      },
+      {
+        "heading": "## load data using DASK",
+        "cellId": "96619325_4"
+      },
+      {
+        "heading": "### loading Train data",
+        "cellId": "96619325_7"
+      },
+      {
+        "heading": "### loading Test data",
+        "cellId": "96619325_14"
       }
     ]
   },
@@ -5038,11 +5311,57 @@
     "toc": []
   },
   {
+    "kernelVersionId": "96587915",
+    "toc": [
+      {
+        "heading": "# Input data analysis",
+        "cellId": "96587915_0"
+      },
+      {
+        "heading": "## Import data - small dataframe",
+        "cellId": "96587915_2"
+      },
+      {
+        "heading": "### Finding the columns with float and int datatype",
+        "cellId": "96587915_5"
+      },
+      {
+        "heading": "# Check for rows in train and test",
+        "cellId": "96587915_7"
+      },
+      {
+        "heading": "# Get Min - Max values for float datatype columns",
+        "cellId": "96587915_12"
+      }
+    ]
+  },
+  {
     "kernelVersionId": "96587208",
     "toc": [
       {
         "heading": "# Notebook to create smaller and manageable train,test data for future experimentation",
         "cellId": "96587208_0"
+      }
+    ]
+  },
+  {
+    "kernelVersionId": "96828067",
+    "toc": [
+      {
+        "heading": "### Context",
+        "cellId": "96828067_1"
+      },
+      {
+        "heading": "### Distribution of B\\_2",
+        "cellId": "96828067_2"
+      },
+      {
+        "heading": "### The other way to look at it...",
+        "cellId": "96828067_9"
+      },
+      {
+        "heading": "# BONUS",
+        "cellId": "96828067_12"
       }
     ]
   },
@@ -5225,6 +5544,27 @@
     ]
   },
   {
+    "kernelVersionId": "96594390",
+    "toc": [
+      {
+        "heading": "#### Dataset link - https://www.kaggle.com/datasets/odins0n/amex-parquet",
+        "cellId": "96594390_1"
+      },
+      {
+        "heading": "##### Read about parquet files here: https://databricks.com/glossary/what-is-parquet",
+        "cellId": "96594390_1"
+      },
+      {
+        "heading": "## Imports",
+        "cellId": "96594390_2"
+      },
+      {
+        "heading": "## Reading Train Parquet File",
+        "cellId": "96594390_4"
+      }
+    ]
+  },
+  {
     "kernelVersionId": "96611357",
     "toc": [
       {
@@ -5263,6 +5603,15 @@
       {
         "heading": "# Submission",
         "cellId": "96654736_23"
+      }
+    ]
+  },
+  {
+    "kernelVersionId": "96654734",
+    "toc": [
+      {
+        "heading": "# Predicting using only some features",
+        "cellId": "96654734_0"
       }
     ]
   },
@@ -5328,6 +5677,43 @@
     ]
   },
   {
+    "kernelVersionId": "96941419",
+    "toc": [
+      {
+        "heading": "### Datatypes present in training data",
+        "cellId": "96941419_4"
+      },
+      {
+        "heading": "##### Note : This is not the original dataset. I am using the dataset present in the [link](http://www.kaggle.com/datasets/munumbutt/amexfeather) as the original is quite heavy and is not fitting in the memory allocated in kaggle notebook",
+        "cellId": "96941419_4"
+      },
+      {
+        "heading": "#### Looks like we have skewed dataset. The number of samples in the positive class is too high than in the negative class",
+        "cellId": "96941419_9"
+      },
+      {
+        "heading": "#### We have ***75% positive*** class and approx ***25% negative*** class",
+        "cellId": "96941419_11"
+      },
+      {
+        "heading": "#### There are **121 columns** having missing values. We need to decide either to impute them or drop them",
+        "cellId": "96941419_14"
+      },
+      {
+        "heading": "#### Many of the columns having almost ***100% missing*** values. We can remove them from the train and test datasets as we don't get any meaningful information if we impute them",
+        "cellId": "96941419_17"
+      },
+      {
+        "heading": "#### From above 2 figures we see that maximum number of customers active in the month of December in 2017 while for 2018 we only have data for first 3 months. So in year 2018 the maximum number of customers active in March month",
+        "cellId": "96941419_25"
+      },
+      {
+        "heading": "## Please do provide your feedback",
+        "cellId": "96941419_26"
+      }
+    ]
+  },
+  {
     "kernelVersionId": "96684923",
     "toc": [
       {
@@ -5353,6 +5739,15 @@
       {
         "heading": "## Time Period Analysis",
         "cellId": "96684923_16"
+      }
+    ]
+  },
+  {
+    "kernelVersionId": "96602214",
+    "toc": [
+      {
+        "heading": "# Quick overview",
+        "cellId": "96602214_1"
       }
     ]
   },
@@ -5433,6 +5828,48 @@
         "cellId": "96760082_13"
       }
     ]
+  },
+  {
+    "kernelVersionId": "96855845",
+    "toc": [
+      {
+        "heading": "# Class for efficient numerical columns compression",
+        "cellId": "96855845_1"
+      },
+      {
+        "heading": "# Read data by chunks and compress them",
+        "cellId": "96855845_3"
+      },
+      {
+        "heading": "# Save data in pickle format",
+        "cellId": "96855845_5"
+      },
+      {
+        "heading": "# Read data from pickle format",
+        "cellId": "96855845_7"
+      }
+    ]
+  },
+  {
+    "kernelVersionId": "96742013",
+    "toc": []
+  },
+  {
+    "kernelVersionId": "96869430",
+    "toc": [
+      {
+        "heading": "### H2O.ai Explain Results",
+        "cellId": "96869430_0"
+      }
+    ]
+  },
+  {
+    "kernelVersionId": "119450035",
+    "toc": []
+  },
+  {
+    "kernelVersionId": "119142448",
+    "toc": []
   },
   {
     "kernelVersionId": "101982018",
@@ -5521,6 +5958,15 @@
       {
         "heading": "# Create Submission CSV",
         "cellId": "101187008_22"
+      }
+    ]
+  },
+  {
+    "kernelVersionId": "101187485",
+    "toc": [
+      {
+        "heading": "# Building ensemble, let's go!",
+        "cellId": "101187485_0"
       }
     ]
   },
@@ -5649,6 +6095,15 @@
       {
         "heading": "### Kolmogorov–Smirnov method (K–S test)",
         "cellId": "101456245_3"
+      }
+    ]
+  },
+  {
+    "kernelVersionId": "101636425",
+    "toc": [
+      {
+        "heading": "# **American Express - Default Prediction**",
+        "cellId": "101636425_0"
       }
     ]
   },
@@ -6050,6 +6505,27 @@
     "toc": []
   },
   {
+    "kernelVersionId": "101818905",
+    "toc": []
+  },
+  {
+    "kernelVersionId": "101322012",
+    "toc": [
+      {
+        "heading": "## Some features can be dropped safely",
+        "cellId": "8f2839f25d086af736a60e9eeb907d3b93b6e0e5"
+      },
+      {
+        "heading": "### drop D_103",
+        "cellId": "101322012_2"
+      },
+      {
+        "heading": "### drop D_139",
+        "cellId": "101322012_4"
+      }
+    ]
+  },
+  {
     "kernelVersionId": "101322601",
     "toc": [
       {
@@ -6175,6 +6651,15 @@
       {
         "heading": "# Target encoding of the each statement / month",
         "cellId": "101065410_14"
+      }
+    ]
+  },
+  {
+    "kernelVersionId": "101615120",
+    "toc": [
+      {
+        "heading": "# AMEX - Data Setup",
+        "cellId": "101615120_0"
       }
     ]
   },
@@ -6358,6 +6843,71 @@
   {
     "kernelVersionId": "101337098",
     "toc": []
+  },
+  {
+    "kernelVersionId": "101827566",
+    "toc": [
+      {
+        "heading": "## For it is experiment i will apply the bivariate analysis, i create a function to generated it is analyse, follow my github (https://github.com/valteresj2/features-analysis-individual.git)",
+        "cellId": "101827566_1"
+      },
+      {
+        "heading": "## this is dataset to the experiment i did create in modified the transformation on my publish (https://www.kaggle.com/code/valteresj/create-1k-features-with-datatable) where created approximately 1.5k features.",
+        "cellId": "101827566_1"
+      },
+      {
+        "heading": "## To download of dataset follow the link (https://www.kaggle.com/datasets/valteresj/train-amex-1k-features)",
+        "cellId": "101827566_3"
+      },
+      {
+        "heading": "## I random select 50% of full data, the motivate he was it is mermory ram kernel don't support all dataset.",
+        "cellId": "101827566_5"
+      },
+      {
+        "heading": "## The next step is convert Frame to DataFrame",
+        "cellId": "101827566_7"
+      },
+      {
+        "heading": "## Then is convert the target numeric to string",
+        "cellId": "101827566_9"
+      },
+      {
+        "heading": "## Below is converted the categorical features the numeric to string.",
+        "cellId": "101827566_11"
+      },
+      {
+        "heading": "## A correction small is convert bool to string.",
+        "cellId": "101827566_13"
+      },
+      {
+        "heading": "## Convert inf and -inf in Nan.",
+        "cellId": "101827566_15"
+      },
+      {
+        "heading": "## Below is applied the function Features Analysis Individual",
+        "cellId": "101827566_17"
+      },
+      {
+        "heading": "## The result is generate a excel file with all features with show the table below.",
+        "cellId": "101827566_19"
+      },
+      {
+        "heading": "## Is calculated the metric KS - Kolmogorov Smirnov, Ewntropy and Relative Risk, coming soon i will go add customize performance function by user.",
+        "cellId": "101827566_21"
+      },
+      {
+        "heading": "## By example the feature 'P_2_LAST' is that show the maximun value of KS in between all features created.",
+        "cellId": "101827566_21"
+      },
+      {
+        "heading": "## With it is dataset my result then 79.1, coming soon i will go post the table of test.",
+        "cellId": "101827566_22"
+      },
+      {
+        "heading": "## Any questions put it in the comments",
+        "cellId": "101827566_22"
+      }
+    ]
   },
   {
     "kernelVersionId": "101045325",
@@ -6596,6 +7146,10 @@
     ]
   },
   {
+    "kernelVersionId": "101621494",
+    "toc": []
+  },
+  {
     "kernelVersionId": "101135179",
     "toc": [
       {
@@ -6772,11 +7326,48 @@
     ]
   },
   {
+    "kernelVersionId": "101834024",
+    "toc": [
+      {
+        "heading": "# Credits",
+        "cellId": "101834024_0"
+      },
+      {
+        "heading": "# Modules",
+        "cellId": "101834024_1"
+      },
+      {
+        "heading": "## Data",
+        "cellId": "101834024_3"
+      },
+      {
+        "heading": "## Train the model",
+        "cellId": "101834024_7"
+      },
+      {
+        "heading": "# Predict",
+        "cellId": "101834024_11"
+      },
+      {
+        "heading": "# Submission",
+        "cellId": "101834024_14"
+      },
+      {
+        "heading": "## Read Data",
+        "cellId": "101834024_15"
+      }
+    ]
+  },
+  {
     "kernelVersionId": "101948970",
     "toc": []
   },
   {
     "kernelVersionId": "101587333",
+    "toc": []
+  },
+  {
+    "kernelVersionId": "101884515",
     "toc": []
   },
   {
@@ -6837,6 +7428,15 @@
       {
         "heading": "## Risk Variables",
         "cellId": "101256132_40"
+      }
+    ]
+  },
+  {
+    "kernelVersionId": "101399790",
+    "toc": [
+      {
+        "heading": "### guys, check the correlation coeficients of the results before blending them. Maybe it can help us save submissions.",
+        "cellId": "101399790_2"
       }
     ]
   },
@@ -6979,6 +7579,31 @@
     "toc": []
   },
   {
+    "kernelVersionId": "101043738",
+    "toc": [
+      {
+        "heading": "# 0.コンペ概要(About competition)",
+        "cellId": "101043738_1"
+      },
+      {
+        "heading": "# 1. ライブラリインポート(Import library)",
+        "cellId": "101043738_3"
+      },
+      {
+        "heading": "# 2. データの読み込み(Read a dataset)",
+        "cellId": "101043738_5"
+      },
+      {
+        "heading": "## 2.1. データの概形確認(Check data shape)",
+        "cellId": "101043738_6"
+      },
+      {
+        "heading": "## 2.2. 圧縮版データセットの読み込み(Read a compresssed dataset)",
+        "cellId": "101043738_12"
+      }
+    ]
+  },
+  {
     "kernelVersionId": "101043512",
     "toc": [
       {
@@ -6992,7 +7617,33 @@
     ]
   },
   {
+    "kernelVersionId": "101565623",
+    "toc": [
+      {
+        "heading": "### Thanks for the insights [Martin Kovacevic Buvinic](https://www.kaggle.com/ragnar123)",
+        "cellId": "101565623_0"
+      }
+    ]
+  },
+  {
     "kernelVersionId": "101992135",
+    "toc": []
+  },
+  {
+    "kernelVersionId": "101941968",
+    "toc": [
+      {
+        "heading": "# Adding Count occurrence feature to the list",
+        "cellId": "101941968_0"
+      },
+      {
+        "heading": "# Analysis down the line",
+        "cellId": "101941968_14"
+      }
+    ]
+  },
+  {
+    "kernelVersionId": "101159936",
     "toc": []
   },
   {
@@ -7415,6 +8066,10 @@
     ]
   },
   {
+    "kernelVersionId": "121048565",
+    "toc": []
+  },
+  {
     "kernelVersionId": "185959764",
     "toc": [
       {
@@ -7722,6 +8377,10 @@
     ]
   },
   {
+    "kernelVersionId": "99315727",
+    "toc": []
+  },
+  {
     "kernelVersionId": "99080318",
     "toc": [
       {
@@ -7749,6 +8408,10 @@
         "cellId": "99080318_29"
       }
     ]
+  },
+  {
+    "kernelVersionId": "99341449",
+    "toc": []
   },
   {
     "kernelVersionId": "99488220",
@@ -7844,6 +8507,15 @@
   {
     "kernelVersionId": "99298131",
     "toc": []
+  },
+  {
+    "kernelVersionId": "99804836",
+    "toc": [
+      {
+        "heading": "# American Express",
+        "cellId": "99804836_0"
+      }
+    ]
   },
   {
     "kernelVersionId": "99324580",
@@ -7966,6 +8638,27 @@
       {
         "heading": "# Inference",
         "cellId": "99639271_21"
+      }
+    ]
+  },
+  {
+    "kernelVersionId": "99635636",
+    "toc": [
+      {
+        "heading": "# AutoGluon AutoML for the *American Express - Default Prediction* competition",
+        "cellId": "99635636_0"
+      },
+      {
+        "heading": "### Train model",
+        "cellId": "99635636_6"
+      },
+      {
+        "heading": "### Generate test data predictions",
+        "cellId": "99635636_8"
+      },
+      {
+        "heading": "### Generate submission",
+        "cellId": "99635636_10"
       }
     ]
   },
@@ -8197,6 +8890,10 @@
         "cellId": "99544474_135"
       }
     ]
+  },
+  {
+    "kernelVersionId": "99905650",
+    "toc": []
   },
   {
     "kernelVersionId": "99056192",
@@ -8485,6 +9182,15 @@
     ]
   },
   {
+    "kernelVersionId": "99327845",
+    "toc": [
+      {
+        "heading": "## Prediction using model trained with LGBM",
+        "cellId": "99327845_0"
+      }
+    ]
+  },
+  {
     "kernelVersionId": "99747665",
     "toc": []
   },
@@ -8624,6 +9330,27 @@
     ]
   },
   {
+    "kernelVersionId": "99034518",
+    "toc": [
+      {
+        "heading": "# Days overdue feature in the dataset",
+        "cellId": "8f2839f25d086af736a60e9eeb907d3b93b6e0e5"
+      },
+      {
+        "heading": "## Days?",
+        "cellId": "99034518_2"
+      },
+      {
+        "heading": "## Already defaulted in train?",
+        "cellId": "99034518_8"
+      },
+      {
+        "heading": "## Finalle",
+        "cellId": "99034518_15"
+      }
+    ]
+  },
+  {
     "kernelVersionId": "99055025",
     "toc": []
   },
@@ -8689,6 +9416,23 @@
       {
         "heading": "## Others",
         "cellId": "99924386_49"
+      }
+    ]
+  },
+  {
+    "kernelVersionId": "99685767",
+    "toc": [
+      {
+        "heading": "### **Removal of Columns that Contains too many N/As**",
+        "cellId": "99685767_4"
+      },
+      {
+        "heading": "### **Delete Customer ID, Date & Categorical Column**",
+        "cellId": "99685767_6"
+      },
+      {
+        "heading": "## **Machine Learning Starts**",
+        "cellId": "99685767_10"
       }
     ]
   },
@@ -8808,6 +9552,15 @@
     "toc": []
   },
   {
+    "kernelVersionId": "99810056",
+    "toc": [
+      {
+        "heading": "# American Express",
+        "cellId": "99810056_0"
+      }
+    ]
+  },
+  {
     "kernelVersionId": "99313616",
     "toc": [
       {
@@ -8827,6 +9580,10 @@
         "cellId": "99313616_17"
       }
     ]
+  },
+  {
+    "kernelVersionId": "99664110",
+    "toc": []
   },
   {
     "kernelVersionId": "99215784",
@@ -8915,6 +9672,40 @@
     ]
   },
   {
+    "kernelVersionId": "99499292",
+    "toc": [
+      {
+        "heading": "### Generating features",
+        "cellId": "99499292_2"
+      },
+      {
+        "heading": "### Pre-processing",
+        "cellId": "99499292_7"
+      },
+      {
+        "heading": "### Training LightGBM Model",
+        "cellId": "99499292_9"
+      },
+      {
+        "heading": "### Feature Ranking based on lgb importances",
+        "cellId": "99499292_12"
+      },
+      {
+        "heading": "### Feature Ranking based on shap importances",
+        "cellId": "99499292_14"
+      }
+    ]
+  },
+  {
+    "kernelVersionId": "99196157",
+    "toc": [
+      {
+        "heading": "### Submission",
+        "cellId": "99196157_15"
+      }
+    ]
+  },
+  {
     "kernelVersionId": "99319661",
     "toc": [
       {
@@ -8946,6 +9737,10 @@
         "cellId": "99319661_21"
       }
     ]
+  },
+  {
+    "kernelVersionId": "143459940",
+    "toc": []
   },
   {
     "kernelVersionId": "143049125",
@@ -9510,6 +10305,15 @@
     ]
   },
   {
+    "kernelVersionId": "188882315",
+    "toc": [
+      {
+        "heading": "## Export data",
+        "cellId": "188882315_1"
+      }
+    ]
+  },
+  {
     "kernelVersionId": "106090617",
     "toc": [
       {
@@ -9542,6 +10346,10 @@
         "cellId": "106556043_28"
       }
     ]
+  },
+  {
+    "kernelVersionId": "106531857",
+    "toc": []
   },
   {
     "kernelVersionId": "106052294",
@@ -10315,6 +11123,31 @@
     ]
   },
   {
+    "kernelVersionId": "172187349",
+    "toc": [
+      {
+        "heading": "#### When your newer to the real competitions, sometimes it feels good to just get on the leaderboard when you start a competition. This is what we will do here...with a little flair.",
+        "cellId": "172187349_1"
+      },
+      {
+        "heading": "#### This competition requires predictions for each customerID so we will use the random module to generate random floating point numbers between 0 and 1.",
+        "cellId": "172187349_3"
+      },
+      {
+        "heading": "#### Well that is what they expect our submission file to look like, only the predictions column will be population with probabilities. So let's make some probabilities.",
+        "cellId": "172187349_6"
+      },
+      {
+        "heading": "#### Ok looks like a list full of random probabilities we got from cracker jack boxes. The only thing left to do is replace our prediction column in our sample dataframe with our new prediction list.",
+        "cellId": "172187349_8"
+      },
+      {
+        "heading": "#### Well that was fun! If your anything like me it makes it real when your on the leaderboard. Only thing left is to hit submit to your bottom right. Good luck out there!",
+        "cellId": "172187349_11"
+      }
+    ]
+  },
+  {
     "kernelVersionId": "196508129",
     "toc": [
       {
@@ -10644,6 +11477,10 @@
     "toc": []
   },
   {
+    "kernelVersionId": "103650008",
+    "toc": []
+  },
+  {
     "kernelVersionId": "103725323",
     "toc": [
       {
@@ -10765,6 +11602,10 @@
     ]
   },
   {
+    "kernelVersionId": "103346268",
+    "toc": []
+  },
+  {
     "kernelVersionId": "103744923",
     "toc": [
       {
@@ -10828,6 +11669,23 @@
     ]
   },
   {
+    "kernelVersionId": "103127346",
+    "toc": [
+      {
+        "heading": "### The main consept and code comes from [the great work by Mehran Kazeminia](https://www.kaggle.com/code/mehrankazeminia/gsdc22-coordinate-with-nearestneighbors) in GSDC2022 competition. Thank you very much.",
+        "cellId": "103127346_0"
+      },
+      {
+        "heading": "### There are a lot of public notebooks which employ ensemble. I suppose that modification of the ensemble method itself is much more meaningful and exciting than just varying coefficients.",
+        "cellId": "103127346_0"
+      },
+      {
+        "heading": "### **Note**: The base prediction files are dummy. Please replace them by other files as you like.",
+        "cellId": "103127346_1"
+      }
+    ]
+  },
+  {
     "kernelVersionId": "103556194",
     "toc": [
       {
@@ -10851,6 +11709,10 @@
         "cellId": "103556194_15"
       }
     ]
+  },
+  {
+    "kernelVersionId": "103389533",
+    "toc": []
   },
   {
     "kernelVersionId": "103157183",
@@ -11010,6 +11872,14 @@
     ]
   },
   {
+    "kernelVersionId": "103827331",
+    "toc": []
+  },
+  {
+    "kernelVersionId": "103761035",
+    "toc": []
+  },
+  {
     "kernelVersionId": "103045253",
     "toc": [
       {
@@ -11055,6 +11925,15 @@
       {
         "heading": "# More info about ptls",
         "cellId": "103045253_43"
+      }
+    ]
+  },
+  {
+    "kernelVersionId": "103359935",
+    "toc": [
+      {
+        "heading": "# Exponential Weighted Ensemble",
+        "cellId": "103359935_0"
       }
     ]
   },
@@ -11206,6 +12085,15 @@
     "toc": []
   },
   {
+    "kernelVersionId": "103133293",
+    "toc": [
+      {
+        "heading": "# How to extract ALL information from categorial features?",
+        "cellId": "103133293_1"
+      }
+    ]
+  },
+  {
     "kernelVersionId": "103133150",
     "toc": [
       {
@@ -11217,6 +12105,39 @@
   {
     "kernelVersionId": "103204611",
     "toc": []
+  },
+  {
+    "kernelVersionId": "103162716",
+    "toc": [
+      {
+        "heading": "# 1. EDA",
+        "cellId": "103162716_0"
+      },
+      {
+        "heading": "## 2. Dimension Reduction 次元削減",
+        "cellId": "103162716_4"
+      },
+      {
+        "heading": "### 2-1. PCA",
+        "cellId": "103162716_4"
+      },
+      {
+        "heading": "### 2-2. SVD",
+        "cellId": "103162716_7"
+      },
+      {
+        "heading": "### 2-3. t-SNE",
+        "cellId": "103162716_10"
+      },
+      {
+        "heading": "### 2-4. UMAP",
+        "cellId": "103162716_13"
+      },
+      {
+        "heading": "# 3. Visualization 可視化",
+        "cellId": "103162716_16"
+      }
+    ]
   },
   {
     "kernelVersionId": "103234270",
@@ -11395,6 +12316,15 @@
       {
         "heading": "# Filtering data for one customer lets see how many records it has.",
         "cellId": "103410433_9"
+      }
+    ]
+  },
+  {
+    "kernelVersionId": "103410618",
+    "toc": [
+      {
+        "heading": "# **Feature Mapping**",
+        "cellId": "103410618_0"
       }
     ]
   },
@@ -11612,6 +12542,35 @@
     "toc": []
   },
   {
+    "kernelVersionId": "103397803",
+    "toc": [
+      {
+        "heading": "### To discover features that should be prioritized, we visualize the feature importance(split and gain).",
+        "cellId": "103397803_0"
+      },
+      {
+        "heading": "### 優先するべき特徴量を発見するため、特徴量重要度(splitおよびgain)を可視化します。",
+        "cellId": "103397803_0"
+      },
+      {
+        "heading": "# Step 1 Train LightGBM model / ステップ1 LightGBMモデルの学習",
+        "cellId": "103397803_1"
+      },
+      {
+        "heading": "# Step 2 Plot Importance",
+        "cellId": "103397803_2"
+      },
+      {
+        "heading": "# 1. importance type: split",
+        "cellId": "103397803_10"
+      },
+      {
+        "heading": "# 2. importance type: gain",
+        "cellId": "103397803_15"
+      }
+    ]
+  },
+  {
     "kernelVersionId": "103170455",
     "toc": [
       {
@@ -11694,6 +12653,10 @@
     ]
   },
   {
+    "kernelVersionId": "103901813",
+    "toc": []
+  },
+  {
     "kernelVersionId": "103138423",
     "toc": [
       {
@@ -11741,6 +12704,10 @@
         "cellId": "103138423_19"
       }
     ]
+  },
+  {
+    "kernelVersionId": "103113335",
+    "toc": []
   },
   {
     "kernelVersionId": "103077415",
@@ -11933,6 +12900,23 @@
     "toc": []
   },
   {
+    "kernelVersionId": "98281774",
+    "toc": [
+      {
+        "heading": "## Vietoris-Rips Persistence Homology",
+        "cellId": "98281774_10"
+      },
+      {
+        "heading": "## Persistence Entropy",
+        "cellId": "98281774_16"
+      },
+      {
+        "heading": "## Reference",
+        "cellId": "98281774_21"
+      }
+    ]
+  },
+  {
     "kernelVersionId": "98788536",
     "toc": [
       {
@@ -12040,6 +13024,43 @@
       {
         "heading": "# Modelling",
         "cellId": "98580105_39"
+      }
+    ]
+  },
+  {
+    "kernelVersionId": "98365874",
+    "toc": [
+      {
+        "heading": "# <span style=\"color:DarkCyan\">Incremental Principal Component Analysis (IPCA)</span> | American Express - Default Prediction",
+        "cellId": "98365874_0"
+      },
+      {
+        "heading": "# Overview",
+        "cellId": "98365874_2"
+      },
+      {
+        "heading": "## Define dtypes for the pandas DataFrame",
+        "cellId": "98365874_5"
+      },
+      {
+        "heading": "## Create pandas DataFrame iterator - read data in chunks",
+        "cellId": "98365874_7"
+      },
+      {
+        "heading": "## Initialize Incremental PCA",
+        "cellId": "98365874_9"
+      },
+      {
+        "heading": "## Fit Incremental PCA with chunks",
+        "cellId": "d16cc523-4453-45ea-83fc-044da024c150"
+      },
+      {
+        "heading": "## Visualize results: Explained Variance Ratio",
+        "cellId": "583ca829-4ffa-4eda-a348-79beff4d82a5"
+      },
+      {
+        "heading": "## Save Incremental PCA",
+        "cellId": "98365874_18"
       }
     ]
   },
@@ -12194,6 +13215,31 @@
       {
         "heading": "### Vote for this notebook if its content was useful or interesting to you",
         "cellId": "98074968_40"
+      }
+    ]
+  },
+  {
+    "kernelVersionId": "98004217",
+    "toc": [
+      {
+        "heading": "## Simple Benchmark",
+        "cellId": "98004217_6"
+      },
+      {
+        "heading": "### Test 1",
+        "cellId": "98004217_7"
+      },
+      {
+        "heading": "### Test 2",
+        "cellId": "98004217_9"
+      },
+      {
+        "heading": "### Test 3",
+        "cellId": "98004217_11"
+      },
+      {
+        "heading": "### AMEX Test",
+        "cellId": "98004217_13"
       }
     ]
   },
@@ -12447,6 +13493,10 @@
         "cellId": "98556086_14"
       }
     ]
+  },
+  {
+    "kernelVersionId": "98017217",
+    "toc": []
   },
   {
     "kernelVersionId": "98590701",
@@ -12987,6 +14037,10 @@
     "toc": []
   },
   {
+    "kernelVersionId": "98672972",
+    "toc": []
+  },
+  {
     "kernelVersionId": "98378667",
     "toc": [
       {
@@ -13272,6 +14326,19 @@
     "toc": []
   },
   {
+    "kernelVersionId": "98977766",
+    "toc": [
+      {
+        "heading": "# Train data",
+        "cellId": "98977766_8"
+      },
+      {
+        "heading": "# Test data",
+        "cellId": "98977766_14"
+      }
+    ]
+  },
+  {
     "kernelVersionId": "98800077",
     "toc": [
       {
@@ -13383,6 +14450,35 @@
         "cellId": "98800077_58"
       }
     ]
+  },
+  {
+    "kernelVersionId": "98237241",
+    "toc": [
+      {
+        "heading": "# AMEX Competition - Reduce data size by optimal dtypes",
+        "cellId": "98237241_1"
+      },
+      {
+        "heading": "# Total train data size is ~4GB",
+        "cellId": "98237241_3"
+      },
+      {
+        "heading": "# Create a data frame with numerical data types and their ranges",
+        "cellId": "98237241_6"
+      },
+      {
+        "heading": "# Convert dataframe to optimal dtypes",
+        "cellId": "98237241_9"
+      },
+      {
+        "heading": "# Train dataset size reduced to 2GB",
+        "cellId": "98237241_11"
+      }
+    ]
+  },
+  {
+    "kernelVersionId": "98542463",
+    "toc": []
   },
   {
     "kernelVersionId": "98519753",
@@ -14044,11 +15140,33 @@
     "toc": []
   },
   {
+    "kernelVersionId": "104222108",
+    "toc": []
+  },
+  {
     "kernelVersionId": "104160252",
     "toc": [
       {
         "heading": "# 3D convolution for tabular data",
         "cellId": "104160252_0"
+      }
+    ]
+  },
+  {
+    "kernelVersionId": "104098607",
+    "toc": [
+      {
+        "heading": "# Exponentially Weighted Ensemble with 5 Notebook Submissions",
+        "cellId": "104098607_0"
+      }
+    ]
+  },
+  {
+    "kernelVersionId": "104109165",
+    "toc": [
+      {
+        "heading": "## American Express: Create Training Pickle File",
+        "cellId": "104109165_0"
       }
     ]
   },
@@ -14060,6 +15178,10 @@
         "cellId": "104513663_3"
       }
     ]
+  },
+  {
+    "kernelVersionId": "104531331",
+    "toc": []
   },
   {
     "kernelVersionId": "104639657",
@@ -14224,7 +15346,15 @@
     ]
   },
   {
+    "kernelVersionId": "104207084",
+    "toc": []
+  },
+  {
     "kernelVersionId": "104440021",
+    "toc": []
+  },
+  {
+    "kernelVersionId": "104686414",
     "toc": []
   },
   {
@@ -15243,6 +16373,39 @@
     ]
   },
   {
+    "kernelVersionId": "100304480",
+    "toc": [
+      {
+        "heading": "# **Introduction**",
+        "cellId": "100304480_0"
+      },
+      {
+        "heading": "# **Setup**",
+        "cellId": "100304480_2"
+      },
+      {
+        "heading": "# **Read Dataset**",
+        "cellId": "100304480_5"
+      },
+      {
+        "heading": "# **Fill Missing Values**",
+        "cellId": "100304480_10"
+      },
+      {
+        "heading": "# **Encode Customer ID**",
+        "cellId": "100304480_12"
+      },
+      {
+        "heading": "# **Encode Date Feature**",
+        "cellId": "100304480_14"
+      },
+      {
+        "heading": "# **Encode Non-Numeric Cateorical Columns**",
+        "cellId": "100304480_16"
+      }
+    ]
+  },
+  {
     "kernelVersionId": "100792123",
     "toc": [
       {
@@ -15284,6 +16447,27 @@
     ]
   },
   {
+    "kernelVersionId": "100375796",
+    "toc": [
+      {
+        "heading": "# Read Data",
+        "cellId": "100375796_1"
+      },
+      {
+        "heading": "# Column Type",
+        "cellId": "100375796_7"
+      },
+      {
+        "heading": "# Correlation",
+        "cellId": "100375796_15"
+      },
+      {
+        "heading": "# Time series",
+        "cellId": "100375796_20"
+      }
+    ]
+  },
+  {
     "kernelVersionId": "100849327",
     "toc": [
       {
@@ -15321,6 +16505,35 @@
     ]
   },
   {
+    "kernelVersionId": "100297983",
+    "toc": [
+      {
+        "heading": "# Sampling the training dataset based on Customer_ID",
+        "cellId": "100297983_1"
+      },
+      {
+        "heading": "## Important defintions",
+        "cellId": "100297983_3"
+      },
+      {
+        "heading": "## Grab a random sample of customers",
+        "cellId": "100297983_6"
+      },
+      {
+        "heading": "## Read the sample customer_ID's for looking up",
+        "cellId": "100297983_8"
+      },
+      {
+        "heading": "## Create the sample data",
+        "cellId": "100297983_10"
+      },
+      {
+        "heading": "# Check our sample data",
+        "cellId": "100297983_12"
+      }
+    ]
+  },
+  {
     "kernelVersionId": "100727125",
     "toc": []
   },
@@ -15348,6 +16561,10 @@
         "cellId": "100270604_9"
       }
     ]
+  },
+  {
+    "kernelVersionId": "100635794",
+    "toc": []
   },
   {
     "kernelVersionId": "100655355",
@@ -15609,6 +16826,27 @@
     "toc": []
   },
   {
+    "kernelVersionId": "100693068",
+    "toc": [
+      {
+        "heading": "# trainデータの中身を見る",
+        "cellId": "100693068_2"
+      },
+      {
+        "heading": "# ① 複数行ある行から、一行だけを残す",
+        "cellId": "100693068_5"
+      },
+      {
+        "heading": "# ② 全ての行を集約する",
+        "cellId": "100693068_8"
+      },
+      {
+        "heading": "## ②のサンプル(K=1のみ作成)",
+        "cellId": "100693068_10"
+      }
+    ]
+  },
+  {
     "kernelVersionId": "100354158",
     "toc": [
       {
@@ -15649,6 +16887,48 @@
   {
     "kernelVersionId": "100289972",
     "toc": []
+  },
+  {
+    "kernelVersionId": "100997883",
+    "toc": [
+      {
+        "heading": "### Quick look at distribution by S_2",
+        "cellId": "100997883_1"
+      },
+      {
+        "heading": "### Some ideas",
+        "cellId": "100997883_5"
+      }
+    ]
+  },
+  {
+    "kernelVersionId": "100913724",
+    "toc": [
+      {
+        "heading": "# Evaluation",
+        "cellId": "100913724_0"
+      },
+      {
+        "heading": "## Install `evaluate`",
+        "cellId": "100913724_0"
+      },
+      {
+        "heading": "## Load data",
+        "cellId": "100913724_2"
+      },
+      {
+        "heading": "## Make predictions",
+        "cellId": "100913724_4"
+      },
+      {
+        "heading": "## Evaluation with `evaluate`",
+        "cellId": "100913724_6"
+      },
+      {
+        "heading": "# Original implementation",
+        "cellId": "100913724_8"
+      }
+    ]
   },
   {
     "kernelVersionId": "100871272",
@@ -15710,6 +16990,10 @@
         "cellId": "100871272_15"
       }
     ]
+  },
+  {
+    "kernelVersionId": "100629775",
+    "toc": []
   },
   {
     "kernelVersionId": "100326594",
@@ -15852,6 +17136,39 @@
         "cellId": "100911803_15"
       }
     ]
+  },
+  {
+    "kernelVersionId": "100574228",
+    "toc": [
+      {
+        "heading": "# 🟢 Amex Train Sample with Dask Data Frame",
+        "cellId": "100574228_1"
+      },
+      {
+        "heading": "### Import Dask Data Frame",
+        "cellId": "100574228_2"
+      },
+      {
+        "heading": "### Read the CSV in a Lazy Dask Data Frame",
+        "cellId": "100574228_4"
+      },
+      {
+        "heading": "### Get a Sample of 50%",
+        "cellId": "100574228_6"
+      },
+      {
+        "heading": "### Compute the Data Frame",
+        "cellId": "100574228_8"
+      },
+      {
+        "heading": "### Resultado",
+        "cellId": "100574228_10"
+      }
+    ]
+  },
+  {
+    "kernelVersionId": "100485613",
+    "toc": []
   },
   {
     "kernelVersionId": "100049202",
@@ -16277,6 +17594,43 @@
     ]
   },
   {
+    "kernelVersionId": "100476131",
+    "toc": [
+      {
+        "heading": "# **Introduction**",
+        "cellId": "100476131_0"
+      },
+      {
+        "heading": "# **Setup**",
+        "cellId": "100476131_1"
+      },
+      {
+        "heading": "# **Convert CSV to HDF5**",
+        "cellId": "100476131_4"
+      },
+      {
+        "heading": "# **Read Multiple HDF5 Files**",
+        "cellId": "100476131_6"
+      },
+      {
+        "heading": "# **Encode Categorical Coulmns**",
+        "cellId": "100476131_8"
+      },
+      {
+        "heading": "# **Convert Floats to Ints**",
+        "cellId": "100476131_12"
+      },
+      {
+        "heading": "# **Save Mapping - Customer ID - Original and Encoded Values**",
+        "cellId": "100476131_14"
+      },
+      {
+        "heading": "# **Save HDF5**",
+        "cellId": "100476131_16"
+      }
+    ]
+  },
+  {
     "kernelVersionId": "100463323",
     "toc": [
       {
@@ -16310,6 +17664,15 @@
       {
         "heading": "# [Reference](https://www.kaggle.com/code/susnato/amex-data-preprocesing-feature-engineering)",
         "cellId": "100463323_32"
+      }
+    ]
+  },
+  {
+    "kernelVersionId": "100847459",
+    "toc": [
+      {
+        "heading": "# American Express",
+        "cellId": "100847459_0"
       }
     ]
   },
@@ -16489,6 +17852,39 @@
     ]
   },
   {
+    "kernelVersionId": "100965934",
+    "toc": [
+      {
+        "heading": "### This notebook aims to group data by customer in order to have smaller files.",
+        "cellId": "8f2839f25d086af736a60e9eeb907d3b93b6e0e5"
+      },
+      {
+        "heading": "### The group function used is the min, mean and max (numeric variables only).",
+        "cellId": "8f2839f25d086af736a60e9eeb907d3b93b6e0e5"
+      },
+      {
+        "heading": "### As the files are huge, let's first count the number of their lines",
+        "cellId": "100965934_2"
+      },
+      {
+        "heading": "### Create a function that read a chunk of the file and aggregate it by customer_ID (keeping numeric columns only)",
+        "cellId": "100965934_5"
+      },
+      {
+        "heading": "### Define chunk size",
+        "cellId": "100965934_7"
+      },
+      {
+        "heading": "### Train data",
+        "cellId": "100965934_9"
+      },
+      {
+        "heading": "### Do same thing for test data",
+        "cellId": "100965934_12"
+      }
+    ]
+  },
+  {
     "kernelVersionId": "97982165",
     "toc": []
   },
@@ -16566,6 +17962,10 @@
     ]
   },
   {
+    "kernelVersionId": "97852657",
+    "toc": []
+  },
+  {
     "kernelVersionId": "97190723",
     "toc": [
       {
@@ -16575,6 +17975,15 @@
       {
         "heading": "# THANK YOU!!",
         "cellId": "97190723_22"
+      }
+    ]
+  },
+  {
+    "kernelVersionId": "97132599",
+    "toc": [
+      {
+        "heading": "# Ensembling: find the most frequent label for each sample from public notebooks",
+        "cellId": "97132599_0"
       }
     ]
   },
@@ -16859,6 +18268,10 @@
     ]
   },
   {
+    "kernelVersionId": "97741291",
+    "toc": []
+  },
+  {
     "kernelVersionId": "97616956",
     "toc": [
       {
@@ -16907,6 +18320,10 @@
         "cellId": "97701202_0"
       }
     ]
+  },
+  {
+    "kernelVersionId": "97506631",
+    "toc": []
   },
   {
     "kernelVersionId": "97653227",
@@ -17082,6 +18499,23 @@
     ]
   },
   {
+    "kernelVersionId": "97455218",
+    "toc": [
+      {
+        "heading": "#### Loading Train file first 10k rows for getting the dtypes of all columns",
+        "cellId": "97455218_1"
+      },
+      {
+        "heading": "#### Casting all float64 to 32, int64 to 32 and object columns to category",
+        "cellId": "97455218_4"
+      },
+      {
+        "heading": "#### Converting csv to praquet file",
+        "cellId": "97455218_7"
+      }
+    ]
+  },
+  {
     "kernelVersionId": "97845712",
     "toc": []
   },
@@ -17153,6 +18587,10 @@
         "cellId": "97521140_71"
       }
     ]
+  },
+  {
+    "kernelVersionId": "97450309",
+    "toc": []
   },
   {
     "kernelVersionId": "97912227",
@@ -17431,6 +18869,15 @@
       {
         "heading": "## Different / Better / Faster",
         "cellId": "97361088_19"
+      }
+    ]
+  },
+  {
+    "kernelVersionId": "97178120",
+    "toc": [
+      {
+        "heading": "#### Reduce Dataset Size and Create Pickle format",
+        "cellId": "97178120_1"
       }
     ]
   },
@@ -17785,6 +19232,19 @@
     ]
   },
   {
+    "kernelVersionId": "97660715",
+    "toc": [
+      {
+        "heading": "## preproc on train",
+        "cellId": "97660715_3"
+      },
+      {
+        "heading": "### preproc on test",
+        "cellId": "97660715_6"
+      }
+    ]
+  },
+  {
     "kernelVersionId": "97154508",
     "toc": [
       {
@@ -17830,6 +19290,10 @@
     "toc": []
   },
   {
+    "kernelVersionId": "97410045",
+    "toc": []
+  },
+  {
     "kernelVersionId": "97091133",
     "toc": [
       {
@@ -17855,6 +19319,31 @@
       {
         "heading": "# Submission",
         "cellId": "97091133_16"
+      }
+    ]
+  },
+  {
+    "kernelVersionId": "97067848",
+    "toc": [
+      {
+        "heading": "#### When your newer to the real competitions, sometimes it feels good to just get on the leaderboard when you start a competition. This is what we will do here...with a little flair.",
+        "cellId": "97067848_1"
+      },
+      {
+        "heading": "#### This competition requires predictions for each customerID so we will use the random module to generate random floating point numbers between 0 and 1.",
+        "cellId": "97067848_3"
+      },
+      {
+        "heading": "#### Well that is what they expect our submission file to look like, only the predictions column will be population with probabilities. So let's make some probabilities.",
+        "cellId": "97067848_6"
+      },
+      {
+        "heading": "#### Ok looks like a list full of random probabilities we got from cracker jack boxes. The only thing left to do is replace our prediction column in our sample dataframe with our new prediction list.",
+        "cellId": "97067848_8"
+      },
+      {
+        "heading": "#### Well that was fun! If your anything like me it makes it real when your on the leaderboard. Only thing left is to hit submit to your bottom right. Good luck out there!",
+        "cellId": "97067848_11"
       }
     ]
   },
@@ -17944,6 +19433,10 @@
         "cellId": "97784632_23"
       }
     ]
+  },
+  {
+    "kernelVersionId": "97099891",
+    "toc": []
   },
   {
     "kernelVersionId": "97271050",

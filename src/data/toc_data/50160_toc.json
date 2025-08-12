@@ -276,6 +276,15 @@
     ]
   },
   {
+    "kernelVersionId": "180157891",
+    "toc": [
+      {
+        "heading": "## Accuracy assessment",
+        "cellId": "180157891_2"
+      }
+    ]
+  },
+  {
     "kernelVersionId": "180591398",
     "toc": [
       {
@@ -1899,6 +1908,15 @@
     ]
   },
   {
+    "kernelVersionId": "166595725",
+    "toc": [
+      {
+        "heading": "### Future Outlook",
+        "cellId": "166595725_8"
+      }
+    ]
+  },
+  {
     "kernelVersionId": "166270371",
     "toc": [
       {
@@ -2041,6 +2059,19 @@
       {
         "heading": "### Categorical Features",
         "cellId": "166522210_47"
+      }
+    ]
+  },
+  {
+    "kernelVersionId": "166996856",
+    "toc": [
+      {
+        "heading": "## Created by yunsuxiaozi 2024/3/14",
+        "cellId": "166996856_0"
+      },
+      {
+        "heading": "### There are differences in data dtypes between the train and test data in this competition, which has caused many program errors for the participants. In order to facilitate data processing, I have compiled the data types of all the data in the training data here.",
+        "cellId": "166996856_0"
       }
     ]
   },
@@ -2352,6 +2383,10 @@
     ]
   },
   {
+    "kernelVersionId": "166700929",
+    "toc": []
+  },
+  {
     "kernelVersionId": "166557845",
     "toc": [
       {
@@ -2385,6 +2420,19 @@
       {
         "heading": "### Submission",
         "cellId": "166557845_11"
+      }
+    ]
+  },
+  {
+    "kernelVersionId": "166101137",
+    "toc": []
+  },
+  {
+    "kernelVersionId": "166244250",
+    "toc": [
+      {
+        "heading": "### 特徵numinstpaidearly3d_3546850L 和 numinstlallpaidearly3d_817L 相關係數為 1",
+        "cellId": "166244250_5"
       }
     ]
   },
@@ -2480,6 +2528,15 @@
     ]
   },
   {
+    "kernelVersionId": "176820909",
+    "toc": [
+      {
+        "heading": "#### Implement Home Credit competition's stability metric into Optuna objective",
+        "cellId": "176820909_0"
+      }
+    ]
+  },
+  {
     "kernelVersionId": "176791773",
     "toc": [
       {
@@ -2567,6 +2624,35 @@
       {
         "heading": "# Submision",
         "cellId": "176363473_15"
+      }
+    ]
+  },
+  {
+    "kernelVersionId": "176269235",
+    "toc": [
+      {
+        "heading": "# Quick Initial Analysis on Tax Registry Data",
+        "cellId": "176269235_0"
+      },
+      {
+        "heading": "#### I had not dug into the tax registry data until now.  I wanted to show how I usually start exploring.",
+        "cellId": "176269235_0"
+      },
+      {
+        "heading": "#### I use SQL a lot at work, so it makes sense for me to use duckdb in this competition.",
+        "cellId": "176269235_0"
+      },
+      {
+        "heading": "#### I noticed that 34% of the train records don't have any tax registry data... I guessed that the default rate would be higher for those without tax records, but it is actually opposite with them being 27 basis pts (bps) better than avg (which is 3.14%).",
+        "cellId": "176269235_0"
+      },
+      {
+        "heading": "#### I also noticed the folks with tax registry A have a worse default rate (higher)... 4.0 vs 3.14, which is 86 bps higher.",
+        "cellId": "176269235_0"
+      },
+      {
+        "heading": "#### Even more interesting, is when a person has A combined with B or C, the default rate gets worse (higher)... for A&B, it is 5.98%, which is 284 bps higher than avg (low sample though)... and for A&C, it is 3.3%, which is 20 bps higher than avg.",
+        "cellId": "176269235_0"
       }
     ]
   },
@@ -3152,6 +3238,10 @@
     ]
   },
   {
+    "kernelVersionId": "179708178",
+    "toc": []
+  },
+  {
     "kernelVersionId": "179005490",
     "toc": [
       {
@@ -3339,6 +3429,10 @@
     ]
   },
   {
+    "kernelVersionId": "179707202",
+    "toc": []
+  },
+  {
     "kernelVersionId": "179517337",
     "toc": [
       {
@@ -3449,6 +3543,10 @@
     "toc": []
   },
   {
+    "kernelVersionId": "179062763",
+    "toc": []
+  },
+  {
     "kernelVersionId": "179010965",
     "toc": [
       {
@@ -3538,6 +3636,10 @@
     ]
   },
   {
+    "kernelVersionId": "179821733",
+    "toc": []
+  },
+  {
     "kernelVersionId": "179671217",
     "toc": [
       {
@@ -3569,6 +3671,10 @@
         "cellId": "179671217_40"
       }
     ]
+  },
+  {
+    "kernelVersionId": "179468371",
+    "toc": []
   },
   {
     "kernelVersionId": "179229883",
@@ -3924,7 +4030,15 @@
     ]
   },
   {
+    "kernelVersionId": "175624724",
+    "toc": []
+  },
+  {
     "kernelVersionId": "175971732",
+    "toc": []
+  },
+  {
+    "kernelVersionId": "174724237",
     "toc": []
   },
   {
@@ -4373,6 +4487,10 @@
     "toc": []
   },
   {
+    "kernelVersionId": "174236114",
+    "toc": []
+  },
+  {
     "kernelVersionId": "162417475",
     "toc": [
       {
@@ -4654,6 +4772,15 @@
     ]
   },
   {
+    "kernelVersionId": "162151100",
+    "toc": [
+      {
+        "heading": "# home credit data view",
+        "cellId": "162151100_0"
+      }
+    ]
+  },
+  {
     "kernelVersionId": "162356646",
     "toc": [
       {
@@ -4778,6 +4905,15 @@
       {
         "heading": "# Submission",
         "cellId": "162792159_41"
+      }
+    ]
+  },
+  {
+    "kernelVersionId": "162456512",
+    "toc": [
+      {
+        "heading": "# Styling dataframes with CSS",
+        "cellId": "162456512_0"
       }
     ]
   },
@@ -5560,6 +5696,27 @@
     ]
   },
   {
+    "kernelVersionId": "162631780",
+    "toc": [
+      {
+        "heading": "### Thanks to @at7459 for an interesting observation in the metric problem that is used in the competition.",
+        "cellId": "162631780_0"
+      },
+      {
+        "heading": "#### Let's create synthetic values of the gini metric, which drops every week for 10 weeks.",
+        "cellId": "162631780_3"
+      },
+      {
+        "heading": "#### Let's reduce the first three points of the synthetic values of the gini metric",
+        "cellId": "162631780_6"
+      },
+      {
+        "heading": "### As you can see, despite the fact that the average value of the metric has become worse, the final metric has begun to take on greater values",
+        "cellId": "162631780_8"
+      }
+    ]
+  },
+  {
     "kernelVersionId": "162033334",
     "toc": [
       {
@@ -5820,6 +5977,31 @@
       {
         "heading": "## Submission",
         "cellId": "162040332_17"
+      }
+    ]
+  },
+  {
+    "kernelVersionId": "162318160",
+    "toc": [
+      {
+        "heading": "### It's created for;",
+        "cellId": "162318160_0"
+      },
+      {
+        "heading": "### Description Table",
+        "cellId": "162318160_2"
+      },
+      {
+        "heading": "### Sentence Transformer Embeddings",
+        "cellId": "162318160_4"
+      },
+      {
+        "heading": "### Clustering",
+        "cellId": "162318160_7"
+      },
+      {
+        "heading": "### Result",
+        "cellId": "162318160_9"
       }
     ]
   },
@@ -6728,6 +6910,14 @@
     ]
   },
   {
+    "kernelVersionId": "162242540",
+    "toc": []
+  },
+  {
+    "kernelVersionId": "162608761",
+    "toc": []
+  },
+  {
     "kernelVersionId": "162824349",
     "toc": []
   },
@@ -6790,6 +6980,23 @@
       {
         "heading": "# Conclusion",
         "cellId": "162680724_23"
+      }
+    ]
+  },
+  {
+    "kernelVersionId": "162570472",
+    "toc": [
+      {
+        "heading": "### とりあえず特徴量が多すぎなので理解のためにfeature_definitionsに日本語訳かけた. （Powered by ChatGPT）",
+        "cellId": "162570472_1"
+      },
+      {
+        "heading": "#### 2024-02-12: 各trainデータのカラムを翻訳したものを追加.",
+        "cellId": "162570472_1"
+      },
+      {
+        "heading": "### trainデータそれぞれの特徴量を日本語で出力",
+        "cellId": "162570472_3"
       }
     ]
   },
@@ -7834,6 +8041,10 @@
     ]
   },
   {
+    "kernelVersionId": "163351985",
+    "toc": []
+  },
+  {
     "kernelVersionId": "163729965",
     "toc": []
   },
@@ -8143,6 +8354,91 @@
       {
         "heading": "# Submission",
         "cellId": "163941546_27"
+      }
+    ]
+  },
+  {
+    "kernelVersionId": "163420645",
+    "toc": [
+      {
+        "heading": "# <B><u>How to Use/Create Utility Scripts</u></B>",
+        "cellId": "1d79467d-aef7-424f-af21-1c4457583f13"
+      },
+      {
+        "heading": "# <B>[1] Introduction</B>",
+        "cellId": "3ff2e8c1-3d79-4e80-b8a9-600174533555"
+      },
+      {
+        "heading": "# <B>[2] Creation of utility scripts</B>",
+        "cellId": "247b6d03-b9e7-4c39-82cd-b2191f2a4d19"
+      },
+      {
+        "heading": "## [2-1] Creation of new notebook",
+        "cellId": "041f6692-cab8-428d-b8ab-7bb50e6e3419"
+      },
+      {
+        "heading": "## [2-2] Setting as utility script",
+        "cellId": "8746b843-8c66-4e1a-a615-09c89cff20f9"
+      },
+      {
+        "heading": "### \"File\"  -->  \"Set as Utility Script\".",
+        "cellId": "47ed7b23-38f3-4a4b-811b-48f76dd3fce5"
+      },
+      {
+        "heading": "## [2-3] Setting editor type",
+        "cellId": "9b0fae6c-1bb7-4807-8f97-ae5456564c3b"
+      },
+      {
+        "heading": "### \"File\"  -->  \"Editor Type\"  -->  \"Script\".",
+        "cellId": "67992cb6-32e8-4d08-8866-9500e315f9d9"
+      },
+      {
+        "heading": "## [2-4] Defining fuctions/classes",
+        "cellId": "142b35b3-f073-4fae-9ccf-c46293e96de6"
+      },
+      {
+        "heading": "## [2-5] Saving notebook",
+        "cellId": "4cbab9af-3229-4afa-9a0f-2d5a575379d7"
+      },
+      {
+        "heading": "# <B>[3] Importing utility scripts</B>",
+        "cellId": "404e8dfd-e1c3-4f95-b810-7ed33c018d7e"
+      },
+      {
+        "heading": "## [3-1] Creation of new notebook",
+        "cellId": "8351b288-694c-4f8b-860c-97fb49838633"
+      },
+      {
+        "heading": "## [3-2] Adding utility scripts",
+        "cellId": "8c9f23a9-0de3-4bfd-90e6-1405f0509372"
+      },
+      {
+        "heading": "### \"File\"  -->  \"Add utility script\".",
+        "cellId": "e76d611a-f0e6-4f27-aa49-c078f6b99b9b"
+      },
+      {
+        "heading": "# <B>[4] Calling functions/classes in utility scripts</B>",
+        "cellId": "ec1a1491-8f84-4507-a703-6ac399b4f530"
+      },
+      {
+        "heading": "## [4-1] Importing utility scripts",
+        "cellId": "c53f9dd5-01bf-4848-a18a-1820168c596c"
+      },
+      {
+        "heading": "## [4-2] Importing dependencies",
+        "cellId": "163420645_32"
+      },
+      {
+        "heading": "## [4-3] Calling functions/classes",
+        "cellId": "50565fc7-ca80-4181-88d6-ab1f5d859fc2"
+      },
+      {
+        "heading": "# <B>[5] Sample usage of utility scripts</B>",
+        "cellId": "4835844d-2ed4-4d91-8aef-ea1e778d2256"
+      },
+      {
+        "heading": "### and Use utilities !!",
+        "cellId": "163420645_41"
       }
     ]
   },
@@ -8628,6 +8924,10 @@
     ]
   },
   {
+    "kernelVersionId": "170341629",
+    "toc": []
+  },
+  {
     "kernelVersionId": "170916592",
     "toc": [
       {
@@ -9110,6 +9410,15 @@
     ]
   },
   {
+    "kernelVersionId": "171008350",
+    "toc": [
+      {
+        "heading": "### Useful links:",
+        "cellId": "171008350_0"
+      }
+    ]
+  },
+  {
     "kernelVersionId": "171956146",
     "toc": [
       {
@@ -9225,6 +9534,23 @@
       {
         "heading": "### ……",
         "cellId": "171907974_139"
+      }
+    ]
+  },
+  {
+    "kernelVersionId": "171539973",
+    "toc": [
+      {
+        "heading": "## 1. Prepare LazyFrames",
+        "cellId": "171539973_2"
+      },
+      {
+        "heading": "## 2. Prepare Utility Functions",
+        "cellId": "171539973_7"
+      },
+      {
+        "heading": "## 3. Usage (Birthday)",
+        "cellId": "171539973_9"
       }
     ]
   },
@@ -9631,6 +9957,10 @@
     ]
   },
   {
+    "kernelVersionId": "178367175",
+    "toc": []
+  },
+  {
     "kernelVersionId": "178806779",
     "toc": [
       {
@@ -9888,6 +10218,10 @@
     "toc": []
   },
   {
+    "kernelVersionId": "178672991",
+    "toc": []
+  },
+  {
     "kernelVersionId": "178891847",
     "toc": []
   },
@@ -9958,6 +10292,10 @@
     ]
   },
   {
+    "kernelVersionId": "178161430",
+    "toc": []
+  },
+  {
     "kernelVersionId": "181225484",
     "toc": [
       {
@@ -9988,6 +10326,10 @@
   },
   {
     "kernelVersionId": "172281366",
+    "toc": []
+  },
+  {
+    "kernelVersionId": "172675056",
     "toc": []
   },
   {
@@ -10719,6 +11061,10 @@
   },
   {
     "kernelVersionId": "167346638",
+    "toc": []
+  },
+  {
+    "kernelVersionId": "167304620",
     "toc": []
   },
   {
@@ -12473,6 +12819,10 @@
     ]
   },
   {
+    "kernelVersionId": "161986863",
+    "toc": []
+  },
+  {
     "kernelVersionId": "161986086",
     "toc": [
       {
@@ -12589,6 +12939,10 @@
     "toc": []
   },
   {
+    "kernelVersionId": "161936385",
+    "toc": []
+  },
+  {
     "kernelVersionId": "161835159",
     "toc": [
       {
@@ -12616,6 +12970,10 @@
         "cellId": "161835159_18"
       }
     ]
+  },
+  {
+    "kernelVersionId": "161992436",
+    "toc": []
   },
   {
     "kernelVersionId": "161901687",
@@ -12659,6 +13017,23 @@
       {
         "heading": "### To be Continue....",
         "cellId": "161901687_22"
+      }
+    ]
+  },
+  {
+    "kernelVersionId": "161927345",
+    "toc": [
+      {
+        "heading": "## train_base preview",
+        "cellId": "161927345_2"
+      },
+      {
+        "heading": "## train_applprev_1",
+        "cellId": "161927345_10"
+      },
+      {
+        "heading": "## train_applprev_2",
+        "cellId": "161927345_18"
       }
     ]
   },
@@ -12759,6 +13134,10 @@
         "cellId": "165903473_31"
       }
     ]
+  },
+  {
+    "kernelVersionId": "165230951",
+    "toc": []
   },
   {
     "kernelVersionId": "165859639",
@@ -13687,6 +14066,14 @@
     "toc": []
   },
   {
+    "kernelVersionId": "168054977",
+    "toc": []
+  },
+  {
+    "kernelVersionId": "168963384",
+    "toc": []
+  },
+  {
     "kernelVersionId": "168326114",
     "toc": [
       {
@@ -13831,6 +14218,10 @@
     ]
   },
   {
+    "kernelVersionId": "164005272",
+    "toc": []
+  },
+  {
     "kernelVersionId": "164129992",
     "toc": [
       {
@@ -13952,6 +14343,23 @@
         "cellId": "164230696_15"
       }
     ]
+  },
+  {
+    "kernelVersionId": "164017336",
+    "toc": []
+  },
+  {
+    "kernelVersionId": "164889641",
+    "toc": [
+      {
+        "heading": "## Thank you",
+        "cellId": "164889641_7"
+      }
+    ]
+  },
+  {
+    "kernelVersionId": "164034282",
+    "toc": []
   },
   {
     "kernelVersionId": "164480027",

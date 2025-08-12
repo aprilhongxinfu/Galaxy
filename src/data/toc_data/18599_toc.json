@@ -683,6 +683,15 @@
     ]
   },
   {
+    "kernelVersionId": "32733667",
+    "toc": [
+      {
+        "heading": "# Hi,",
+        "cellId": "32733667_0"
+      }
+    ]
+  },
+  {
     "kernelVersionId": "32489163",
     "toc": [
       {
@@ -1276,6 +1285,32 @@
     "toc": []
   },
   {
+    "kernelVersionId": "32235819",
+    "toc": [
+      {
+        "heading": "### The problems",
+        "cellId": "32235819_0"
+      },
+      {
+        "heading": "### The solutions",
+        "cellId": "32235819_0"
+      }
+    ]
+  },
+  {
+    "kernelVersionId": "32518373",
+    "toc": [
+      {
+        "heading": "# pandas_profiling",
+        "cellId": "32518373_0"
+      }
+    ]
+  },
+  {
+    "kernelVersionId": "32770400",
+    "toc": []
+  },
+  {
     "kernelVersionId": "32975531",
     "toc": [
       {
@@ -1451,6 +1486,10 @@
         "cellId": "32934333_32"
       }
     ]
+  },
+  {
+    "kernelVersionId": "32170770",
+    "toc": []
   },
   {
     "kernelVersionId": "32155820",
@@ -3736,6 +3775,10 @@
     ]
   },
   {
+    "kernelVersionId": "37865039",
+    "toc": []
+  },
+  {
     "kernelVersionId": "37604961",
     "toc": []
   },
@@ -4123,6 +4166,10 @@
   },
   {
     "kernelVersionId": "37088066",
+    "toc": []
+  },
+  {
+    "kernelVersionId": "37674880",
     "toc": []
   },
   {
@@ -4716,6 +4763,51 @@
     ]
   },
   {
+    "kernelVersionId": "54269479",
+    "toc": [
+      {
+        "heading": "# Time Series Forecasting using LSTM",
+        "cellId": "54269479_0"
+      },
+      {
+        "heading": "## Reduce memory size",
+        "cellId": "54269479_3"
+      },
+      {
+        "heading": "### Before Downcasting",
+        "cellId": "54269479_5"
+      },
+      {
+        "heading": "### After Downcasting",
+        "cellId": "54269479_8"
+      },
+      {
+        "heading": "## Dataset Creation",
+        "cellId": "54269479_10"
+      },
+      {
+        "heading": "### Take Transpose of dataset",
+        "cellId": "54269479_12"
+      },
+      {
+        "heading": "### data scaling",
+        "cellId": "54269479_16"
+      },
+      {
+        "heading": "### Generating X_train , Y_train",
+        "cellId": "54269479_18"
+      },
+      {
+        "heading": "## Model Creation",
+        "cellId": "54269479_23"
+      },
+      {
+        "heading": "## Test Data",
+        "cellId": "54269479_28"
+      }
+    ]
+  },
+  {
     "kernelVersionId": "31487742",
     "toc": [
       {
@@ -4834,6 +4926,10 @@
         "cellId": "31374926_0"
       }
     ]
+  },
+  {
+    "kernelVersionId": "31436696",
+    "toc": []
   },
   {
     "kernelVersionId": "31896105",
@@ -4974,6 +5070,10 @@
     ]
   },
   {
+    "kernelVersionId": "31638816",
+    "toc": []
+  },
+  {
     "kernelVersionId": "31539691",
     "toc": []
   },
@@ -5107,6 +5207,15 @@
     ]
   },
   {
+    "kernelVersionId": "31162731",
+    "toc": [
+      {
+        "heading": "# Credit to Konstantin Yakovlev for the last code bite.",
+        "cellId": "31162731_0"
+      }
+    ]
+  },
+  {
     "kernelVersionId": "31453780",
     "toc": [
       {
@@ -5164,6 +5273,10 @@
     ]
   },
   {
+    "kernelVersionId": "31600850",
+    "toc": []
+  },
+  {
     "kernelVersionId": "31574133",
     "toc": [
       {
@@ -5209,6 +5322,10 @@
         "cellId": "31697718_0"
       }
     ]
+  },
+  {
+    "kernelVersionId": "31031553",
+    "toc": []
   },
   {
     "kernelVersionId": "31461192",
@@ -5320,6 +5437,27 @@
   {
     "kernelVersionId": "31102895",
     "toc": []
+  },
+  {
+    "kernelVersionId": "31546744",
+    "toc": [
+      {
+        "heading": "# Function: Adds column to sales_train_validation which shows the first day with a positive value for each series.",
+        "cellId": "31546744_2"
+      },
+      {
+        "heading": "# Adding on the effective time series length as a column",
+        "cellId": "31546744_5"
+      },
+      {
+        "heading": "# Histogram of the effective time series lengths of all items at all stores.",
+        "cellId": "31546744_8"
+      },
+      {
+        "heading": "# Csv file with id, fsd, and ts_length in output",
+        "cellId": "31546744_10"
+      }
+    ]
   },
   {
     "kernelVersionId": "31952988",
@@ -5481,6 +5619,52 @@
       {
         "heading": "# Changes",
         "cellId": "31671308_3"
+      }
+    ]
+  },
+  {
+    "kernelVersionId": "31932394",
+    "toc": [
+      {
+        "heading": "# Load the raw data and compute daily sales mean per store",
+        "cellId": "31932394_4"
+      },
+      {
+        "heading": "# Rolling monthly and yearly store means",
+        "cellId": "31932394_10"
+      },
+      {
+        "heading": "# Fitting the trend on the yearly time series",
+        "cellId": "31932394_16"
+      },
+      {
+        "heading": "# Are these linked to the \"magic\" multipliers?",
+        "cellId": "31932394_20"
+      }
+    ]
+  },
+  {
+    "kernelVersionId": "31229673",
+    "toc": [
+      {
+        "heading": "# What's this",
+        "cellId": "31229673_0"
+      },
+      {
+        "heading": "# 売上高の計算",
+        "cellId": "31229673_3"
+      },
+      {
+        "heading": "# HOBBIES_1_001_CA_1の販売数,売値,売上高",
+        "cellId": "31229673_5"
+      },
+      {
+        "heading": "# HOBBIES_1_001_CA_1,CA_2,CA_3の販売数,売値,売上高",
+        "cellId": "31229673_7"
+      },
+      {
+        "heading": "# 売上高の移動平均",
+        "cellId": "31229673_9"
       }
     ]
   },
@@ -5933,6 +6117,10 @@
     "toc": []
   },
   {
+    "kernelVersionId": "119489707",
+    "toc": []
+  },
+  {
     "kernelVersionId": "138163439",
     "toc": []
   },
@@ -6034,6 +6222,23 @@
   {
     "kernelVersionId": "29978569",
     "toc": []
+  },
+  {
+    "kernelVersionId": "29612599",
+    "toc": []
+  },
+  {
+    "kernelVersionId": "29575827",
+    "toc": [
+      {
+        "heading": "# experiment of sample submission",
+        "cellId": "29575827_1"
+      },
+      {
+        "heading": "# modify only `evaluation` row",
+        "cellId": "29575827_4"
+      }
+    ]
   },
   {
     "kernelVersionId": "29875235",
@@ -6155,6 +6360,14 @@
     ]
   },
   {
+    "kernelVersionId": "29675095",
+    "toc": []
+  },
+  {
+    "kernelVersionId": "29576558",
+    "toc": []
+  },
+  {
     "kernelVersionId": "29576327",
     "toc": [
       {
@@ -6273,6 +6486,27 @@
     ]
   },
   {
+    "kernelVersionId": "29634835",
+    "toc": [
+      {
+        "heading": "# EDA & Gaussian KDE Baseline Model",
+        "cellId": "29634835_0"
+      },
+      {
+        "heading": "# Visualizing the Time Series",
+        "cellId": "29634835_4"
+      },
+      {
+        "heading": "# Gaussian Kernel Density Estimator (KDE) Sampling",
+        "cellId": "29634835_6"
+      },
+      {
+        "heading": "# Predictions",
+        "cellId": "29634835_12"
+      }
+    ]
+  },
+  {
     "kernelVersionId": "29616315",
     "toc": [
       {
@@ -6290,6 +6524,31 @@
     ]
   },
   {
+    "kernelVersionId": "29655637",
+    "toc": [
+      {
+        "heading": "## A Simple Kernel of Pandas Profiles For The Datasets ##",
+        "cellId": "29655637_0"
+      },
+      {
+        "heading": "### Use the 'toggle details' to see more.  You can also download the html reports yourself with the html links above the report.###",
+        "cellId": "29655637_0"
+      },
+      {
+        "heading": "## Sell Prices Report ##",
+        "cellId": "29655637_4"
+      },
+      {
+        "heading": "## Calendar Report ##",
+        "cellId": "29655637_7"
+      },
+      {
+        "heading": "## Train Validation Report - Too Big 218 MB...##",
+        "cellId": "29655637_9"
+      }
+    ]
+  },
+  {
     "kernelVersionId": "29628120",
     "toc": [
       {
@@ -6297,6 +6556,10 @@
         "cellId": "29628120_0"
       }
     ]
+  },
+  {
+    "kernelVersionId": "29567130",
+    "toc": []
   },
   {
     "kernelVersionId": "29596305",
@@ -6674,6 +6937,10 @@
     ]
   },
   {
+    "kernelVersionId": "29693281",
+    "toc": []
+  },
+  {
     "kernelVersionId": "29920100",
     "toc": [
       {
@@ -6779,6 +7046,27 @@
       {
         "heading": "### MAPA farecasting (Daily, Weekly, and monthly frequencies) <a id=\"6\"></a>",
         "cellId": "29920100_75"
+      }
+    ]
+  },
+  {
+    "kernelVersionId": "29894882",
+    "toc": [
+      {
+        "heading": "## Goal of the notebook",
+        "cellId": "29894882_0"
+      },
+      {
+        "heading": "### The problems",
+        "cellId": "29894882_0"
+      },
+      {
+        "heading": "### The solutions",
+        "cellId": "29894882_0"
+      },
+      {
+        "heading": "#### Please don't forget...",
+        "cellId": "29894882_0"
       }
     ]
   },
@@ -6959,6 +7247,10 @@
     ]
   },
   {
+    "kernelVersionId": "29828266",
+    "toc": []
+  },
+  {
     "kernelVersionId": "29865040",
     "toc": [
       {
@@ -7092,6 +7384,14 @@
     "toc": []
   },
   {
+    "kernelVersionId": "29574689",
+    "toc": []
+  },
+  {
+    "kernelVersionId": "29551293",
+    "toc": []
+  },
+  {
     "kernelVersionId": "29766861",
     "toc": [
       {
@@ -7099,6 +7399,10 @@
         "cellId": "29766861_0"
       }
     ]
+  },
+  {
+    "kernelVersionId": "29568201",
+    "toc": []
   },
   {
     "kernelVersionId": "29914091",
@@ -7296,6 +7600,15 @@
       {
         "heading": "## Let's analyse Missing values",
         "cellId": "29882029_15"
+      }
+    ]
+  },
+  {
+    "kernelVersionId": "29776591",
+    "toc": [
+      {
+        "heading": "## EDA for Sales Aggregations",
+        "cellId": "29776591_0"
       }
     ]
   },
@@ -8635,11 +8948,44 @@
     ]
   },
   {
+    "kernelVersionId": "34181572",
+    "toc": []
+  },
+  {
     "kernelVersionId": "34180551",
     "toc": [
       {
         "heading": "# Objective",
         "cellId": "34180551_0"
+      }
+    ]
+  },
+  {
+    "kernelVersionId": "34284832",
+    "toc": [
+      {
+        "heading": "## **アメリカには連邦政府の祝日の他に州政府独自の祝日があるので洗い出してみました**",
+        "cellId": "34284832_0"
+      },
+      {
+        "heading": "### California州の祝日",
+        "cellId": "34284832_2"
+      },
+      {
+        "heading": "### Texas州の祝日",
+        "cellId": "34284832_3"
+      },
+      {
+        "heading": "### Wisconsin州の祝日",
+        "cellId": "34284832_4"
+      },
+      {
+        "heading": "### California州のDFにStateHolidaysを反映",
+        "cellId": "34284832_5"
+      },
+      {
+        "heading": "### ついでに \"event_name_1\"≠NaN の日の \"wday\" も０にしておく",
+        "cellId": "34284832_11"
       }
     ]
   },
@@ -9709,6 +10055,43 @@
     ]
   },
   {
+    "kernelVersionId": "33972726",
+    "toc": [
+      {
+        "heading": "# If you like it, please upvote it",
+        "cellId": "33972726_0"
+      },
+      {
+        "heading": "### **Thanks https://www.kaggle.com/harupy/score-distribution-of-the-public-lb in DBS, that's fun！**",
+        "cellId": "33972726_1"
+      },
+      {
+        "heading": "# Download the public LB data",
+        "cellId": "33972726_3"
+      },
+      {
+        "heading": "# Convert to dataframe",
+        "cellId": "33972726_6"
+      },
+      {
+        "heading": "# Get the best score of each team",
+        "cellId": "33972726_10"
+      },
+      {
+        "heading": "# Top rankers",
+        "cellId": "33972726_14"
+      },
+      {
+        "heading": "# Plot submission histories",
+        "cellId": "33972726_16"
+      },
+      {
+        "heading": "## score < 0.48!****",
+        "cellId": "33972726_18"
+      }
+    ]
+  },
+  {
     "kernelVersionId": "33794047",
     "toc": []
   },
@@ -9808,6 +10191,31 @@
   {
     "kernelVersionId": "33270999",
     "toc": []
+  },
+  {
+    "kernelVersionId": "33220215",
+    "toc": [
+      {
+        "heading": "#### We Will use the last 28 days data on category-store level as prediction for next 28(validation) and later 28 days(as evaluation) as our first submission. We will check the score and improve it later in our next attempt.",
+        "cellId": "33220215_0"
+      },
+      {
+        "heading": "## If you do not have any submission and are stuck at Novice level, use this Notebook, run it and submit the output file to become a contributor.",
+        "cellId": "33220215_0"
+      },
+      {
+        "heading": "#### Feel free to fork and update the notebook.",
+        "cellId": "33220215_0"
+      },
+      {
+        "heading": "# Use this zipped file,upload and submit.",
+        "cellId": "33220215_15"
+      },
+      {
+        "heading": "# Contratulations, You are a Contributor now.",
+        "cellId": "33220215_15"
+      }
+    ]
   },
   {
     "kernelVersionId": "33653095",
@@ -10043,6 +10451,10 @@
   },
   {
     "kernelVersionId": "33306536",
+    "toc": []
+  },
+  {
+    "kernelVersionId": "33150310",
     "toc": []
   },
   {
@@ -10461,6 +10873,15 @@
     ]
   },
   {
+    "kernelVersionId": "33342571",
+    "toc": [
+      {
+        "heading": "# LSTM with score <0.7",
+        "cellId": "33342571_0"
+      }
+    ]
+  },
+  {
     "kernelVersionId": "33267818",
     "toc": [
       {
@@ -10563,6 +10984,15 @@
       {
         "heading": "### Write final submission",
         "cellId": "33714337_96"
+      }
+    ]
+  },
+  {
+    "kernelVersionId": "33331824",
+    "toc": [
+      {
+        "heading": "# First　submission",
+        "cellId": "33331824_0"
       }
     ]
   },
@@ -11300,6 +11730,14 @@
         "cellId": "43468099_16"
       }
     ]
+  },
+  {
+    "kernelVersionId": "109898013",
+    "toc": []
+  },
+  {
+    "kernelVersionId": "109898045",
+    "toc": []
   },
   {
     "kernelVersionId": "109938616",
@@ -12828,6 +13266,15 @@
     ]
   },
   {
+    "kernelVersionId": "44270115",
+    "toc": [
+      {
+        "heading": "# Exponential Smoothing",
+        "cellId": "44270115_0"
+      }
+    ]
+  },
+  {
     "kernelVersionId": "44549374",
     "toc": [
       {
@@ -13077,6 +13524,10 @@
     ]
   },
   {
+    "kernelVersionId": "35274280",
+    "toc": []
+  },
+  {
     "kernelVersionId": "35004422",
     "toc": [
       {
@@ -13173,6 +13624,10 @@
         "cellId": "35141500_94"
       }
     ]
+  },
+  {
+    "kernelVersionId": "35836476",
+    "toc": []
   },
   {
     "kernelVersionId": "35887014",
@@ -15180,6 +15635,35 @@
     ]
   },
   {
+    "kernelVersionId": "103758120",
+    "toc": []
+  },
+  {
+    "kernelVersionId": "103709194",
+    "toc": [
+      {
+        "heading": "#### We Will use the last 28 days data on category-store level as prediction for next 28(validation) and later 28 days(as evaluation) as our first submission. We will check the score and improve it later in our next attempt.",
+        "cellId": "103709194_0"
+      },
+      {
+        "heading": "## If you do not have any submission and are stuck at Novice level, use this Notebook, run it and submit the output file to become a contributor.",
+        "cellId": "103709194_0"
+      },
+      {
+        "heading": "#### Feel free to fork and update the notebook.",
+        "cellId": "103709194_0"
+      },
+      {
+        "heading": "# Use this zipped file,upload and submit.",
+        "cellId": "103709194_15"
+      },
+      {
+        "heading": "# Contratulations, You are a Contributor now.",
+        "cellId": "103709194_15"
+      }
+    ]
+  },
+  {
     "kernelVersionId": "63700493",
     "toc": [
       {
@@ -15853,6 +16337,15 @@
     ]
   },
   {
+    "kernelVersionId": "30233785",
+    "toc": [
+      {
+        "heading": "# This notebook investigates an overlooked seasonality",
+        "cellId": "30233785_0"
+      }
+    ]
+  },
+  {
     "kernelVersionId": "30163841",
     "toc": [
       {
@@ -16089,6 +16582,23 @@
     ]
   },
   {
+    "kernelVersionId": "30659924",
+    "toc": [
+      {
+        "heading": "# Install Kaggle API",
+        "cellId": "30659924_0"
+      },
+      {
+        "heading": "# Set environment variables",
+        "cellId": "30659924_2"
+      },
+      {
+        "heading": "# Submit",
+        "cellId": "30659924_4"
+      }
+    ]
+  },
+  {
     "kernelVersionId": "30580305",
     "toc": [
       {
@@ -16146,6 +16656,31 @@
       {
         "heading": "### ... *to be continued* ...",
         "cellId": "30580305_20"
+      }
+    ]
+  },
+  {
+    "kernelVersionId": "30329284",
+    "toc": [
+      {
+        "heading": "### __We require very fast code because it handles very large data.__",
+        "cellId": "30329284_0"
+      },
+      {
+        "heading": "### If you have any idea after looking at my code, please tell me on comment.",
+        "cellId": "30329284_0"
+      },
+      {
+        "heading": "## Normal code(15.9s)",
+        "cellId": "30329284_4"
+      },
+      {
+        "heading": "## My code(25.9s)",
+        "cellId": "30329284_6"
+      },
+      {
+        "heading": "## Please share how to make better code.",
+        "cellId": "30329284_8"
       }
     ]
   },
@@ -16403,6 +16938,27 @@
     ]
   },
   {
+    "kernelVersionId": "30761893",
+    "toc": [
+      {
+        "heading": "# what's this",
+        "cellId": "30761893_0"
+      },
+      {
+        "heading": "# sales_train_validation.csv",
+        "cellId": "30761893_4"
+      },
+      {
+        "heading": "# dept_id",
+        "cellId": "30761893_9"
+      },
+      {
+        "heading": "# cat_id",
+        "cellId": "30761893_12"
+      }
+    ]
+  },
+  {
     "kernelVersionId": "30681727",
     "toc": []
   },
@@ -16634,6 +17190,27 @@
       {
         "heading": "## Sold Items against Event",
         "cellId": "30779114_14"
+      }
+    ]
+  },
+  {
+    "kernelVersionId": "30658653",
+    "toc": [
+      {
+        "heading": "# Overview",
+        "cellId": "30658653_0"
+      },
+      {
+        "heading": "# Data Import",
+        "cellId": "30658653_2"
+      },
+      {
+        "heading": "# The Ensemble",
+        "cellId": "30658653_7"
+      },
+      {
+        "heading": "# Make Submission",
+        "cellId": "30658653_10"
       }
     ]
   },
@@ -16950,6 +17527,19 @@
     ]
   },
   {
+    "kernelVersionId": "30028877",
+    "toc": []
+  },
+  {
+    "kernelVersionId": "30254357",
+    "toc": [
+      {
+        "heading": "# This notebook investigates holiday sales",
+        "cellId": "30254357_0"
+      }
+    ]
+  },
+  {
     "kernelVersionId": "30266099",
     "toc": [
       {
@@ -17128,6 +17718,27 @@
     ]
   },
   {
+    "kernelVersionId": "30154859",
+    "toc": [
+      {
+        "heading": "# What is SNAP?",
+        "cellId": "30154859_0"
+      },
+      {
+        "heading": "# Imports",
+        "cellId": "8f2839f25d086af736a60e9eeb907d3b93b6e0e5"
+      },
+      {
+        "heading": "# Analyze SNAP",
+        "cellId": "30154859_3"
+      },
+      {
+        "heading": "# Conclusion",
+        "cellId": "30154859_9"
+      }
+    ]
+  },
+  {
     "kernelVersionId": "30100209",
     "toc": [
       {
@@ -17190,6 +17801,15 @@
       {
         "heading": "# Submission",
         "cellId": "30923383_16"
+      }
+    ]
+  },
+  {
+    "kernelVersionId": "30461119",
+    "toc": [
+      {
+        "heading": "# Simple model: Just using the last known 28 days, which should be the most useful since they happened most recently, we use the average demand, grouped by weekday.",
+        "cellId": "30461119_0"
       }
     ]
   },
@@ -17268,6 +17888,27 @@
       {
         "heading": "## Please share how to make better code.",
         "cellId": "30371599_9"
+      }
+    ]
+  },
+  {
+    "kernelVersionId": "30502691",
+    "toc": [
+      {
+        "heading": "# Install MLflow",
+        "cellId": "04849445-f909-45f4-b143-e527109adcf7"
+      },
+      {
+        "heading": "# Import libraries",
+        "cellId": "1c1f4013-ac27-4440-828a-71e42e091b29"
+      },
+      {
+        "heading": "# Prepare training and validation data",
+        "cellId": "ffd77361-3bc8-4d09-a424-46d9aa795430"
+      },
+      {
+        "heading": "# Train a model",
+        "cellId": "0cecc1fc-5e44-440a-9c10-2eb419f00c6b"
       }
     ]
   },
@@ -17399,6 +18040,10 @@
         "cellId": "30463067_72"
       }
     ]
+  },
+  {
+    "kernelVersionId": "30815005",
+    "toc": []
   },
   {
     "kernelVersionId": "30563727",
@@ -17838,6 +18483,15 @@
     ]
   },
   {
+    "kernelVersionId": "36493561",
+    "toc": [
+      {
+        "heading": "## M5 Encoder Decoder model - Generating Date features",
+        "cellId": "36493561_0"
+      }
+    ]
+  },
+  {
     "kernelVersionId": "36493003",
     "toc": [
       {
@@ -18066,6 +18720,39 @@
     ]
   },
   {
+    "kernelVersionId": "36942193",
+    "toc": [
+      {
+        "heading": "## Importing libraries",
+        "cellId": "36942193_0"
+      },
+      {
+        "heading": "## Frist but evaluation data under the validation",
+        "cellId": "36942193_7"
+      },
+      {
+        "heading": "## Take the result and merge it with sample sumbition by item_id",
+        "cellId": "36942193_9"
+      },
+      {
+        "heading": "## Save the result as FEvalVal_concat.csv",
+        "cellId": "36942193_11"
+      },
+      {
+        "heading": "## Drop the duplication in forcast data and keep the last value",
+        "cellId": "36942193_13"
+      },
+      {
+        "heading": "## Merge the FEvalVal_concat.csv and sell price by item_id",
+        "cellId": "36942193_15"
+      },
+      {
+        "heading": "## Save the result data for Regression model",
+        "cellId": "36942193_17"
+      }
+    ]
+  },
+  {
     "kernelVersionId": "36513701",
     "toc": [
       {
@@ -18089,6 +18776,10 @@
         "cellId": "36513701_20"
       }
     ]
+  },
+  {
+    "kernelVersionId": "36449113",
+    "toc": []
   },
   {
     "kernelVersionId": "36207968",
@@ -18390,6 +19081,15 @@
       {
         "heading": "# A simple submission",
         "cellId": "36453385_39"
+      }
+    ]
+  },
+  {
+    "kernelVersionId": "36012722",
+    "toc": [
+      {
+        "heading": "## Data Crawling: More Detailed historical holiday information in US",
+        "cellId": "36012722_1"
       }
     ]
   },
@@ -18720,6 +19420,10 @@
         "cellId": "36602344_16"
       }
     ]
+  },
+  {
+    "kernelVersionId": "36526899",
+    "toc": []
   },
   {
     "kernelVersionId": "36267698",
