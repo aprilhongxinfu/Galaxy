@@ -237,11 +237,13 @@ export class NotebookDetailWidget extends Widget {
   }
 
   private updateLockIcon(): void {
-    // 更新按钮中的锁图标
-    const lockBtn = this.node.querySelector('#nbd-lock-btn') as HTMLButtonElement;
-    if (lockBtn) {
-      lockBtn.innerHTML = this.isScrollLocked ? '🔒' : '🔓';
-      lockBtn.title = this.isScrollLocked ? '解锁滚动同步' : '锁定滚动同步';
+    // 更新按钮中的锁图标（只在有分屏时）
+    if (this.detectSplitLayout()) {
+      const lockBtn = this.node.querySelector('#nbd-lock-btn') as HTMLButtonElement;
+      if (lockBtn) {
+        lockBtn.innerHTML = this.isScrollLocked ? '🔒' : '🔓';
+        lockBtn.title = this.isScrollLocked ? '解锁滚动同步' : '锁定滚动同步';
+      }
     }
   }
 
@@ -501,11 +503,15 @@ export class NotebookDetailWidget extends Widget {
   }
 
   private simpleMarkdownRender(md: string): string {
-    // 支持 # ## ###、**bold**、*italic*、[text](url)、换行
+    // 支持 # ## ### #### ##### ######、**bold**、*italic*、[text](url)、换行
     let html = md
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;');
+    // 标题 - 从6级到1级，避免冲突
+    html = html.replace(/^###### (.*)$/gm, '<h6>$1</h6>');
+    html = html.replace(/^##### (.*)$/gm, '<h5>$1</h5>');
+    html = html.replace(/^#### (.*)$/gm, '<h4>$1</h4>');
     html = html.replace(/^### (.*)$/gm, '<h3>$1</h3>');
     html = html.replace(/^## (.*)$/gm, '<h2>$1</h2>');
     html = html.replace(/^# (.*)$/gm, '<h1>$1</h1>');
@@ -584,13 +590,24 @@ export class NotebookDetailWidget extends Widget {
   }
 
   private markdownToHtml(md: string): string {
-    // 更完整的markdown转HTML，用于JupyterLab HTML渲染器
+    // 检测内容是否包含HTML标签
+    const hasHtmlTags = this.isHtmlContent(md.trim());
+    
+    if (hasHtmlTags) {
+      // 如果包含HTML标签，先进行markdown转换，但保护HTML标签不被转义
+      return this.convertMarkdownWithHtml(md);
+    }
+
+    // 纯markdown内容，进行标准转换
     let html = md
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;');
 
-    // 标题
+    // 标题 - 从6级到1级，避免冲突
+    html = html.replace(/^###### (.*)$/gm, '<h6>$1</h6>');
+    html = html.replace(/^##### (.*)$/gm, '<h5>$1</h5>');
+    html = html.replace(/^#### (.*)$/gm, '<h4>$1</h4>');
     html = html.replace(/^### (.*)$/gm, '<h3>$1</h3>');
     html = html.replace(/^## (.*)$/gm, '<h2>$1</h2>');
     html = html.replace(/^# (.*)$/gm, '<h1>$1</h1>');
@@ -612,6 +629,77 @@ export class NotebookDetailWidget extends Widget {
     return html;
   }
 
+  private convertMarkdownWithHtml(md: string): string {
+    // 临时替换HTML标签，避免被转义
+    const htmlPlaceholders: { [key: string]: string } = {};
+    let placeholderCounter = 0;
+    
+    // 保存HTML标签
+    md = md.replace(/<[^>]+>/g, (match) => {
+      const placeholder = `__HTML_PLACEHOLDER_${placeholderCounter}__`;
+      htmlPlaceholders[placeholder] = match;
+      placeholderCounter++;
+      return placeholder;
+    });
+
+    // 进行markdown转换
+    let html = md
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+
+    // 标题 - 从6级到1级，避免冲突
+    html = html.replace(/^###### (.*)$/gm, '<h6>$1</h6>');
+    html = html.replace(/^##### (.*)$/gm, '<h5>$1</h5>');
+    html = html.replace(/^#### (.*)$/gm, '<h4>$1</h4>');
+    html = html.replace(/^### (.*)$/gm, '<h3>$1</h3>');
+    html = html.replace(/^## (.*)$/gm, '<h2>$1</h2>');
+    html = html.replace(/^# (.*)$/gm, '<h1>$1</h1>');
+
+    // 粗体和斜体
+    html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
+
+    // 链接
+    html = html.replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank">$1</a>');
+
+    // 代码块
+    html = html.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
+    html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+    // 换行
+    html = html.replace(/\n/g, '<br>');
+
+    // 恢复HTML标签
+    Object.keys(htmlPlaceholders).forEach(placeholder => {
+      html = html.replace(placeholder, htmlPlaceholders[placeholder]);
+    });
+
+    return html;
+  }
+
+  private isHtmlContent(content: string): boolean {
+    // 检测内容是否包含HTML标签
+    const htmlTagRegex = /<[^>]+>/;
+    const commonHtmlTags = [
+      '<div', '<span', '<p', '<h1', '<h2', '<h3', '<h4', '<h5', '<h6',
+      '<ul', '<ol', '<li', '<table', '<tr', '<td', '<th', '<thead', '<tbody',
+      '<a', '<img', '<br', '<hr', '<strong', '<b', '<em', '<i', '<code', '<pre',
+      '<blockquote', '<section', '<article', '<header', '<footer', '<nav',
+      '<font', '<center', '<marquee', '<s', '<strike', '<u', '<sub', '<sup',
+      '<small', '<big', '<tt', '<kbd', '<samp', '<var', '<cite', '<dfn', '<abbr',
+      '<acronym', '<q', '<ins', '<del', '<mark', '<time', '<ruby', '<rt', '<rp'
+    ];
+    
+    // 检查是否包含HTML标签
+    if (htmlTagRegex.test(content)) {
+      // 进一步检查是否包含常见的HTML标签
+      return commonHtmlTags.some(tag => content.toLowerCase().includes(tag.toLowerCase()));
+    }
+    
+    return false;
+  }
+
   private render(autoScroll: boolean = true) {
     // 记录滚动位置
     let prevScrollTop = 0;
@@ -620,6 +708,9 @@ export class NotebookDetailWidget extends Widget {
       prevScrollTop = prevCellList.scrollTop;
     }
     const nb = this.notebook;
+
+    // 检测是否有分屏布局
+    const hasSplitLayout = this.detectSplitLayout();
     // let nbIdx = '';
     // if (nb.path && /\d+/.test(nb.path)) {
     //   nbIdx = nb.path.match(/\d+/)![0];
@@ -678,12 +769,14 @@ export class NotebookDetailWidget extends Widget {
     // 先渲染主结构和cell列表容器
     this.node.innerHTML = `
       <div style="padding:24px; max-width:900px; margin:0 auto; height:100%; box-sizing:border-box; display:flex; flex-direction:column; position:relative;">
+        ${hasSplitLayout ? `
         <!-- 锁图标控件 -->
         <div style="position:absolute; top:20px; right:20px; z-index:1000;">
           <button id="nbd-lock-btn" style="background:rgba(255,255,255,0.95); backdrop-filter:blur(10px); border:1px solid #e0e0e0; border-radius:50%; width:40px; height:40px; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:16px; transition:all 0.2s; box-shadow:0 2px 8px rgba(0,0,0,0.1);" title="${this.isScrollLocked ? '解锁滚动同步' : '锁定滚动同步'}">
             ${this.isScrollLocked ? '🔒' : '🔓'}
           </button>
         </div>
+        ` : ''}
         
         ${(() => {
         return filteredCellIndices.length > 0 ? `
@@ -917,10 +1010,8 @@ export class NotebookDetailWidget extends Widget {
             // 确保JupyterLab样式已加载
             ensureJupyterlabThemeStyle();
 
-            // 尝试使用HTML渲染器而不是markdown渲染器
+            // 统一使用markdownToHtml方法处理，它会自动检测并处理混合内容
             const htmlWidget = this.rendermime.createRenderer('text/html');
-
-            // 先将markdown转换为HTML
             const htmlContent = this.markdownToHtml(content);
 
             const model = this.rendermime.createModel({
@@ -929,7 +1020,6 @@ export class NotebookDetailWidget extends Widget {
               trusted: true
             });
 
-            // 确保渲染器正确初始化
             if (htmlWidget && htmlWidget.node) {
               htmlWidget.renderModel(model);
               contentDiv.appendChild(htmlWidget.node);
@@ -1239,24 +1329,26 @@ export class NotebookDetailWidget extends Widget {
       }
     }
 
-    // 绑定锁按钮事件
-    const lockBtn = this.node.querySelector('#nbd-lock-btn') as HTMLButtonElement;
-    if (lockBtn) {
-      lockBtn.addEventListener('click', () => {
-        this.toggleLock();
-      });
+    // 绑定锁按钮事件（只在有分屏时）
+    if (hasSplitLayout) {
+      const lockBtn = this.node.querySelector('#nbd-lock-btn') as HTMLButtonElement;
+      if (lockBtn) {
+        lockBtn.addEventListener('click', () => {
+          this.toggleLock();
+        });
 
-      // 添加hover效果
-      lockBtn.addEventListener('mouseenter', () => {
-        lockBtn.style.background = this.isScrollLocked ? 'rgba(255,235,238,0.95)' : 'rgba(232,245,233,0.95)';
-        lockBtn.style.borderColor = this.isScrollLocked ? '#d32f2f' : '#4caf50';
-        lockBtn.style.transform = 'scale(1.05)';
-      });
-      lockBtn.addEventListener('mouseleave', () => {
-        lockBtn.style.background = 'rgba(255,255,255,0.95)';
-        lockBtn.style.borderColor = '#e0e0e0';
-        lockBtn.style.transform = 'scale(1)';
-      });
+        // 添加hover效果
+        lockBtn.addEventListener('mouseenter', () => {
+          lockBtn.style.background = this.isScrollLocked ? 'rgba(255,235,238,0.95)' : 'rgba(232,245,233,0.95)';
+          lockBtn.style.borderColor = this.isScrollLocked ? '#d32f2f' : '#4caf50';
+          lockBtn.style.transform = 'scale(1.05)';
+        });
+        lockBtn.addEventListener('mouseleave', () => {
+          lockBtn.style.background = 'rgba(255,255,255,0.95)';
+          lockBtn.style.borderColor = '#e0e0e0';
+          lockBtn.style.transform = 'scale(1)';
+        });
+      }
     }
 
     // 顶部 Overview 点击返回
@@ -1520,6 +1612,31 @@ export class NotebookDetailWidget extends Widget {
     // 恢复滚动位置
     if (cellListContainer && typeof prevScrollTop === 'number') {
       cellListContainer.scrollTop = prevScrollTop;
+    }
+  }
+
+  private detectSplitLayout(): boolean {
+    try {
+      // 检查主区域是否有多个widget
+      const mainArea = document.querySelector('.lm-MainArea-widget');
+      if (!mainArea) return false;
+
+      const splitPanels = mainArea.querySelectorAll('.lm-SplitPanel');
+      const hasVisualSplit = splitPanels.length > 0;
+
+      const tabBars = mainArea.querySelectorAll('.lm-TabBar');
+      const hasMultipleTabBars = tabBars.length > 1;
+
+      const activeTabs = mainArea.querySelectorAll('.lm-TabBar-tab.lm-mod-current');
+      const hasMultipleActiveTabs = activeTabs.length > 1;
+
+      const mainAreaChildren = mainArea.children;
+      const hasMultipleChildren = mainAreaChildren.length > 1;
+
+      return hasVisualSplit || hasMultipleTabBars || hasMultipleActiveTabs || hasMultipleChildren;
+    } catch (error) {
+      console.error('Error detecting split layout:', error);
+      return false;
     }
   }
 
