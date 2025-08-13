@@ -32,15 +32,15 @@ function extractCompetitionId(jsonPath: string): string | null {
 // 加载TOC数据
 async function loadTocData(competitionId: string): Promise<any[]> {
   try {
-    const tocPath = `src/data/toc_data/${competitionId}_toc.json`;
+    const tocPath = `test-notebooks/supplement_data/toc_data/${competitionId}_toc.json`;
     console.log('TOC path:', tocPath);
 
     // 尝试不同的路径格式
     const alternativePaths = [
       tocPath,
-      `./src/data/toc_data/${competitionId}_toc.json`,
-      `/src/data/toc_data/${competitionId}_toc.json`,
-      `data/toc_data/${competitionId}_toc.json`
+      `./test-notebooks/supplement_data/toc_data/${competitionId}_toc.json`,
+      `/test-notebooks/supplement_data/toc_data/${competitionId}_toc.json`,
+      `test-notebooks/supplement_data/toc_data/${competitionId}_toc.json`
     ];
     const contentsManager = app?.serviceManager?.contents;
 
@@ -72,7 +72,7 @@ async function loadTocData(competitionId: string): Promise<any[]> {
     console.log('TOC data file not found for competition:', competitionId);
     return [];
   } catch (error) {
-    console.log(`TOC data file not found for competition ${competitionId}: src/data/toc_data/${competitionId}_toc.json`);
+    console.log(`TOC data file not found for competition ${competitionId}: test-notebooks/supplement_data/toc_data/${competitionId}_toc.json`);
     return [];
   }
 }
@@ -108,7 +108,7 @@ function mergeTocData(notebooks: any[], tocData: any[]): any[] {
 async function createKernelTitleMap(competitionId: string): Promise<Map<string, { title: string; creationDate: string; totalLines: number }>> {
   try {
     // 动态加载CSV文件
-    const csvPath = `src/data/kernel_data/competition_${competitionId}.csv`;
+    const csvPath = `test-notebooks/supplement_data/kernel_data/competition_${competitionId}.csv`;
     const contentsManager = app?.serviceManager?.contents;
 
     if (!contentsManager) {
@@ -138,7 +138,7 @@ async function createKernelTitleMap(competitionId: string): Promise<Map<string, 
     // console.log(`Sample entries:`, Array.from(titleMap.entries()).slice(0, 3));
     return titleMap;
   } catch (error) {
-    console.log(`Kernel data file not found for competition ${competitionId}: src/data/kernel_data/competition_${competitionId}.csv`);
+    console.log(`Kernel data file not found for competition ${competitionId}: test-notebooks/supplement_data/kernel_data/competition_${competitionId}.csv`);
     return new Map();
   }
 }
@@ -741,7 +741,7 @@ function activate(
           // 读取对应的 CSV 文件（如果存在）
           if (competitionId) {
             try {
-              const csvPath = `src/data/cluster_data/${competitionId}_clustered.csv`;
+              const csvPath = `test-notebooks/supplement_data/cluster_data/${competitionId}_clustered.csv`;
               const csvModel = await contentsManager.get(csvPath, { type: 'file', format: 'text', content: true });
               similarityGroups = csvParse(csvModel.content as string);
               console.log(`成功加载聚类数据: ${competitionId}_clustered.csv`);
