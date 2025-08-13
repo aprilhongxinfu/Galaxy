@@ -360,16 +360,13 @@ function activate(
     // 检查是否需要启用滚动同步
     const shouldEnable = shouldEnableScrollSync();
 
-    // 只在状态真正改变时才输出日志
-    const currentState = { hasMultiple: hasMultipleNotebookDetailWidgets() };
-    const stateChanged = currentState.hasMultiple !== lastScrollSyncState.hasMultiple;
+          // 只在状态真正改变时才输出日志
+      const currentState = { hasMultiple: hasMultipleNotebookDetailWidgets() };
+      const stateChanged = currentState.hasMultiple !== lastScrollSyncState.hasMultiple;
 
-    // 调试输出
-    // console.log('[Scroll Sync Debug] Multiple notebook details:', currentState.hasMultiple, 'Should enable:', shouldEnable);
-    if (stateChanged) {
-      console.log('[Scroll Sync] Multiple notebook details:', currentState.hasMultiple, 'Should enable:', shouldEnable);
-      lastScrollSyncState = currentState;
-    }
+      if (stateChanged) {
+        lastScrollSyncState = currentState;
+      }
 
     if (shouldEnable) {
       // 启用滚动同步
@@ -386,8 +383,7 @@ function activate(
 
       // 只在状态真正改变时才输出日志
       if (stateChanged) {
-        console.log('[Scroll Sync] Enabled for widgets:', Array.from(scrollSyncWidgets));
-        console.log('[Scroll Sync] Widget count:', scrollSyncWidgets.size);
+        // 状态已更新
       }
 
       // 为每个widget的滚动容器绑定事件监听器
@@ -463,7 +459,7 @@ function activate(
 
             // 添加调试信息
             if (stateChanged) {
-              console.log('[Scroll Sync] Bound scroll handler for widget:', widgetId);
+              // 滚动处理器已绑定
             }
           } else {
             console.warn('[Scroll Sync] No cell list found for widget:', widgetId);
@@ -495,7 +491,7 @@ function activate(
       scrollSyncHandlers.clear();
       // 只在状态真正改变时才输出日志
       if (stateChanged) {
-        console.log('[Scroll Sync] Disabled');
+        // 滚动同步已禁用
       }
     }
   }
@@ -900,14 +896,15 @@ function activate(
           // 找到对应的notebook
           const notebook = result1.find((nb: any) => nb.kernelVersionId === kernelVersionId);
           if (notebook) {
-            // 确保notebook有index属性，如果没有则使用数组索引
-            const notebookIndex = notebook.index !== undefined ? notebook.index : result1.indexOf(notebook);
+            // 使用notebook在result1数组中的索引，而不是globalIndex
+            const notebookIndex = result1.indexOf(notebook);
 
             // 跳转到对应的cell
             window.dispatchEvent(new CustomEvent('galaxy-notebook-detail-jump', {
               detail: {
                 notebookIndex: notebookIndex,
-                cellIndex: cellIndex
+                cellIndex: cellIndex,
+                kernelVersionId: kernelVersionId
               }
             }));
           } else {
@@ -926,7 +923,6 @@ function activate(
             app.shell.activateById(nbDetailWidget.id);
             notebookDetailIds.add(nbDetailWidget.id);
             nbDetailWidget.disposed.connect(() => {
-              console.log('[galaxy] notebook detail widget disposed:', nbDetailWidget.id);
               // 清理滚动同步状态
               updateScrollSync();
             });
@@ -934,20 +930,19 @@ function activate(
             // 延迟更新滚动同步状态，避免频繁调用
             setTimeout(() => updateScrollSync(), 100);
 
-            // 检查是否有分屏布局
-            if (hasSplitLayout()) {
-              console.log('[handleNotebookSelected] Split layout detected, collapsing sidebars');
-              // 收缩左右sidebar而不是关闭
-              if (typeof (app.shell as any).collapseLeft === 'function') {
-                (app.shell as any).collapseLeft();
-              }
-              if (typeof (app.shell as any).collapseRight === 'function') {
-                (app.shell as any).collapseRight();
-              }
-              // 在分屏布局下也需要更新滚动同步
-              setTimeout(() => updateScrollSync(), 100);
-              return; // 不创建sidebar，直接返回
-            }
+                // 检查是否有分屏布局
+    if (hasSplitLayout()) {
+      // 收缩左右sidebar而不是关闭
+      if (typeof (app.shell as any).collapseLeft === 'function') {
+        (app.shell as any).collapseLeft();
+      }
+      if (typeof (app.shell as any).collapseRight === 'function') {
+        (app.shell as any).collapseRight();
+      }
+      // 在分屏布局下也需要更新滚动同步
+      setTimeout(() => updateScrollSync(), 100);
+      return; // 不创建sidebar，直接返回
+    }
 
             // 新建只显示该 notebook 的 flowchart
             // 确保 colorMap 包含该 notebook 中的所有 stage
@@ -967,7 +962,6 @@ function activate(
                 (app.shell as any).expandLeftArea();
               }
               app.shell.activateById(singleLeftSidebar.id);
-              console.log('SingleLeftSidebar expanded and activated (setTimeout)');
             }, 0);
 
             // 右侧 sidebar 只显示该 notebook 信息，清除之前的filter状态
@@ -1090,36 +1084,7 @@ function activate(
         if (!currentDetailIds.has(oldId)) {
           console.log('[galaxy] Notebook detail widget no longer in main:', oldId);
 
-          // 打印当前layout信息
-          try {
-            console.log('[Detail Tab Closed] Current layout after closing detail tab:', oldId);
 
-            // 检测关闭detail tab后切换到了哪个tab
-            setTimeout(() => {
-              // 获取当前激活的widget
-              const currentWidget = app.shell.currentWidget;
-
-              // 检查哪个widget是当前可见的
-              const visibleWidgets = Array.from(app.shell.widgets('main')).filter(w => w.isVisible);
-
-              // 检查DOM中的当前激活tab
-              const activeTabElement = document.querySelector('.lm-TabBar-tab.lm-mod-current');
-              const activeTabId = activeTabElement?.getAttribute('data-id');
-
-              // 分析不一致的情况
-              if (currentWidget && visibleWidgets.length > 0 && !visibleWidgets.includes(currentWidget)) {
-                console.log('[Detail Tab Closed] ⚠️ Current widget is not in visible widgets list!');
-              }
-
-              if (activeTabId && currentWidget && activeTabId !== currentWidget.id) {
-                console.log('[Detail Tab Closed] ⚠️ DOM active tab differs from shell.currentWidget!');
-              }
-
-            }, 100); // 延迟100ms确保切换完成
-
-          } catch (error) {
-            console.error('[Detail Tab Closed] Error getting layout info:', error);
-          }
 
           // 当 notebook detail widget 被关闭时，立即恢复 overview sidebar
           if (result1 && matrixWidget && detailSidebar) {
@@ -1165,25 +1130,19 @@ function activate(
     }
     // 只在 layoutModified 里检测，不在 currentChanged/activeChanged 里检测
     app.shell.layoutModified.connect(() => {
-      // 打印layout变化信息
-      try {
-        console.log('[Layout Modified] Layout structure changed');
-      } catch (error) {
-        console.error('[Layout Modified] Error getting layout info:', error);
-      }
+      
 
       checkNotebookDetailWidgetStatus();
-      // 检查是否有分屏布局
-      if (hasSplitLayout()) {
-        console.log('[layoutModified] Split layout detected, collapsing sidebars');
-        // 收缩左右sidebar而不是关闭
-        if (typeof (app.shell as any).collapseLeft === 'function') {
-          (app.shell as any).collapseLeft();
-        }
-        if (typeof (app.shell as any).collapseRight === 'function') {
-          (app.shell as any).collapseRight();
-        }
+          // 检查是否有分屏布局
+    if (hasSplitLayout()) {
+      // 收缩左右sidebar而不是关闭
+      if (typeof (app.shell as any).collapseLeft === 'function') {
+        (app.shell as any).collapseLeft();
       }
+      if (typeof (app.shell as any).collapseRight === 'function') {
+        (app.shell as any).collapseRight();
+      }
+    }
       // 在布局变化时更新滚动同步状态
       setTimeout(() => updateScrollSync(), 100);
     });
@@ -1243,36 +1202,7 @@ function activate(
       for (const w of mainWidgets) {
         if (!(w as any).__galaxyDisposedBound) {
           w.disposed.connect(() => {
-            // 打印当前layout信息
-            try {
-              console.log('[Tab Closed] Current layout after closing tab:', w.id);
-
-              // 检测关闭tab后切换到了哪个tab
-              setTimeout(() => {
-                // 获取当前激活的widget
-                const currentWidget = app.shell.currentWidget;
-
-                // 检查哪个widget是当前可见的
-                const visibleWidgets = Array.from(app.shell.widgets('main')).filter(w => w.isVisible);
-
-                // 检查DOM中的当前激活tab
-                const activeTabElement = document.querySelector('.lm-TabBar-tab.lm-mod-current');
-                const activeTabId = activeTabElement?.getAttribute('data-id');
-
-                // 分析不一致的情况
-                if (currentWidget && visibleWidgets.length > 0 && !visibleWidgets.includes(currentWidget)) {
-                  console.log('[Tab Closed] ⚠️ Current widget is not in visible widgets list!');
-                }
-
-                if (activeTabId && currentWidget && activeTabId !== currentWidget.id) {
-                  console.log('[Tab Closed] ⚠️ DOM active tab differs from shell.currentWidget!');
-                }
-
-              }, 100); // 延迟100ms确保切换完成
-
-            } catch (error) {
-              console.error('[Tab Closed] Error getting layout info:', error);
-            }
+            
 
             if (w.id && w.id.startsWith('notebook-detail-widget-')) {
               // 对于notebook detail widget的关闭，延迟处理以确保状态稳定
@@ -1312,10 +1242,8 @@ function activate(
       const { widgetId, locked } = customEvent.detail;
       if (locked) {
         lockedWidgets.add(widgetId);
-        console.log('[Scroll Sync] Widget locked:', widgetId);
       } else {
         lockedWidgets.delete(widgetId);
-        console.log('[Scroll Sync] Widget unlocked:', widgetId);
       }
     });
   }

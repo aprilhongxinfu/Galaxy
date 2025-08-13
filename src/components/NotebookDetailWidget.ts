@@ -49,7 +49,7 @@ export class NotebookDetailWidget extends Widget {
     this.id = 'notebook-detail-widget-' + nbId;
     
     // 设置tab标题为"notebook+对应的序号"
-    const notebookIndex = notebook.globalIndex !== undefined ? notebook.globalIndex + 1 : 
+    const notebookIndex = notebook.globalIndex !== undefined ? notebook.globalIndex : 
                          notebook.index !== undefined ? notebook.index + 1 : 
                          'unknown';
     this.title.label = `Notebook ${notebookIndex}`;
@@ -154,17 +154,11 @@ export class NotebookDetailWidget extends Widget {
     this.jumpHandler = (e: Event) => {
       const detail = (e as CustomEvent).detail;
       if (detail && detail.notebookIndex !== undefined && detail.cellIndex !== undefined) {
-        // 检查是否是当前 notebook 的跳转
-        const currentNotebookIndex = this.notebook.index;
-        const targetNotebookIndex = detail.notebookIndex;
+        // 检查是否是同一个notebook（通过kernelVersionId）
+        const isSameNotebook = this.notebook.kernelVersionId === detail.kernelVersionId;
         
-        // 转换为字符串进行比较，避免类型不匹配的问题
-        const currentIndexStr = currentNotebookIndex?.toString();
-        const targetIndexStr = targetNotebookIndex?.toString();
-        
-        // 如果索引不匹配，跳过（但允许 undefined 的情况）
-        if (currentIndexStr !== undefined && targetIndexStr !== undefined && 
-            currentIndexStr !== targetIndexStr) {
+        // 如果不是同一个notebook，跳过跳转
+        if (!isSameNotebook) {
           return;
         }
         
@@ -542,8 +536,6 @@ export class NotebookDetailWidget extends Widget {
       return;
     }
     
-    console.log(`[NotebookDetailWidget] Highlighting ${totalBlocks} code blocks...`);
-    
     // 直接高亮所有代码块
     codeBlocks.forEach((block, i) => {
       if (!block.classList.contains('prism-highlighted')) {
@@ -551,8 +543,6 @@ export class NotebookDetailWidget extends Widget {
         block.classList.add('prism-highlighted');
       }
     });
-    
-    console.log(`[NotebookDetailWidget] Successfully highlighted ${totalBlocks} code blocks`);
   }
 
   private loadPrismJS() {
@@ -1321,23 +1311,20 @@ export class NotebookDetailWidget extends Widget {
         navNext.style.color = '#666';
       });
 
-      // 清除筛选按钮事件
-      if (navClear) {
-        navClear.addEventListener('click', () => {
-          const cellList = this.node.querySelector('#nbd-cell-list-scroll');
-          const prevScrollTop = cellList ? cellList.scrollTop : 0;
-          console.log('[NotebookDetailWidget] Clear button clicked for tab:', this.getTabId());
-          // 不清除选中状态，保持当前 cell 选中
-          // this.selectedCellIdx = null;
-          
-          // 直接清除当前 tab 的选中状态
-          const tabId = this.getTabId();
-          const stageSelectionKey = `_galaxyStageSelection_${tabId}`;
-          const flowSelectionKey = `_galaxyFlowSelection_${tabId}`;
-          delete (window as any)[stageSelectionKey];
-          delete (window as any)[flowSelectionKey];
-          
-          console.log('[NotebookDetailWidget] Cleared selection state for tab:', tabId);
+              // 清除筛选按钮事件
+        if (navClear) {
+          navClear.addEventListener('click', () => {
+            const cellList = this.node.querySelector('#nbd-cell-list-scroll');
+            const prevScrollTop = cellList ? cellList.scrollTop : 0;
+            // 不清除选中状态，保持当前 cell 选中
+            // this.selectedCellIdx = null;
+            
+            // 直接清除当前 tab 的选中状态
+            const tabId = this.getTabId();
+            const stageSelectionKey = `_galaxyStageSelection_${tabId}`;
+            const flowSelectionKey = `_galaxyFlowSelection_${tabId}`;
+            delete (window as any)[stageSelectionKey];
+            delete (window as any)[flowSelectionKey];
           
           // 触发清除事件，让 flowchart 也恢复原状
           window.dispatchEvent(new CustomEvent('galaxy-selection-cleared', { detail: { tabId: this.getTabId() } }));
@@ -1707,15 +1694,9 @@ export class NotebookDetailWidget extends Widget {
   }
 
   private handleVisibilityChange() {
-    if (document.hidden) {
-      // 标签页变为隐藏状态，此时不激活 Prism.js
-      console.log('[NotebookDetailWidget] Notebook tab is hidden.');
-    } else {
+    if (!document.hidden && this.prismLoaded) {
       // 标签页变为可见状态，此时重新激活 Prism.js
-      console.log('[NotebookDetailWidget] Notebook tab is visible, reactivating Prism.js.');
-      if (this.prismLoaded) {
-        this.activatePrismLineNumbers();
-      }
+      this.activatePrismLineNumbers();
     }
   }
 }

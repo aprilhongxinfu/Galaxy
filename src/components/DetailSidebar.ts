@@ -615,6 +615,7 @@ export class DetailSidebar extends Widget {
       tocItems.forEach(item => {
         item.addEventListener('click', (e) => {
           e.preventDefault();
+          e.stopPropagation();
           const cellId = (item as HTMLElement).getAttribute('data-cell-id');
           if (cellId) {
             window.dispatchEvent(new CustomEvent('galaxy-toc-item-clicked', {
@@ -692,20 +693,6 @@ export class DetailSidebar extends Widget {
       };
       addHover('.dsb-stage-expand-btn');
       addHover('.dsb-flow-expand-btn');
-
-      // 绑定TOC项目点击事件
-      const tocItems = this.node.querySelectorAll('.toc-item');
-      tocItems.forEach(item => {
-        item.addEventListener('click', (e) => {
-          e.preventDefault();
-          const cellId = (item as HTMLElement).getAttribute('data-cell-id');
-          if (cellId) {
-            window.dispatchEvent(new CustomEvent('galaxy-toc-item-clicked', {
-              detail: { cellId: cellId }
-            }));
-          }
-        });
-      });
     }, 0);
   }
 
