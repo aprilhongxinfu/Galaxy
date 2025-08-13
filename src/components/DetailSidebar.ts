@@ -20,6 +20,7 @@ export class DetailSidebar extends Widget {
   private _mostFreqFlow: string | undefined;
   private _hiddenStages?: Set<string>;
   private similarityGroups: any[] = []; // 存储similarity groups数据
+  private voteData: any[] = []; // 存储投票数据
   private currentNotebook: any = null; // 保存当前 notebook detail
   private _currentTitle: string = 'Notebook Overview'; // 跟踪当前标题
   private _currentSelection: any = null; // 跟踪当前选中状态
@@ -112,11 +113,12 @@ export class DetailSidebar extends Widget {
     }
   }
 
-  constructor(colorMap: Map<string, string>, notebookOrder: number[], hiddenStages?: Set<string>, similarityGroups?: any[]) {
+  constructor(colorMap: Map<string, string>, notebookOrder: number[], hiddenStages?: Set<string>, similarityGroups?: any[], voteData?: any[]) {
     super();
     this.colorMap = colorMap;
     this.notebookOrder = notebookOrder || []; // 保存notebook的原始排序
     this.similarityGroups = similarityGroups || []; // 保存similarity groups数据
+    this.voteData = voteData || []; // 保存投票数据
     this.id = 'galaxy-detail-sidebar';
     this.title.label = 'Details';
     this.title.closable = true;
@@ -433,7 +435,7 @@ export class DetailSidebar extends Widget {
       <div style="padding:28px 18px 18px 18px; font-size:15px; color:#222; max-width:420px; margin:0 auto;">
         <div style="font-size:20px; font-weight:700; margin-bottom:18px; line-height:1.2; word-break:break-all;" id="detail-sidebar-title"><span style="${this._getTitleStyle()}">Notebook ${nb.globalIndex !== undefined ? nb.globalIndex + 1 : ''}: ${nb.notebook_name ?? nb.kernelVersionId}</span></div>
         
-        ${nb.creationDate || nb.totalLines ? `
+        ${nb.creationDate || nb.totalLines || this.getVoteCount(nb) ? `
         <div style="display:flex; flex-direction:row; gap:18px; margin-bottom:18px;">
           ${nb.creationDate ? `
           <div style="flex:1;">
@@ -445,6 +447,12 @@ export class DetailSidebar extends Widget {
           <div style="flex:1;">
             <div style="font-size:13px; color:#888;">Total Lines</div>
             <div style="font-size:16px; font-weight:600;">${nb.totalLines.toLocaleString()}</div>
+          </div>
+          ` : ''}
+          ${this.getVoteCount(nb) !== null ? `
+          <div style="flex:1;">
+            <div style="font-size:13px; color:#888;">Total Votes</div>
+            <div style="font-size:16px; font-weight:600;">${this.getVoteCount(nb)!.toLocaleString()}</div>
           </div>
           ` : ''}
         </div>
@@ -920,7 +928,7 @@ export class DetailSidebar extends Widget {
               throw new Error('HTML widget not properly initialized');
             }
           } catch (error) {
-            console.error('HTML rendering failed for cell:', c.cellIndex, 'error:', error);
+            // console.error('HTML rendering failed for cell:', c.cellIndex, 'error:', error);
             // 如果JupyterLab渲染器失败，使用简单的HTML渲染
             const fallbackDiv = document.createElement('div');
             fallbackDiv.className = 'nbd-md-area';
@@ -2097,6 +2105,18 @@ export class DetailSidebar extends Widget {
       ${currLineSvg}
       ${axisSvg}
     </svg>`;
+  }
+
+  private getVoteCount(nb: any): number | null {
+    if (!this.voteData || this.voteData.length === 0) {
+      return null;
+    }
+    const kernelId = nb.kernelVersionId?.toString();
+    if (!kernelId) {
+      return null;
+    }
+    const voteRow = this.voteData.find((row: any) => row.kernelVersionId?.toString() === kernelId);
+    return voteRow && voteRow.TotalVotes !== undefined ? parseFloat(voteRow.TotalVotes) || 0 : null;
   }
 
   // 获取当前tab ID

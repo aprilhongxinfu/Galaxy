@@ -225,7 +225,6 @@ function activate(
   // 将 app 赋值给全局变量
   app = appInstance;
 
-  let similarityGroups: any[] = [];
   let lastKnownDetailIds: Set<string> = new Set();
 
 
@@ -700,6 +699,10 @@ function activate(
       const selectedItems = Array.from(fileBrowserWidget.selectedItems());
 
       try {
+        // 初始化变量
+        let similarityGroups: any[] = [];
+        let voteData: any[] = [];
+        
         // 关闭之前的插件窗口
         const oldLeft = app.shell.widgets('left');
         for (const w of oldLeft) {
@@ -746,24 +749,20 @@ function activate(
               console.log(`无法加载kernel数据: competition_${competitionId}.csv`);
             }
 
-                          // 加载并合并TOC数据（如果存在）
-              if (baseDir) {
-                try {
-                  const tocData = await loadTocData(competitionId, baseDir);
-                  result1 = mergeTocData(result1, tocData);
-                  console.log('Applied TOC data for competition:', competitionId);
-                } catch (e) {
-                  console.log(`TOC数据不存在，跳过: ${competitionId}_toc.json`);
-                }
-              } else {
-                console.log('No base directory available for TOC data loading');
+            // 加载并合并TOC数据（如果存在）
+            if (baseDir) {
+              try {
+                const tocData = await loadTocData(competitionId, baseDir);
+                result1 = mergeTocData(result1, tocData);
+                console.log('Applied TOC data for competition:', competitionId);
+              } catch (e) {
+                console.log(`TOC数据不存在，跳过: ${competitionId}_toc.json`);
               }
-          } else {
-            console.log('No competition ID extracted from path');
-          }
+            } else {
+              console.log('No base directory available for TOC data loading');
+            }
 
-          // 读取对应的 CSV 文件（如果存在）
-          if (competitionId && baseDir) {
+            // 读取对应的 CSV 文件（如果存在）
             try {
               const csvPath = `${baseDir}/cluster_data/${competitionId}_sorted.csv`;
               const csvModel = await contentsManager.get(csvPath, { type: 'file', format: 'text', content: true });
@@ -773,8 +772,19 @@ function activate(
               console.log(`聚类文件不存在，跳过: ${competitionId}_sorted.csv`);
               similarityGroups = [];
             }
+
+            // 读取投票数据（如果存在）
+            try {
+              const votePath = `${baseDir}/cluster_data/${competitionId}_sorted.csv`;
+              const voteModel = await contentsManager.get(votePath, { type: 'file', format: 'text', content: true });
+              voteData = csvParse(voteModel.content as string);
+              console.log(`成功加载投票数据: ${competitionId}_sorted.csv`);
+            } catch (e) {
+              console.log(`投票数据文件不存在，跳过: ${competitionId}_sorted.csv`);
+              voteData = [];
+            }
           } else {
-            similarityGroups = [];
+            console.log('No competition ID extracted from path');
           }
 
         } else {
@@ -833,14 +843,14 @@ function activate(
           console.log('No competitionId or baseDir found for MatrixWidget');
         }
 
-        matrixWidget = new MatrixWidget(result1, colorScale, similarityGroups, kernelTitleMap);
+        matrixWidget = new MatrixWidget(result1, colorScale, similarityGroups, kernelTitleMap, voteData);
         app.shell.add(matrixWidget, 'main');
         app.shell.activateById(matrixWidget.id);
         matrixWidget.disposed.connect(() => {
           closeSidebarsIfNoMainWidgets(app);
         });
         const notebookOrder = matrixWidget.getNotebookOrder();
-        const detailSidebarInstance = new DetailSidebar(colorMapModule, notebookOrder, undefined, similarityGroups);
+        const detailSidebarInstance = new DetailSidebar(colorMapModule, notebookOrder, undefined, similarityGroups, voteData);
         detailSidebar = detailSidebarInstance;
         const { mostFreqStage: mfs, mostFreqFlow: mff } = flowChartWidget.getMostFrequentStageAndFlow();
         mostFreqStage = mfs;
@@ -854,7 +864,7 @@ function activate(
         console.log('DetailSidebar added, expanded, and activated');
         // 监听 notebook 排序变化，实时同步 sidebar
         window.addEventListener('galaxy-notebook-order-changed', (e: any) => {
-          console.log('[index.ts] Global notebook order changed event:', e.detail?.notebookOrder);
+          // console.log('[index.ts] Global notebook order changed event:', e.detail?.notebookOrder);
           detailSidebar?.setSummary(result1, mostFreqStage, mostFreqFlow, e.detail?.notebookOrder);
         });
 

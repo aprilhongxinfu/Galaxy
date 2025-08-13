@@ -19,22 +19,26 @@ export class MatrixWidget extends Widget {
     private data: Notebook[];
     private colorScale: (label: string) => string;
     private sortState: number = 0; // 0: 默认, 1: notebook长度降序, 2: notebook长度升序, 3: similarity排序
+    private voteEnabled: boolean = false; // 独立的投票排序状态
     private notebookOrder: number[] = [];
     private sortButton: HTMLButtonElement;
     private similaritySortButton: HTMLButtonElement;
+    private voteSortButton!: HTMLButtonElement; // 投票排序按钮
     private cellHeightButton: HTMLButtonElement; // cell高度模式按钮
     private markdownButton: HTMLButtonElement; // markdown显示/隐藏按钮
     private filter: any = null;
     private similarityGroups: any[];
+    private voteData: any[] = []; // 投票数据
     private cellHeightMode: 'fixed' | 'dynamic' = 'fixed'; // cell高度模式：固定、动态
     private showMarkdown: boolean = true; // markdown显示状态
     private kernelTitleMap: Map<string, { title: string; creationDate: string; totalLines: number }> = new Map(); // 存储kernelVersionId到Title的映射
 
-    constructor(data: Notebook[], colorScale: (label: string) => string, similarityGroups?: any[], kernelTitleMap?: Map<string, { title: string; creationDate: string; totalLines: number }>) {
+    constructor(data: Notebook[], colorScale: (label: string) => string, similarityGroups?: any[], kernelTitleMap?: Map<string, { title: string; creationDate: string; totalLines: number }>, voteData?: any[]) {
         super();
         this.data = data.map((nb, i) => ({ ...nb, globalIndex: i + 1 }));
         this.colorScale = colorScale;
         this.similarityGroups = similarityGroups || [];
+        this.voteData = voteData || [];
         this.kernelTitleMap = kernelTitleMap || new Map();
 
 
@@ -104,7 +108,7 @@ export class MatrixWidget extends Widget {
         // 排序按钮
         this.notebookOrder = this.data.map((_, i) => i);
         this.sortButton = document.createElement('button');
-        this.sortButton.title = '切换排序';
+        this.sortButton.title = 'Default order (no sorting)';
         this.sortButton.style.background = 'none';
         this.sortButton.style.border = 'none';
         this.sortButton.style.cursor = 'pointer';
@@ -114,15 +118,12 @@ export class MatrixWidget extends Widget {
         this.sortButton.style.justifyContent = 'center';
         this.sortButton.innerHTML = this.getSortIcon();
         this.sortButton.onclick = () => {
-            if (this.sortState === 3) return; // similarity模式下禁用
-
             // 保存当前的filter状态
             const currentFilter = this.filter;
 
             this.sortState = (this.sortState + 1) % 3;
             this.updateNotebookOrder();
             this.sortButton.innerHTML = this.getSortIcon();
-            this.similaritySortButton.classList.remove('active');
             this.updateSortButtonState();
 
             // 恢复filter状态（在updateNotebookOrder之后）
@@ -137,7 +138,7 @@ export class MatrixWidget extends Widget {
 
         // similarity排序按钮
         this.similaritySortButton = document.createElement('button');
-        this.similaritySortButton.title = 'Group clustering by cluster_id';
+        this.similaritySortButton.title = 'Toggle clustering';
         this.similaritySortButton.style.background = 'none';
         this.similaritySortButton.style.border = 'none';
         this.similaritySortButton.style.cursor = 'pointer';
@@ -158,7 +159,6 @@ export class MatrixWidget extends Widget {
                 this.similaritySortButton.classList.add('active');
             }
             this.updateNotebookOrder();
-            this.sortButton.innerHTML = this.getSortIcon();
             this.similaritySortButton.innerHTML = this.getSimilaritySortIcon();
             this.updateSortButtonState();
 
@@ -172,9 +172,45 @@ export class MatrixWidget extends Widget {
         };
         sortBar.appendChild(this.similaritySortButton);
 
+        // 投票排序按钮
+        this.voteSortButton = document.createElement('button');
+        this.voteSortButton.title = 'Toggle vote sorting';
+        this.voteSortButton.style.background = 'none';
+        this.voteSortButton.style.border = 'none';
+        this.voteSortButton.style.cursor = 'pointer';
+        this.voteSortButton.style.fontSize = '18px';
+        this.voteSortButton.style.display = 'flex';
+        this.voteSortButton.style.alignItems = 'center';
+        this.voteSortButton.style.justifyContent = 'center';
+        this.voteSortButton.innerHTML = this.getVoteSortIcon();
+        this.voteSortButton.onclick = () => {
+            // 保存当前的filter状态
+            const currentFilter = this.filter;
+
+            this.voteEnabled = !this.voteEnabled;
+            if (this.voteEnabled) {
+                this.voteSortButton.classList.add('active');
+            } else {
+                this.voteSortButton.classList.remove('active');
+            }
+            this.updateNotebookOrder();
+            this.similaritySortButton.innerHTML = this.getSimilaritySortIcon();
+            this.voteSortButton.innerHTML = this.getVoteSortIcon();
+            this.updateSortButtonState();
+
+            // 恢复filter状态（在updateNotebookOrder之后）
+            this.filter = currentFilter;
+
+            this.saveFilterState();
+            this.drawMatrix();
+            const filteredNotebooks = this.getFilteredNotebooks();
+            window.dispatchEvent(new CustomEvent('galaxy-matrix-filtered', { detail: { notebooks: filteredNotebooks } }));
+        };
+        sortBar.appendChild(this.voteSortButton);
+
         // cell高度模式按钮
         this.cellHeightButton = document.createElement('button');
-        this.cellHeightButton.title = 'Toggle cell height mode';
+        this.cellHeightButton.title = 'Fixed cell height mode';
         this.cellHeightButton.style.background = 'none';
         this.cellHeightButton.style.border = 'none';
         this.cellHeightButton.style.cursor = 'pointer';
@@ -191,6 +227,7 @@ export class MatrixWidget extends Widget {
                 this.cellHeightMode = 'fixed';
             }
             this.cellHeightButton.innerHTML = this.getCellHeightIcon();
+            this.updateSortButtonState();
             this.saveFilterState();
             this.drawMatrix();
         };
@@ -198,7 +235,7 @@ export class MatrixWidget extends Widget {
 
         // markdown显示/隐藏按钮
         this.markdownButton = document.createElement('button');
-        this.markdownButton.title = 'Toggle markdown cells visibility';
+        this.markdownButton.title = 'Toggle markdown visibility';
         this.markdownButton.style.background = 'none';
         this.markdownButton.style.border = 'none';
         this.markdownButton.style.cursor = 'pointer';
@@ -210,6 +247,7 @@ export class MatrixWidget extends Widget {
         this.markdownButton.onclick = () => {
             this.showMarkdown = !this.showMarkdown;
             this.markdownButton.innerHTML = this.getMarkdownIcon();
+            this.updateSortButtonState();
             this.saveFilterState();
             this.drawMatrix();
         };
@@ -261,6 +299,21 @@ export class MatrixWidget extends Widget {
         }
     }
 
+    private getVoteSortIcon(): string {
+        // 投票排序icon，使用星星图标，激活绿色，未激活灰色
+        if (this.voteEnabled) {
+            // 激活（绿色）
+            return `<svg width="18" height="18" viewBox="0 0 24 24">
+  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" fill="#4caf50"/>
+</svg>`;
+        } else {
+            // 未激活（灰色）
+            return `<svg width="18" height="18" viewBox="0 0 24 24">
+  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" fill="#555"/>
+</svg>`;
+        }
+    }
+
     private getCellHeightIcon(): string {
         // cell高度模式icon：固定高度（等号）、动态高度（波浪线）
         if (this.cellHeightMode === 'fixed') {
@@ -289,7 +342,25 @@ export class MatrixWidget extends Widget {
     }
 
     private updateNotebookOrder() {
-        if (this.sortState === 0) {
+        // 创建vote map（如果需要的话）
+        const voteMap = new Map();
+        if (this.voteEnabled && this.voteData && this.voteData.length > 0) {
+            this.voteData.forEach((row: any) => {
+                if (row.kernelVersionId && row.TotalVotes !== undefined) {
+                    voteMap.set(row.kernelVersionId.toString(), parseFloat(row.TotalVotes) || 0);
+                }
+            });
+        }
+
+        if (this.voteEnabled && this.sortState !== 3) {
+            // vote激活且similarity未激活：全局按vote排序
+            const arr = this.data.map((nb, i) => ({ 
+                i, 
+                votes: voteMap.get((nb as any).kernelVersionId?.toString()) || 0 
+            }));
+            arr.sort((a, b) => b.votes - a.votes);
+            this.notebookOrder = arr.map(d => d.i);
+        } else if (this.sortState === 0) {
             this.notebookOrder = this.data.map((_, i) => i);
         } else if (this.sortState === 1 || this.sortState === 2) {
             // 按 notebook 长度排序
@@ -297,31 +368,28 @@ export class MatrixWidget extends Widget {
             arr.sort((a, b) => this.sortState === 1 ? b.len - a.len : a.len - b.len);
             this.notebookOrder = arr.map(d => d.i);
         } else if (this.sortState === 3 && this.similarityGroups && this.similarityGroups.length > 0) {
-            // Group clustering - preserve original CSV order
-            // First, group notebooks by cluster_id based on CSV order
+            // similarity模式
             const groupMap: Record<string, number[]> = {};
             const ungroupedNotebooks: number[] = [];
-            const clusterOrder: string[] = []; // Track original order of clusters from CSV
+            const clusterOrder: string[] = [];
 
-            // First pass: iterate through CSV data to establish cluster order
+            // 建立cluster分组
             this.similarityGroups.forEach((simRow: any) => {
                 if (simRow.cluster_id && !clusterOrder.includes(simRow.cluster_id)) {
-                    clusterOrder.push(simRow.cluster_id); // Track first appearance order in CSV
+                    clusterOrder.push(simRow.cluster_id);
                     groupMap[simRow.cluster_id] = [];
                 }
             });
 
-            // Second pass: map notebooks to clusters in CSV order
+            // 将notebook分配到clusters
             this.similarityGroups.forEach((simRow: any) => {
                 if (simRow.cluster_id && simRow.kernelVersionId) {
-                    // Find the notebook index in this.data that matches this kernelVersionId
                     const notebookIndex = this.data.findIndex((nb, i) => {
                         const kernelId = (nb as any).kernelVersionId?.toString();
                         return kernelId === simRow.kernelVersionId.toString();
                     });
 
                     if (notebookIndex !== -1 && groupMap[simRow.cluster_id]) {
-                        // Only add if not already added (avoid duplicates)
                         if (!groupMap[simRow.cluster_id].includes(notebookIndex)) {
                             groupMap[simRow.cluster_id].push(notebookIndex);
                         }
@@ -329,7 +397,7 @@ export class MatrixWidget extends Widget {
                 }
             });
 
-            // Add any notebooks not found in CSV to ungrouped
+            // 添加未分组的notebook
             this.data.forEach((nb, i) => {
                 const kernelId = (nb as any).kernelVersionId?.toString();
                 const simRow = this.similarityGroups.find((row: any) => row.kernelVersionId === kernelId);
@@ -337,7 +405,6 @@ export class MatrixWidget extends Widget {
                 if (!simRow || !simRow.cluster_id) {
                     ungroupedNotebooks.push(i);
                 } else {
-                    // Check if this notebook is already in a group
                     const isInGroup = Object.values(groupMap).some(group => group.includes(i));
                     if (!isInGroup) {
                         ungroupedNotebooks.push(i);
@@ -345,16 +412,33 @@ export class MatrixWidget extends Widget {
                 }
             });
 
-            // Use original cluster appearance order from CSV
             this.notebookOrder = [];
 
-            // Add grouped notebooks in original CSV order
-            clusterOrder.forEach(groupId => {
-                this.notebookOrder.push(...groupMap[groupId]);
-            });
+            if (this.voteEnabled) {
+                // 如果vote激活，在每个group内部按vote排序
+                clusterOrder.forEach(groupId => {
+                    const groupNotebooks = groupMap[groupId];
+                    const sortedGroup = groupNotebooks.sort((a, b) => {
+                        const voteA = voteMap.get((this.data[a] as any).kernelVersionId?.toString()) || 0;
+                        const voteB = voteMap.get((this.data[b] as any).kernelVersionId?.toString()) || 0;
+                        return voteB - voteA;
+                    });
+                    this.notebookOrder.push(...sortedGroup);
+                });
 
-            // Add ungrouped notebooks at the end
-            this.notebookOrder.push(...ungroupedNotebooks);
+                const sortedUngrouped = ungroupedNotebooks.sort((a, b) => {
+                    const voteA = voteMap.get((this.data[a] as any).kernelVersionId?.toString()) || 0;
+                    const voteB = voteMap.get((this.data[b] as any).kernelVersionId?.toString()) || 0;
+                    return voteB - voteA;
+                });
+                this.notebookOrder.push(...sortedUngrouped);
+            } else {
+                // 如果vote未激活，按照CSV的原始顺序排列
+                clusterOrder.forEach(groupId => {
+                    this.notebookOrder.push(...groupMap[groupId]);
+                });
+                this.notebookOrder.push(...ungroupedNotebooks);
+            }
         } else {
             this.notebookOrder = this.data.map((_, i) => i);
         }
@@ -754,6 +838,15 @@ export class MatrixWidget extends Widget {
                             `<br>Notebook Title: ${notebookTitle}` +
                             `<br>Lines: ${lineCount}`;
 
+                        // 添加投票信息
+                        if (self.voteData && self.voteData.length > 0) {
+                            const kernelId = (d as any)?.kernelVersionId?.toString();
+                            const voteRow = kernelId ? self.voteData.find((row: any) => row.kernelVersionId === kernelId) : null;
+                            if (voteRow && voteRow.TotalVotes !== undefined) {
+                                tooltipContent += `<br>Votes: ${voteRow.TotalVotes}`;
+                            }
+                        }
+
 
 
                         tooltip.innerHTML = tooltipContent;
@@ -906,6 +999,7 @@ export class MatrixWidget extends Widget {
     resetState(): void {
         this.filter = null;
         this.sortState = 0;
+        this.voteEnabled = false;
         this.notebookOrder = this.data.map((_, i) => i);
         (this as any)._assignmentFilter = '';
         (this as any)._studentFilter = '';
@@ -924,6 +1018,10 @@ export class MatrixWidget extends Widget {
         }
         if (this.markdownButton) {
             this.markdownButton.innerHTML = this.getMarkdownIcon();
+        }
+        if (this.voteSortButton) {
+            this.voteSortButton.innerHTML = this.getVoteSortIcon();
+            this.voteSortButton.classList.remove('active');
         }
         this.updateSortButtonState();
 
@@ -960,15 +1058,51 @@ export class MatrixWidget extends Widget {
     // 根据当前排序状态更新按钮样式和可用性
     private updateSortButtonState() {
         if (this.sortButton) {
-            if (this.sortState === 3) {
+            if (this.sortState === 3 || this.voteEnabled) {
                 this.sortButton.style.opacity = '0.4';
                 this.sortButton.style.cursor = 'not-allowed';
                 this.sortButton.disabled = true;
+                if (this.sortState === 3) {
+                    this.sortButton.title = 'Sorting disabled (clustering mode active)';
+                } else {
+                    this.sortButton.title = 'Sorting disabled (vote mode active)';
+                }
             } else {
                 this.sortButton.style.opacity = '1';
                 this.sortButton.style.cursor = 'pointer';
                 this.sortButton.disabled = false;
+                if (this.sortState === 0) {
+                    this.sortButton.title = 'Default order (no sorting)';
+                } else if (this.sortState === 1) {
+                    this.sortButton.title = 'Sorted by notebook length (descending)';
+                } else {
+                    this.sortButton.title = 'Sorted by notebook length (ascending)';
+                }
             }
+        }
+        
+        if (this.similaritySortButton) {
+            this.similaritySortButton.title = 'Toggle clustering';
+        }
+        
+        if (this.voteSortButton) {
+            if (this.voteEnabled) {
+                this.voteSortButton.title = 'Sorted by votes (highest to lowest)';
+            } else {
+                this.voteSortButton.title = 'Sort by votes';
+            }
+        }
+        
+        if (this.cellHeightButton) {
+            if (this.cellHeightMode === 'fixed') {
+                this.cellHeightButton.title = 'Fixed cell height mode';
+            } else {
+                this.cellHeightButton.title = 'Cell height by line count';
+            }
+        }
+        
+        if (this.markdownButton) {
+            this.markdownButton.title = 'Toggle markdown visibility';
         }
     }
 
@@ -998,6 +1132,7 @@ export class MatrixWidget extends Widget {
         (window as any)[stateKey] = {
             filter: this.filter,
             sortState: this.sortState,
+            voteEnabled: this.voteEnabled,
             notebookOrder: this.notebookOrder,
             assignmentFilter: (this as any)._assignmentFilter,
             studentFilter: (this as any)._studentFilter,
@@ -1034,6 +1169,7 @@ export class MatrixWidget extends Widget {
         if (savedState) {
             this.filter = savedState.filter;
             this.sortState = savedState.sortState;
+            this.voteEnabled = savedState.voteEnabled || false;
             this.notebookOrder = savedState.notebookOrder || this.data.map((_, i) => i);
             (this as any)._assignmentFilter = savedState.assignmentFilter || '';
             (this as any)._studentFilter = savedState.studentFilter || '';
@@ -1043,8 +1179,17 @@ export class MatrixWidget extends Widget {
             // 更新按钮状态
             this.sortButton.innerHTML = this.getSortIcon();
             this.similaritySortButton.innerHTML = this.getSimilaritySortIcon();
+            this.voteSortButton.innerHTML = this.getVoteSortIcon();
             this.cellHeightButton.innerHTML = this.getCellHeightIcon();
             this.markdownButton.innerHTML = this.getMarkdownIcon();
+            
+            // 恢复vote按钮的active状态
+            if (this.voteEnabled) {
+                this.voteSortButton.classList.add('active');
+            } else {
+                this.voteSortButton.classList.remove('active');
+            }
+            
             this.updateSortButtonState();
 
             // 恢复assignment和student筛选器的值
@@ -1071,6 +1216,7 @@ export class MatrixWidget extends Widget {
             // 如果没有保存的状态，使用默认状态
             this.filter = null;
             this.sortState = 0;
+            this.voteEnabled = false;
             this.notebookOrder = this.data.map((_, i) => i);
             (this as any)._assignmentFilter = '';
             (this as any)._studentFilter = '';
@@ -1080,8 +1226,13 @@ export class MatrixWidget extends Widget {
             // 更新按钮状态
             this.sortButton.innerHTML = this.getSortIcon();
             this.similaritySortButton.innerHTML = this.getSimilaritySortIcon();
+            this.voteSortButton.innerHTML = this.getVoteSortIcon();
             this.cellHeightButton.innerHTML = this.getCellHeightIcon();
             this.markdownButton.innerHTML = this.getMarkdownIcon();
+            
+            // 重置vote按钮的active状态
+            this.voteSortButton.classList.remove('active');
+            
             this.updateSortButtonState();
 
             // 重置筛选器
