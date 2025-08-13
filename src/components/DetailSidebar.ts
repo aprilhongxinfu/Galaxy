@@ -80,11 +80,15 @@ export class DetailSidebar extends Widget {
   }
 
   private simpleMarkdownRender(md: string): string {
-    // 支持 # ## ###、**bold**、*italic*、[text](url)、换行
+    // 支持 # ## ### #### ##### ######、**bold**、*italic*、[text](url)、换行
     let html = md
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;');
+    // 标题 - 从6级到1级，避免冲突
+    html = html.replace(/^###### (.*)$/gm, '<h6>$1</h6>');
+    html = html.replace(/^##### (.*)$/gm, '<h5>$1</h5>');
+    html = html.replace(/^#### (.*)$/gm, '<h4>$1</h4>');
     html = html.replace(/^### (.*)$/gm, '<h3>$1</h3>');
     html = html.replace(/^## (.*)$/gm, '<h2>$1</h2>');
     html = html.replace(/^# (.*)$/gm, '<h1>$1</h1>');

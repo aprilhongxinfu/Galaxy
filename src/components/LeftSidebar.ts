@@ -114,7 +114,7 @@ export class LeftSidebar extends Widget {
         this.legendDiv.style.flex = 'none';
         this.legendDiv.style.margin = '0';
         this.legendDiv.style.padding = '0';
-        this.legendDiv.style.height = '160px'; // 增加高度
+        this.legendDiv.style.height = '140px'; // 增加高度
         this.node.appendChild(this.legendDiv);
 
         // SVG 渲染到中间
@@ -685,7 +685,7 @@ export class LeftSidebar extends Widget {
                             const stage = rect.datum() as StageDatum;
                             const group = STAGE_GROUP_MAP[stage.stage];
                             if (group === 'Data-oriented' || group === 'Model-oriented') {
-                                rect.attr("stroke", "#666666").attr("stroke-width", 2).attr("stroke-dasharray", group === 'Model-oriented' ? "4,2" : "none");
+                                rect.attr("stroke", "#666666").attr("stroke-width", 3).attr("stroke-dasharray", group === 'Model-oriented' ? "4,2" : "none");
                             } else {
                                 rect.attr("stroke", "none").attr("stroke-width", 0);
                             }
@@ -731,7 +731,7 @@ export class LeftSidebar extends Widget {
                                 const stage = rect.datum() as StageDatum;
                                 const group = STAGE_GROUP_MAP[stage.stage];
                                 if (group === 'Data-oriented' || group === 'Model-oriented') {
-                                    rect.attr("stroke", "#666666").attr("stroke-width", 2).attr("stroke-dasharray", group === 'Model-oriented' ? "4,2" : "none");
+                                    rect.attr("stroke", "#666666").attr("stroke-width", 3).attr("stroke-dasharray", group === 'Model-oriented' ? "4,2" : "none");
                                 } else {
                                     rect.attr("stroke", "none").attr("stroke-width", 0);
                                 }
@@ -794,7 +794,7 @@ export class LeftSidebar extends Widget {
             .attr('stroke-width', (d) => {
                 const group = STAGE_GROUP_MAP[d.stage];
                 if (group === 'Data-oriented' || group === 'Model-oriented') {
-                    return 2;
+                    return 3; // 加粗边框
                 }
                 return 0;
             })
@@ -881,7 +881,7 @@ export class LeftSidebar extends Widget {
                             const stage = rect.datum() as StageDatum;
                             const group = STAGE_GROUP_MAP[stage.stage];
                             if (group === 'Data-oriented' || group === 'Model-oriented') {
-                                rect.attr("stroke", "#666666").attr("stroke-width", 2).attr("stroke-dasharray", group === 'Model-oriented' ? "4,2" : "none");
+                                rect.attr("stroke", "#666666").attr("stroke-width", 3).attr("stroke-dasharray", group === 'Model-oriented' ? "4,2" : "none");
                             } else {
                                 rect.attr("stroke", "none").attr("stroke-width", 0);
                             }
@@ -972,6 +972,10 @@ export class LeftSidebar extends Widget {
             };
 
             allStages.forEach(stage => {
+                // 过滤掉 Commented (10) 和 Other (12)，不在 legend 中显示
+                if (stage.stage === '10' || stage.stage === '12') {
+                    return;
+                }
                 const group = STAGE_GROUP_MAP[stage.stage] || 'Other';
                 if (groups[group]) {
                     groups[group].push(stage);
@@ -986,9 +990,6 @@ export class LeftSidebar extends Widget {
                     const bHidden = this.hiddenStages.has(b.stage);
                     if (aHidden === bHidden) {
                         // 如果都是显示或都是隐藏，按stage ID排序
-                        // Commented (10) 排在 Other (12) 前面
-                        if (a.stage === '10' && b.stage === '12') return -1;
-                        if (a.stage === '12' && b.stage === '10') return 1;
                         return 0;
                     }
                     return aHidden ? 1 : -1; // 隐藏的排在后面
@@ -1120,81 +1121,63 @@ export class LeftSidebar extends Widget {
                 groupContent.appendChild(createColumn(col2));
                 groupContent.appendChild(createColumn(col3));
             } else if (groupName === 'Other') {
-                // Other 组：两列布局
+                // Other 组：单列布局（因为 Commented 和 Other 不在 legend 中显示）
                 groupContent.style.display = 'flex';
-                groupContent.style.flexDirection = 'row';
-                groupContent.style.gap = '8px';
+                groupContent.style.flexDirection = 'column';
+                groupContent.style.gap = '2px';
 
-                // 分两列
-                const midPoint = Math.ceil(stages.length / 2);
-                const leftCol = stages.slice(0, midPoint);
-                const rightCol = stages.slice(midPoint);
+                stages.forEach((d) => {
+                    const item = document.createElement('div');
+                    item.style.display = 'flex';
+                    item.style.alignItems = 'center';
+                    item.style.cursor = 'pointer';
+                    item.style.padding = '1px 4px';
+                    item.style.borderRadius = '2px';
 
-                const createColumn = (colStages: typeof this.stageData) => {
-                    const col = document.createElement('div');
-                    col.style.display = 'flex';
-                    col.style.flexDirection = 'column';
-                    col.style.flex = '1';
-                    col.style.gap = '2px';
+                    const isStageHidden = this.hiddenStages.has(d.stage);
+                    const colorBox = document.createElement('span');
+                    colorBox.style.display = 'inline-block';
+                    colorBox.style.width = '8px';
+                    colorBox.style.height = '10px';
+                    colorBox.style.borderRadius = '2px'; // 添加圆角
+                    colorBox.style.background = this.colorMap.get(d.stage) || '#ccc';
+                    colorBox.style.marginRight = '6px';
+                    colorBox.style.opacity = isStageHidden ? '0.3' : '1';
 
-                    colStages.forEach((d) => {
-                        const item = document.createElement('div');
-                        item.style.display = 'flex';
-                        item.style.alignItems = 'center';
-                        item.style.cursor = 'pointer';
-                        item.style.padding = '1px 4px';
-                        item.style.borderRadius = '2px';
-
-                        const isStageHidden = this.hiddenStages.has(d.stage);
-                        const colorBox = document.createElement('span');
-                        colorBox.style.display = 'inline-block';
-                        colorBox.style.width = '8px';
-                        colorBox.style.height = '10px';
-                        colorBox.style.borderRadius = '2px'; // 添加圆角
-                        colorBox.style.background = this.colorMap.get(d.stage) || '#ccc';
-                        colorBox.style.marginRight = '6px';
-                        colorBox.style.opacity = isStageHidden ? '0.3' : '1';
-
-                        // 为Data-oriented和Model-oriented添加border
-                        const group = STAGE_GROUP_MAP[d.stage];
-                        if (group === 'Data-oriented' || group === 'Model-oriented') {
-                            colorBox.style.border = '1px solid #666666';
-                            if (group === 'Model-oriented') {
-                                colorBox.style.borderStyle = 'dashed';
-                            }
+                    // 为Data-oriented和Model-oriented添加border
+                    const group = STAGE_GROUP_MAP[d.stage];
+                    if (group === 'Data-oriented' || group === 'Model-oriented') {
+                        colorBox.style.border = '1px solid #666666';
+                        if (group === 'Model-oriented') {
+                            colorBox.style.borderStyle = 'dashed';
                         }
+                    }
 
-                        const label = document.createElement('span');
-                        label.style.fontSize = '9px';
-                        label.textContent = LABEL_MAP[d.stage] ?? d.stage;
-                        label.style.opacity = isStageHidden ? '0.3' : '1';
+                    const label = document.createElement('span');
+                    label.style.fontSize = '9px';
+                    label.textContent = LABEL_MAP[d.stage] ?? d.stage;
+                    label.style.opacity = isStageHidden ? '0.3' : '1';
 
-                        item.appendChild(colorBox);
-                        item.appendChild(label);
+                    item.appendChild(colorBox);
+                    item.appendChild(label);
 
-                        // 点击切换显示/隐藏
-                        item.onclick = () => {
-                            if (isStageHidden) {
-                                this.hiddenStages.delete(d.stage);
-                            } else {
-                                this.hiddenStages.add(d.stage);
-                            }
-                            // 每次变更后派发事件
-                            window.dispatchEvent(new CustomEvent('galaxy-hidden-stages-changed', {
-                                detail: { hiddenStages: Array.from(this.hiddenStages) }
-                            }));
-                            this.saveFilterState();
-                            this.render();
-                        };
+                    // 点击切换显示/隐藏
+                    item.onclick = () => {
+                        if (isStageHidden) {
+                            this.hiddenStages.delete(d.stage);
+                        } else {
+                            this.hiddenStages.add(d.stage);
+                        }
+                        // 每次变更后派发事件
+                        window.dispatchEvent(new CustomEvent('galaxy-hidden-stages-changed', {
+                            detail: { hiddenStages: Array.from(this.hiddenStages) }
+                        }));
+                        this.saveFilterState();
+                        this.render();
+                    };
 
-                        col.appendChild(item);
-                    });
-
-                    return col;
-                };
-
-                groupContent.appendChild(createColumn(leftCol));
-                groupContent.appendChild(createColumn(rightCol));
+                    groupContent.appendChild(item);
+                });
             } else {
                 // 单列布局
                 groupContent.style.display = 'flex';
@@ -1462,7 +1445,7 @@ export class LeftSidebar extends Widget {
                     const stage = rect.datum() as StageDatum;
                     const group = STAGE_GROUP_MAP[stage.stage];
                     if (group === 'Data-oriented' || group === 'Model-oriented') {
-                        rect.attr("stroke", "#666666").attr("stroke-width", 2).attr("stroke-dasharray", group === 'Model-oriented' ? "4,2" : "none");
+                        rect.attr("stroke", "#666666").attr("stroke-width", 3).attr("stroke-dasharray", group === 'Model-oriented' ? "4,2" : "none");
                     } else {
                         rect.attr("stroke", "none").attr("stroke-width", 0);
                     }
@@ -1486,7 +1469,7 @@ export class LeftSidebar extends Widget {
                     const stage = rect.datum() as StageDatum;
                     const group = STAGE_GROUP_MAP[stage.stage];
                     if (group === 'Data-oriented' || group === 'Model-oriented') {
-                        rect.attr("stroke", "#666666").attr("stroke-width", 2).attr("stroke-dasharray", group === 'Model-oriented' ? "4,2" : "none");
+                        rect.attr("stroke", "#666666").attr("stroke-width", 3).attr("stroke-dasharray", group === 'Model-oriented' ? "4,2" : "none");
                     } else {
                         rect.attr("stroke", "none").attr("stroke-width", 0);
                     }
@@ -1499,7 +1482,7 @@ export class LeftSidebar extends Widget {
                 const stage = rect.datum() as StageDatum;
                 const group = STAGE_GROUP_MAP[stage.stage];
                 if (group === 'Data-oriented' || group === 'Model-oriented') {
-                    rect.attr("stroke", "#666666").attr("stroke-width", 2).attr("stroke-dasharray", group === 'Model-oriented' ? "4,2" : "none");
+                    rect.attr("stroke", "#666666").attr("stroke-width", 3).attr("stroke-dasharray", group === 'Model-oriented' ? "4,2" : "none");
                 } else {
                     rect.attr("stroke", "none").attr("stroke-width", 0);
                 }

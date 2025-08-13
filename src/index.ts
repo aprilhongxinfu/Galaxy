@@ -12,7 +12,7 @@ import {
 import { IFileBrowserFactory, FileBrowser } from '@jupyterlab/filebrowser';
 import { LeftSidebar } from './components/LeftSidebar';
 
-import { PageConfig } from '@jupyterlab/coreutils';
+
 import { runIcon } from '@jupyterlab/ui-components';
 import { colorMap as colorMapModule, initColorMap } from './components/colorMap';
 import { MatrixWidget } from './components/MatrixWidget';
@@ -29,18 +29,33 @@ function extractCompetitionId(jsonPath: string): string | null {
   return match ? match[1] : null;
 }
 
+// 从JSON文件路径中提取基础目录
+function extractBaseDir(jsonPath: string): string | null {
+  // 移除文件名，获取目录路径
+  const lastSlashIndex = jsonPath.lastIndexOf('/');
+  if (lastSlashIndex === -1) {
+    return null; // 没有目录分隔符，说明是根目录
+  }
+  return jsonPath.substring(0, lastSlashIndex);
+}
+
 // 加载TOC数据
-async function loadTocData(competitionId: string): Promise<any[]> {
+async function loadTocData(competitionId: string, baseDir: string): Promise<any[]> {
   try {
-    const tocPath = `src/data/toc_data/${competitionId}_toc.json`;
+    if (!baseDir) {
+      console.log('No base directory provided for TOC data loading');
+      return [];
+    }
+
+    const tocPath = `${baseDir}/toc_data/${competitionId}_toc.json`;
     console.log('TOC path:', tocPath);
 
     // 尝试不同的路径格式
     const alternativePaths = [
       tocPath,
-      `./src/data/toc_data/${competitionId}_toc.json`,
-      `/src/data/toc_data/${competitionId}_toc.json`,
-      `data/toc_data/${competitionId}_toc.json`
+      `./${baseDir}/toc_data/${competitionId}_toc.json`,
+      `/${baseDir}/toc_data/${competitionId}_toc.json`,
+      `${baseDir}/toc_data/${competitionId}_toc.json`
     ];
     const contentsManager = app?.serviceManager?.contents;
 
@@ -72,7 +87,7 @@ async function loadTocData(competitionId: string): Promise<any[]> {
     console.log('TOC data file not found for competition:', competitionId);
     return [];
   } catch (error) {
-    console.log(`TOC data file not found for competition ${competitionId}: src/data/toc_data/${competitionId}_toc.json`);
+    console.log(`TOC data file not found for competition ${competitionId}: ${baseDir}/toc_data/${competitionId}_toc.json`);
     return [];
   }
 }
@@ -105,10 +120,15 @@ function mergeTocData(notebooks: any[], tocData: any[]): any[] {
 }
 
 // 创建KernelVersionId到Title的映射
-async function createKernelTitleMap(competitionId: string): Promise<Map<string, { title: string; creationDate: string; totalLines: number }>> {
+async function createKernelTitleMap(competitionId: string, baseDir: string): Promise<Map<string, { title: string; creationDate: string; totalLines: number }>> {
   try {
+    if (!baseDir) {
+      console.log('No base directory provided for kernel data loading');
+      return new Map();
+    }
+
     // 动态加载CSV文件
-    const csvPath = `src/data/kernel_data/competition_${competitionId}.csv`;
+    const csvPath = `${baseDir}/kernel_data/competition_${competitionId}.csv`;
     const contentsManager = app?.serviceManager?.contents;
 
     if (!contentsManager) {
@@ -138,7 +158,7 @@ async function createKernelTitleMap(competitionId: string): Promise<Map<string, 
     // console.log(`Sample entries:`, Array.from(titleMap.entries()).slice(0, 3));
     return titleMap;
   } catch (error) {
-    console.log(`Kernel data file not found for competition ${competitionId}: src/data/kernel_data/competition_${competitionId}.csv`);
+    console.log(`Kernel data file not found for competition ${competitionId}: ${baseDir}/kernel_data/competition_${competitionId}.csv`);
     return new Map();
   }
 }
@@ -169,10 +189,7 @@ function replaceKernelVersionIdWithTitle(obj: any, titleMap: Map<string, { title
   return obj;
 }
 
-function getXsrfTokenFromCookie(): string | null {
-  const match = document.cookie.match(/\b_xsrf=([^;]*)/);
-  return match ? decodeURIComponent(match[1]) : null;
-}
+
 
 let handleNotebookSelected: ((e: any) => void) | null = null;
 let notebookSelectedListenerRegistered = false;
@@ -701,7 +718,7 @@ function activate(
         notebookDetailIds.clear();
         lastKnownDetailIds.clear();
 
-        // 判断是否只选中了一个 .json 文件
+        // 检查是否选中了JSON文件
         if (
           selectedItems.length === 1 &&
           selectedItems[0].type === 'file' &&
@@ -713,35 +730,42 @@ function activate(
           result1 = JSON.parse(model.content as string);
           // console.log('Loaded JSON:', result1);
 
-          // 提取competition ID并创建title映射
+          // 提取competition ID和基础目录
           console.log('Extracting competition ID from path:', selectedItems[0].path);
           const competitionId = extractCompetitionId(selectedItems[0].path);
+          const baseDir = extractBaseDir(selectedItems[0].path);
           console.log('Extracted competition ID:', competitionId);
-          if (competitionId) {
+          console.log('Extracted base directory:', baseDir);
+          
+          if (competitionId && baseDir) {
             try {
-              const titleMap = await createKernelTitleMap(competitionId);
+              const titleMap = await createKernelTitleMap(competitionId, baseDir);
               result1 = replaceKernelVersionIdWithTitle(result1, titleMap);
               console.log('Applied title mapping for competition:', competitionId);
             } catch (e) {
               console.log(`无法加载kernel数据: competition_${competitionId}.csv`);
             }
 
-            // 加载并合并TOC数据（如果存在）
-            try {
-              const tocData = await loadTocData(competitionId);
-              result1 = mergeTocData(result1, tocData);
-              console.log('Applied TOC data for competition:', competitionId);
-            } catch (e) {
-              console.log(`TOC数据不存在，跳过: ${competitionId}_toc.json`);
-            }
+                          // 加载并合并TOC数据（如果存在）
+              if (baseDir) {
+                try {
+                  const tocData = await loadTocData(competitionId, baseDir);
+                  result1 = mergeTocData(result1, tocData);
+                  console.log('Applied TOC data for competition:', competitionId);
+                } catch (e) {
+                  console.log(`TOC数据不存在，跳过: ${competitionId}_toc.json`);
+                }
+              } else {
+                console.log('No base directory available for TOC data loading');
+              }
           } else {
             console.log('No competition ID extracted from path');
           }
 
           // 读取对应的 CSV 文件（如果存在）
-          if (competitionId) {
+          if (competitionId && baseDir) {
             try {
-              const csvPath = `src/data/cluster_data/${competitionId}_clustered.csv`;
+              const csvPath = `${baseDir}/cluster_data/${competitionId}_clustered.csv`;
               const csvModel = await contentsManager.get(csvPath, { type: 'file', format: 'text', content: true });
               similarityGroups = csvParse(csvModel.content as string);
               console.log(`成功加载聚类数据: ${competitionId}_clustered.csv`);
@@ -754,56 +778,9 @@ function activate(
           }
 
         } else {
-          // 原有的后端 fetch 逻辑
-          const selectedPaths = selectedItems
-            .filter(item => item.type === 'notebook' || item.type === 'directory')
-            .map(item => item.path);
-
-          if (selectedPaths.length === 0) {
-            console.warn('⚠️ No notebooks selected');
-            return;
-          }
-
-          const xsrfToken = getXsrfTokenFromCookie();
-          const url1 = PageConfig.getBaseUrl() + 'galaxy/analyzeNew';
-          const res1 = await fetch(url1, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-XSRFToken': xsrfToken || ''
-            },
-            credentials: 'same-origin',
-            body: JSON.stringify({ paths: selectedPaths })
-          });
-
-          if (!res1.ok) throw new Error(`❌ ${res1.statusText}`);
-          result1 = await res1.json();
-          console.log(result1);
-
-          // 对于后端API返回的数据，尝试从selectedPaths中提取competition ID
-          if (selectedPaths.length > 0) {
-            const path = selectedPaths[0];
-            let competitionId: string | null = null;
-
-            // 从路径中提取competition ID - 支持任何数字ID
-            const match = path.match(/(\d+)/);
-            if (match) {
-              competitionId = match[1];
-            }
-
-            if (competitionId) {
-              const titleMap = await createKernelTitleMap(competitionId);
-              result1 = replaceKernelVersionIdWithTitle(result1, titleMap);
-              console.log('Applied title mapping for competition:', competitionId);
-
-              // 加载并合并TOC数据
-              const tocData = await loadTocData(competitionId);
-              result1 = mergeTocData(result1, tocData);
-              console.log('Applied TOC data for competition:', competitionId);
-            }
-          }
-
-          similarityGroups = [];
+          // 只支持JSON文件分析
+          console.warn('⚠️ Please select a single JSON file for analysis');
+          return;
         }
 
         // 统一颜色映射
@@ -836,22 +813,24 @@ function activate(
         // 创建kernelTitleMap用于MatrixWidget
         let kernelTitleMap = new Map<string, { title: string; creationDate: string; totalLines: number }>();
 
-        // 重新获取competitionId
+        // 重新获取competitionId和基础目录
         let competitionIdForMatrix: string | null = null;
+        let baseDirForMatrix: string | null = null;
         if (selectedItems.length === 1 && selectedItems[0].type === 'file' && selectedItems[0].path.endsWith('.json')) {
           competitionIdForMatrix = extractCompetitionId(selectedItems[0].path);
+          baseDirForMatrix = extractBaseDir(selectedItems[0].path);
         }
 
-        if (competitionIdForMatrix) {
+        if (competitionIdForMatrix && baseDirForMatrix) {
           console.log('Creating kernelTitleMap for MatrixWidget with competitionId:', competitionIdForMatrix);
-          kernelTitleMap = await createKernelTitleMap(competitionIdForMatrix);
+          kernelTitleMap = await createKernelTitleMap(competitionIdForMatrix, baseDirForMatrix);
           // console.log('Created kernelTitleMap for MatrixWidget:', {
           //   competitionId: competitionIdForMatrix,
           //   mapSize: kernelTitleMap.size,
           //   sampleEntries: Array.from(kernelTitleMap.entries()).slice(0, 3)
           // });
         } else {
-          console.log('No competitionId found for MatrixWidget');
+          console.log('No competitionId or baseDir found for MatrixWidget');
         }
 
         matrixWidget = new MatrixWidget(result1, colorScale, similarityGroups, kernelTitleMap);

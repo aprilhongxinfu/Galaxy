@@ -3,10 +3,11 @@ requires = ["hatchling>=1.5.0", "jupyterlab>=4.0.0,<5", "hatch-nodejs-version>=0
 build-backend = "hatchling.build"
 
 [project]
-name = "galaxy"
+name = "galaxy-peach"
 readme = "README.md"
+homepage = "https://pypi.org/project/galaxy-peach/"  # Add your repository or website URL here
 license = { file = "LICENSE" }
-requires-python = ">=3.9"
+requires-python = ">=3.8"
 classifiers = [
     "Framework :: Jupyter",
     "Framework :: Jupyter :: JupyterLab",
@@ -16,11 +17,11 @@ classifiers = [
     "License :: OSI Approved :: BSD License",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
 ]
@@ -30,15 +31,20 @@ dynamic = ["version", "description", "authors", "urls", "keywords"]
 source = "nodejs"
 
 [tool.hatch.metadata.hooks.nodejs]
-fields = ["description", "authors", "urls", "keywords"]
+fields = ["description", "authors", "urls"]
 
 [tool.hatch.build.targets.sdist]
 artifacts = ["galaxy/labextension"]
 exclude = [".github", "binder"]
 
+[tool.hatch.build.targets.wheel]
+packages = ["galaxy"]   # tell hatchling to include the "galaxy" package folder
+
 [tool.hatch.build.targets.wheel.shared-data]
-"galaxy/labextension" = "share/jupyter/labextensions/galaxy"
+"galaxy/labextension/static" = "share/jupyter/labextensions/galaxy/static"
+"galaxy/labextension/package.json" = "share/jupyter/labextensions/galaxy/package.json"
 "install.json" = "share/jupyter/labextensions/galaxy/install.json"
+
 
 [tool.hatch.build.hooks.version]
 path = "galaxy/_version.py"
