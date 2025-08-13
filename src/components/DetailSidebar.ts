@@ -1761,17 +1761,6 @@ export class DetailSidebar extends Widget {
         });
       });
 
-      // 添加表格行的悬停效果
-      const overviewItems = this.node.querySelectorAll('.overview-notebook-item');
-      overviewItems.forEach(item => {
-        item.addEventListener('mouseenter', () => {
-          (item as HTMLElement).style.backgroundColor = '#f0f8ff';
-        });
-        item.addEventListener('mouseleave', () => {
-          (item as HTMLElement).style.backgroundColor = '';
-        });
-      });
-
 
 
       // 绑定stage和flow链接事件

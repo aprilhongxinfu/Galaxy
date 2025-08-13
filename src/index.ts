@@ -1017,12 +1017,11 @@ function activate(
             };
             window.addEventListener('galaxy-notebook-detail-back', handleBack);
           };
-          // 移除旧的事件监听器（如果存在）
-          if (notebookSelectedListenerRegistered) {
-            window.removeEventListener('galaxy-notebook-selected', handleNotebookSelected!);
+          // 只注册一次 notebook 详情切换监听器
+          if (!notebookSelectedListenerRegistered) {
+            window.addEventListener('galaxy-notebook-selected', handleNotebookSelected!);
+            notebookSelectedListenerRegistered = true;
           }
-          window.addEventListener('galaxy-notebook-selected', handleNotebookSelected!);
-          notebookSelectedListenerRegistered = true;
         }
       } catch (err) {
         alert('不是合法的 JSON 文件或分析失败');
