@@ -26,7 +26,7 @@ export class MatrixWidget extends Widget {
     private markdownButton: HTMLButtonElement; // markdown显示/隐藏按钮
     private filter: any = null;
     private similarityGroups: any[];
-    private cellHeightMode: 'fixed' | 'dynamic' | 'workflow' = 'fixed'; // cell高度模式：固定、动态、工作流
+    private cellHeightMode: 'fixed' | 'dynamic' = 'fixed'; // cell高度模式：固定、动态
     private showMarkdown: boolean = true; // markdown显示状态
     private kernelTitleMap: Map<string, { title: string; creationDate: string; totalLines: number }> = new Map(); // 存储kernelVersionId到Title的映射
 
@@ -184,10 +184,8 @@ export class MatrixWidget extends Widget {
         this.cellHeightButton.style.justifyContent = 'center';
         this.cellHeightButton.innerHTML = this.getCellHeightIcon();
         this.cellHeightButton.onclick = () => {
-            // 在三种模式之间切换：fixed -> workflow -> dynamic -> fixed
+            // 在两种模式之间切换：fixed -> dynamic -> fixed
             if (this.cellHeightMode === 'fixed') {
-                this.cellHeightMode = 'workflow';
-            } else if (this.cellHeightMode === 'workflow') {
                 this.cellHeightMode = 'dynamic';
             } else {
                 this.cellHeightMode = 'fixed';
@@ -264,26 +262,17 @@ export class MatrixWidget extends Widget {
     }
 
     private getCellHeightIcon(): string {
-        // cell高度模式icon：固定高度（等号）、动态高度（波浪线）、工作流模式（流程图）
+        // cell高度模式icon：固定高度（等号）、动态高度（波浪线）
         if (this.cellHeightMode === 'fixed') {
             // 固定高度模式：等号图标
             return `<svg width="18" height="18" viewBox="0 0 20 20">
   <path d="M4 8h12M4 12h12" stroke="#555" stroke-width="2" stroke-linecap="round"/>
 </svg>`;
-        } else if (this.cellHeightMode === 'dynamic') {
+        } else {
             // 动态高度模式：波浪线图标
             return `<svg width="18" height="18" viewBox="0 0 20 20">
   <path d="M3 8c1-1 2-1 3 0s2 1 3 0 2-1 3 0 2 1 3 0 2-1 3 0 2 1 3 0 2-1 3 0" stroke="#4caf50" stroke-width="2" stroke-linecap="round" fill="none"/>
   <path d="M3 12c1-1 2-1 3 0s2 1 3 0 2-1 3 0 2 1 3 0 2-1 3 0 2 1 3 0 2-1 3 0" stroke="#4caf50" stroke-width="2" stroke-linecap="round" fill="none"/>
-</svg>`;
-        } else {
-            // 工作流模式：合并图标（两个矩形上下堆叠，带向内箭头）
-            return `<svg width="18" height="18" viewBox="0 0 20 20">
-  <rect x="4" y="2" width="12" height="6" fill="none" stroke="#4caf50" stroke-width="2" rx="1"/>
-  <rect x="4" y="12" width="12" height="6" fill="none" stroke="#4caf50" stroke-width="2" rx="1"/>
-  <path d="M10 8v4" stroke="#4caf50" stroke-width="2" stroke-linecap="round"/>
-  <path d="M8 8l2 2l2-2" stroke="#4caf50" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M8 12l2-2l2 2" stroke="#4caf50" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>`;
         }
     }
@@ -486,15 +475,20 @@ export class MatrixWidget extends Widget {
                 this.notebookOrder.forEach((row, colIdx) => {
                     const nb = this.data[row];
                     const sortedCells = nb.cells.sort((a, b) => a.cellId - b.cellId);
+                    
+                    // 过滤可见cells（与drawMatrix中的逻辑保持一致）
+                    const processedCells = sortedCells.filter(cell =>
+                        this.showMarkdown || cell.cellType !== 'markdown'
+                    );
 
-                    // 找到所有符合transition的cell对（忽略中间的markdown cell）
+                    // 找到所有符合transition的cell对（在processedCells中查找）
                     const transitionPairs: number[][] = [];
-                    for (let i = 0; i < sortedCells.length; i++) {
-                        const currStage = String(sortedCells[i]["1st-level label"] ?? "None");
+                    for (let i = 0; i < processedCells.length; i++) {
+                        const currStage = String(processedCells[i]["1st-level label"] ?? "None");
                         if (currStage === from) {
-                            // 向后查找下一个to stage的cell（跳过markdown cell）
-                            for (let j = i + 1; j < sortedCells.length; j++) {
-                                const nextStage = String(sortedCells[j]["1st-level label"] ?? "None");
+                            // 向后查找下一个to stage的cell
+                            for (let j = i + 1; j < processedCells.length; j++) {
+                                const nextStage = String(processedCells[j]["1st-level label"] ?? "None");
                                 if (nextStage === to) {
                                     transitionPairs.push([i, j]);
                                     break; // 找到第一个匹配的就停止
@@ -502,7 +496,7 @@ export class MatrixWidget extends Widget {
                                     // 如果遇到其他stage，停止搜索
                                     break;
                                 }
-                                // 如果是markdown cell或None，继续搜索
+                                // 继续搜索
                             }
                         }
                     }
@@ -511,10 +505,10 @@ export class MatrixWidget extends Widget {
                     transitionPairs.forEach(([fromIdx, toIdx]) => {
                         // 向前找连续 from
                         let i0 = fromIdx;
-                        while (i0 > 0 && String(sortedCells[i0 - 1]["1st-level label"] ?? "None") === from) i0--;
+                        while (i0 > 0 && String(processedCells[i0 - 1]["1st-level label"] ?? "None") === from) i0--;
                         // 向后找连续 to
                         let i1 = toIdx;
-                        while (i1 + 1 < sortedCells.length && String(sortedCells[i1 + 1]["1st-level label"] ?? "None") === to) i1++;
+                        while (i1 + 1 < processedCells.length && String(processedCells[i1 + 1]["1st-level label"] ?? "None") === to) i1++;
 
                         // 高亮 from 段
                         for (let j = i0; j <= fromIdx; j++) {
@@ -604,53 +598,10 @@ export class MatrixWidget extends Widget {
             const yPositions: number[] = [];
             let currentY = 0;
 
-            // 工作流模式：合并相邻的相同stage
-            let processedCells: any[] = [];
-            if (this.cellHeightMode === 'workflow') {
-                // 先过滤markdown cell
-                const visibleCells = sortedCells.filter(cell =>
-                    this.showMarkdown || cell.cellType !== 'markdown'
-                );
-
-                // 合并相邻的相同stage
-                let currentStage: string | null = null;
-                let currentGroup: any[] = [];
-
-                visibleCells.forEach(cell => {
-                    const cellStage = String(cell["1st-level label"] ?? "None");
-                    if (currentStage === null) {
-                        currentStage = cellStage;
-                        currentGroup = [cell];
-                    } else if (cellStage === currentStage) {
-                        currentGroup.push(cell);
-                    } else {
-                        // 创建合并的cell
-                        const mergedCell = {
-                            ...currentGroup[0],
-                            mergedCells: currentGroup
-                        };
-                        processedCells.push(mergedCell);
-
-                        // 开始新的group
-                        currentStage = cellStage;
-                        currentGroup = [cell];
-                    }
-                });
-
-                // 处理最后一个group
-                if (currentGroup.length > 0) {
-                    const mergedCell = {
-                        ...currentGroup[0],
-                        mergedCells: currentGroup
-                    };
-                    processedCells.push(mergedCell);
-                }
-            } else {
-                // 正常模式：直接使用原始cells
-                processedCells = sortedCells.filter(cell =>
-                    this.showMarkdown || cell.cellType !== 'markdown'
-                );
-            }
+            // 直接使用原始cells
+            const processedCells = sortedCells.filter(cell =>
+                this.showMarkdown || cell.cellType !== 'markdown'
+            );
 
             processedCells.forEach((cell, i) => {
                 let cellHeight: number;
@@ -658,15 +609,9 @@ export class MatrixWidget extends Widget {
                     cellHeight = baseCellHeight;
                 } else {
                     // 动态高度：基于代码行数
-                    if (this.cellHeightMode === 'workflow') {
-                        // 工作流模式：使用固定高度
-                        cellHeight = baseCellHeight;
-                    } else {
-                        // 正常模式：使用单个cell的行数
-                        const code = (cell as any).source ?? (cell as any).code ?? '';
-                        const lineCount = code.split(/\r?\n/).length;
-                        cellHeight = Math.max(3, Math.min(20, 3 + lineCount * 0.8));
-                    }
+                    const code = (cell as any).source ?? (cell as any).code ?? '';
+                    const lineCount = code.split(/\r?\n/).length;
+                    cellHeight = Math.max(3, Math.min(20, 3 + lineCount * 0.8));
                 }
                 heights.push(cellHeight);
                 yPositions.push(currentY);
@@ -745,53 +690,10 @@ export class MatrixWidget extends Widget {
             let prevStage: string | null = null;
             let visibleCellIndex = 0; // 用于跟踪可见cell的索引
 
-            // 工作流模式：合并相邻的相同stage
-            let processedCells: any[] = [];
-            if (this.cellHeightMode === 'workflow') {
-                // 先过滤markdown cell
-                const visibleCells = sortedCells.filter(cell =>
-                    this.showMarkdown || cell.cellType !== 'markdown'
-                );
-
-                // 合并相邻的相同stage
-                let currentStage: string | null = null;
-                let currentGroup: any[] = [];
-
-                visibleCells.forEach(cell => {
-                    const cellStage = String(cell["1st-level label"] ?? "None");
-                    if (currentStage === null) {
-                        currentStage = cellStage;
-                        currentGroup = [cell];
-                    } else if (cellStage === currentStage) {
-                        currentGroup.push(cell);
-                    } else {
-                        // 创建合并的cell
-                        const mergedCell = {
-                            ...currentGroup[0],
-                            mergedCells: currentGroup
-                        };
-                        processedCells.push(mergedCell);
-
-                        // 开始新的group
-                        currentStage = cellStage;
-                        currentGroup = [cell];
-                    }
-                });
-
-                // 处理最后一个group
-                if (currentGroup.length > 0) {
-                    const mergedCell = {
-                        ...currentGroup[0],
-                        mergedCells: currentGroup
-                    };
-                    processedCells.push(mergedCell);
-                }
-            } else {
-                // 正常模式：直接使用原始cells
-                processedCells = sortedCells.filter(cell =>
-                    this.showMarkdown || cell.cellType !== 'markdown'
-                );
-            }
+            // 直接使用原始cells
+            const processedCells = sortedCells.filter(cell =>
+                this.showMarkdown || cell.cellType !== 'markdown'
+            );
 
             processedCells.forEach((cell, i) => {
                 const currStage = String(cell["1st-level label"] ?? "None");
@@ -852,16 +754,7 @@ export class MatrixWidget extends Widget {
                             `<br>Notebook Title: ${notebookTitle}` +
                             `<br>Lines: ${lineCount}`;
 
-                        // 工作流模式：显示合并信息
-                        if (self.cellHeightMode === 'workflow' && (d as any).mergedCells) {
-                            const mergedCells = (d as any).mergedCells;
-                            tooltipContent += `<br><br><strong>Merged ${mergedCells.length} cells:</strong>`;
-                            mergedCells.forEach((cell: any, idx: number) => {
-                                const cellCode = (cell as any).source ?? (cell as any).code ?? '';
-                                const cellLines = cellCode.split(/\r?\n/).length;
-                                tooltipContent += `<br>• Cell ${cell.cellId}: ${cellLines} lines`;
-                            });
-                        }
+
 
                         tooltip.innerHTML = tooltipContent;
                         // 如果有 similarityGroups，显示 cluster_id, similarity, label_integers
