@@ -978,7 +978,11 @@ function activate(
             if (e.detail.jumpCellIndex !== undefined) {
               setTimeout(() => {
                 window.dispatchEvent(new CustomEvent('galaxy-notebook-detail-jump', {
-                  detail: { notebookIndex: nb.index, cellIndex: e.detail.jumpCellIndex }
+                  detail: { 
+                    notebookIndex: nb.index, 
+                    cellIndex: e.detail.jumpCellIndex,
+                    kernelVersionId: nb.kernelVersionId
+                  }
                 }));
               }, 0);
             }

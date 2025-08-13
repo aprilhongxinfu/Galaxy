@@ -154,35 +154,35 @@ export class NotebookDetailWidget extends Widget {
     this.jumpHandler = (e: Event) => {
       const detail = (e as CustomEvent).detail;
       if (detail && detail.notebookIndex !== undefined && detail.cellIndex !== undefined) {
-        // 检查是否是同一个notebook（通过kernelVersionId）
-        const isSameNotebook = this.notebook.kernelVersionId === detail.kernelVersionId;
+        // 检查是否是同一个notebook（通过kernelVersionId或index）
+        const isSameNotebook = this.notebook.kernelVersionId === detail.kernelVersionId || 
+                              this.notebook.globalIndex === detail.notebookIndex ||
+                              this.notebook.index === detail.notebookIndex;
         
-        // 如果不是同一个notebook，跳过跳转
-        if (!isSameNotebook) {
-          return;
+        // 如果是同一个notebook，执行跳转
+        if (isSameNotebook) {
+          this.selectedCellIdx = detail.cellIndex;
+          // 使用局部更新而不是全量 render
+          this.updateMinimapHighlight();
+          this.updateCellSelection();
+          this.updateNavigationControls();
+          
+          setTimeout(() => {
+            const cellList = this.node.querySelector('#nbd-cell-list-scroll');
+            if (!cellList) return;
+            const cellDivs = cellList.querySelectorAll('.nbd-cell');
+            const target = cellDivs[detail.cellIndex]?.parentElement as HTMLElement;
+            if (target) {
+              target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+              target.style.background = 'linear-gradient(90deg, #f0f8ff 0%, #e6f3ff 100%)';
+              target.style.transition = 'background 0.4s ease';
+              setTimeout(() => {
+                target.style.background = '';
+                target.style.transition = '';
+              }, 1000);
+            }
+          }, 0);
         }
-        
-        this.selectedCellIdx = detail.cellIndex;
-        // 使用局部更新而不是全量 render
-        this.updateMinimapHighlight();
-        this.updateCellSelection();
-        this.updateNavigationControls();
-        
-        setTimeout(() => {
-          const cellList = this.node.querySelector('#nbd-cell-list-scroll');
-          if (!cellList) return;
-          const cellDivs = cellList.querySelectorAll('.nbd-cell');
-          const target = cellDivs[detail.cellIndex]?.parentElement as HTMLElement;
-          if (target) {
-            target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            target.style.background = 'linear-gradient(90deg, #f0f8ff 0%, #e6f3ff 100%)';
-            target.style.transition = 'background 0.4s ease';
-            setTimeout(() => {
-              target.style.background = '';
-              target.style.transition = '';
-            }, 1000);
-          }
-        }, 0);
       }
     };
     // 监听 notebook 切换时的 cell 跳转请求
@@ -202,7 +202,11 @@ export class NotebookDetailWidget extends Widget {
             currentIndexStr === undefined || 
             targetIndexStr === undefined) {
           window.dispatchEvent(new CustomEvent('galaxy-notebook-detail-jump', {
-            detail: { notebookIndex: detail.notebook.index, cellIndex: detail.jumpCellIndex }
+            detail: { 
+              notebookIndex: detail.notebook.index, 
+              cellIndex: detail.jumpCellIndex,
+              kernelVersionId: detail.notebook.kernelVersionId
+            }
           }));
         }
       }

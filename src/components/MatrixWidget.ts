@@ -899,7 +899,8 @@ export class MatrixWidget extends Widget {
                                 window.dispatchEvent(new CustomEvent('galaxy-notebook-detail-jump', {
                                     detail: {
                                         notebookIndex: nb.globalIndex,
-                                        cellIndex: i
+                                        cellIndex: i,
+                                        kernelVersionId: (nb as any).kernelVersionId
                                     }
                                 }));
                                 window.dispatchEvent(new CustomEvent('galaxy-cell-detail', {
