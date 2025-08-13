@@ -433,7 +433,7 @@ export class DetailSidebar extends Widget {
     // 插入内容
     this.node.innerHTML = `
       <div style="padding:28px 18px 18px 18px; font-size:15px; color:#222; max-width:420px; margin:0 auto;">
-        <div style="font-size:20px; font-weight:700; margin-bottom:18px; line-height:1.2; word-break:break-all;" id="detail-sidebar-title"><span style="${this._getTitleStyle()}">Notebook ${nb.globalIndex !== undefined ? nb.globalIndex + 1 : ''}: ${nb.notebook_name ?? nb.kernelVersionId}</span></div>
+        <div style="font-size:20px; font-weight:700; margin-bottom:18px; line-height:1.2; word-break:break-all;" id="detail-sidebar-title"><span style="${this._getTitleStyle()}">Notebook ${nb.globalIndex !== undefined ? nb.globalIndex : ''}: ${nb.notebook_name ?? nb.kernelVersionId}</span></div>
         
         ${nb.creationDate || nb.totalLines || this.getVoteCount(nb) ? `
         <div style="display:flex; flex-direction:row; gap:18px; margin-bottom:18px;">
@@ -720,9 +720,9 @@ export class DetailSidebar extends Widget {
     const code = cell.source ?? cell.code ?? '';
     const codeLines = code.split(/\r?\n/);
     const stage = cell["1st-level label"] ?? '';
-    const stageLabel = stage ? (LABEL_MAP[stage] ?? stage) : '';
+    const stageLabel = stage !== '' ? (LABEL_MAP[stage] ?? stage) : '';
     // 尝试获取 notebook index 和 cell index
-    const nbIdx = cell.notebookIndex !== undefined ? cell.notebookIndex + 1 : '';
+    const nbIdx = cell._notebookDetail?.globalIndex !== undefined ? cell._notebookDetail.globalIndex : (cell.notebookIndex !== undefined ? cell.notebookIndex : '');
     const cellIdx = cell.cellIndex !== undefined ? cell.cellIndex + 1 : '';
     // 统计所有该 stage 的 cell 在各自 notebook 中的相对位置
     let allStagePositions: number[] = [];
@@ -733,7 +733,7 @@ export class DetailSidebar extends Widget {
     } else if (cell && cell._notebookDetail) {
       allNotebooks = [{ ...cell._notebookDetail, index: cell._notebookDetail.index !== undefined ? cell._notebookDetail.index : 0 }];
     }
-    if (cell && cell["1st-level label"]) {
+    if (cell && cell["1st-level label"] !== undefined && cell["1st-level label"] !== null) {
       const stage = cell["1st-level label"];
       allNotebooks.forEach((nb: any) => {
         const cells = nb.cells ?? [];
@@ -814,7 +814,7 @@ export class DetailSidebar extends Widget {
     const cellTypeLabel = cell.cellType ? `<span style="display:inline-block; background:#e3eaf3; color:#1976d2; font-size:12px; border-radius:4px; padding:2px 8px; margin-left:8px; vertical-align:middle;">${cell.cellType}</span>` : '';
     // 删除tab header，直接展示内容
     // 获取所有notebook和当前notebook索引
-    const allNotebooksArr = Array.isArray(this._allData) && this._allData.length > 0 ? this._allData.map((nb, i) => ({ ...nb, index: nb.index !== undefined ? nb.index : i })) : (cell && cell._notebookDetail ? [{ ...cell._notebookDetail, index: cell._notebookDetail.index !== undefined ? cell._notebookDetail.index : 0 }] : []);
+    const allNotebooksArr = Array.isArray(this._allData) && this._allData.length > 0 ? this._allData.map((nb, i) => ({ ...nb, index: nb.globalIndex !== undefined ? nb.globalIndex : i + 1 })) : (cell && cell._notebookDetail ? [{ ...cell._notebookDetail, index: cell._notebookDetail.globalIndex !== undefined ? cell._notebookDetail.globalIndex : 1 }] : []);
     const currentNbIdx = cell.notebookIndex !== undefined ? cell.notebookIndex : 0;
     // 下拉框HTML
     const notebookSelectHtml = `<div style="margin:18px 0 8px 0;">
@@ -970,7 +970,7 @@ export class DetailSidebar extends Widget {
         <tr>
           <td style="font-weight:500;">Stage</td>
           <td style="text-align:right;">
-            <button style="background:${stageColor}; color:#fff; border:none; border-radius:16px; padding:3px 18px; font-size:15px; font-weight:700; cursor:pointer;">${stageLabel}</button>
+            <span style="background:${stageColor}; color:#fff; border:none; border-radius:16px; padding:3px 18px; font-size:15px; font-weight:700; display:inline-block;">${stageLabel}</span>
           </td>
         </tr>
         <tr>
@@ -995,7 +995,7 @@ export class DetailSidebar extends Widget {
               <path d="M15 10H5M5 10L10 15M5 10L10 5" stroke="#888" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
           </div>
-          <span style="color:#3182bd; font-weight:600;">Notebook ${nbIdx ? + nbIdx : ''}</span>
+          <span style="font-weight:600;">Notebook ${nbIdx ? + nbIdx : ''}</span>
         </div>
         ${cellIdx ? `<span style='color:#888; font-size:14px;'>/ Cell ${cellIdx}</span>` : ''}
         ${cellTypeLabel}
