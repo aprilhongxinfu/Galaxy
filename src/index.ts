@@ -1017,6 +1017,10 @@ function activate(
             };
             window.addEventListener('galaxy-notebook-detail-back', handleBack);
           };
+          // 移除旧的事件监听器（如果存在）
+          if (notebookSelectedListenerRegistered) {
+            window.removeEventListener('galaxy-notebook-selected', handleNotebookSelected!);
+          }
           window.addEventListener('galaxy-notebook-selected', handleNotebookSelected!);
           notebookSelectedListenerRegistered = true;
         }
