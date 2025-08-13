@@ -864,15 +864,12 @@ export class MatrixWidget extends Widget {
                         }
 
                         tooltip.innerHTML = tooltipContent;
-                        // 如果有 similarityGroups，显示 cluster_id, sequence_length, similarity, label_integers
+                        // 如果有 similarityGroups，显示 cluster_id, similarity, label_integers
                         if (self.similarityGroups && self.similarityGroups.length > 0) {
                             const kernelId = (d as any)?.kernelVersionId?.toString();
                             const simRow = kernelId ? self.similarityGroups.find((row: any) => row.kernelVersionId === kernelId) : null;
                             if (simRow) {
                                 tooltip.innerHTML += `<br>cluster_id: ${simRow.cluster_id}`;
-                                if (simRow.sequence_length !== undefined) {
-                                    tooltip.innerHTML += `<br>sequence_length: ${simRow.sequence_length}`;
-                                }
                                 if (simRow.similarity !== undefined) {
                                     tooltip.innerHTML += `<br>similarity: ${simRow.similarity}`;
                                 }
