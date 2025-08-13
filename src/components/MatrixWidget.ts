@@ -647,6 +647,7 @@ export class MatrixWidget extends Widget {
         const baseCellHeight = 5;
         const cellWidth = 20;
         const rowPadding = 1;
+        const notebookSpacing = 2; // Add space between notebooks
 
         // Calculate additional spacing for similarity groups
         let groupSpacing = 0;
@@ -668,7 +669,7 @@ export class MatrixWidget extends Widget {
             groupSpacing = Math.max(0, uniqueGroups.size - 1) * groupGap;
         }
 
-        const svgWidth = Math.max(1000, notebookOrder.length * (cellWidth + rowPadding) + groupSpacing + 100);
+        const svgWidth = Math.max(1000, notebookOrder.length * (cellWidth + rowPadding + notebookSpacing) + groupSpacing + 100);
 
         // 计算动态高度
         let totalHeight = 0;
@@ -764,7 +765,7 @@ export class MatrixWidget extends Widget {
             }
 
             columnPositions.push(currentX);
-            currentX += cellWidth + rowPadding;
+            currentX += cellWidth + rowPadding + notebookSpacing;
         });
 
         notebookOrder.forEach((row, colIdx) => {
@@ -926,7 +927,7 @@ export class MatrixWidget extends Widget {
                 .attr('x', columnPositions[col] + cellWidth / 2)
                 .attr('y', -10)
                 .attr('text-anchor', 'middle')
-                .attr('font-size', '11px')
+                .attr('font-size', '10px')
                 .attr('fill', '#555')
                 .style('cursor', 'pointer')
                 .text(nb?.globalIndex ?? (col + 1))

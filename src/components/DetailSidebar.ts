@@ -259,9 +259,6 @@ export class DetailSidebar extends Widget {
     // 只显示出现次数，不显示(tie)
     const stageCountText = maxStageFreq > 0 ? `${maxStageFreq} count(s)` : 'None';
     const flowCountText = maxFlowFreq > 0 ? `${maxFlowFreq} count(s)` : 'None';
-    // 展开/收起逻辑变量（notebook detail）
-    let showAllStages = false;
-    let showAllFlows = false;
     // 过滤 stage 和 flow，隐藏包含 hidden stage 的
     // 过滤 stage
     const mostFreqStagesFiltered = mostFreqStages.filter(stage => {
@@ -281,21 +278,19 @@ export class DetailSidebar extends Widget {
         !hiddenStages.has(String(toId))
       );
     });
-    // 渲染函数，支持收缩/展开
-    const renderStageLinks = () => {
-      const arr = showAllStages ? mostFreqStagesFiltered : mostFreqStagesFiltered.slice(0, 3);
-      return arr.map(stage =>
-        `<a href="#" class="dsb-stage-link" data-stage="${stage}" style="color:${this.colorMap.get(stage) || '#0066cc'} !important; text-decoration:underline; cursor:pointer; font-weight:600; font-size:14px; margin-right:8px;">${LABEL_MAP[stage] ?? stage}</a>`
-      ).join('') + (mostFreqStagesFiltered.length > 3 ? `<button type='button' class='dsb-stage-expand-btn' style='background:none; border:none; color:#1976d2; font-size:13px; font-weight:500; margin-left:6px; cursor:pointer; padding:0; text-decoration:underline; transition:color 0.15s;'>${showAllStages ? 'Show less' : 'Show more'}</button>` : '');
+    // 渲染函数，显示为纯文本
+    const renderStageText = () => {
+      return mostFreqStagesFiltered.map(stage =>
+        `<span style="color:${this.colorMap.get(stage) || '#0066cc'}; font-weight:600; font-size:14px; margin-right:8px;">${LABEL_MAP[stage] ?? stage}</span>`
+      ).join('');
     };
-    const renderFlowLinks = () => {
-      const arr = showAllFlows ? mostFreqFlowsFiltered : mostFreqFlowsFiltered.slice(0, 3);
-      return arr.map(flow => {
+    const renderFlowText = () => {
+      return mostFreqFlowsFiltered.map(flow => {
         const [from, to] = flow.split(/->|→/);
         const fromColor = this.colorMap.get(from) || '#1976d2';
         const toColor = this.colorMap.get(to) || '#42a5f5';
-        return `<div style=\"margin-bottom:4px;\"><a href=\"#\" class=\"dsb-flow-link\" data-flow=\"${flow}\" style=\"cursor:pointer; font-weight:600; font-size:14px; text-decoration:none; border-bottom:2px solid; border-image:linear-gradient(90deg, ${fromColor}, ${toColor}) 1;\"><span style=\"background: linear-gradient(90deg, ${fromColor}, ${toColor}); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; color: transparent;\">${LABEL_MAP[from] ?? from} → ${LABEL_MAP[to] ?? to}</span></a></div>`;
-      }).join('') + (mostFreqFlowsFiltered.length > 3 ? `<button type='button' class='dsb-flow-expand-btn' style='background:none; border:none; color:#1976d2; font-size:13px; font-weight:500; margin-left:6px; cursor:pointer; padding:0; text-decoration:underline; transition:color 0.15s;'>${showAllFlows ? 'Show less' : 'Show more'}</button>` : '');
+        return `<div style="margin-bottom:4px;"><span style="font-weight:600; font-size:14px;"><span style="background: linear-gradient(90deg, ${fromColor}, ${toColor}); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; color: transparent;">${LABEL_MAP[from] ?? from} → ${LABEL_MAP[to] ?? to}</span></span></div>`;
+      }).join('');
     };
 
     const stageCounts: Record<string, number> = {};
@@ -476,11 +471,11 @@ export class DetailSidebar extends Widget {
         <div style="font-size:16px; font-weight:600; margin-bottom:10px;">Stage Analysis</div>
         <div style="margin-bottom:16px;">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; color:#555;"><span style="font-weight:500;">Most Common Stage(s)</span><span style="color:#1976d2; font-size:14px; font-weight:600;">${stageCountText}</span></div>
-          <div style="display:flex; flex-wrap:wrap; gap:8px;" id="dsb-stage-links">${renderStageLinks()}</div>
+          <div style="display:flex; flex-wrap:wrap; gap:8px;" id="dsb-stage-links">${renderStageText()}</div>
         </div>
         <div style="margin-bottom:16px;">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; color:#555;"><span style="font-weight:500;">Most Common Transition(s)</span><span style="color:#1976d2; font-size:14px; font-weight:600;">${flowCountText}</span></div>
-          <div style="display:flex; flex-direction:column; gap:4px;" id="dsb-flow-links">${renderFlowLinks()}</div>
+          <div style="display:flex; flex-direction:column; gap:4px;" id="dsb-flow-links">${renderFlowText()}</div>
         </div>
         <div style="margin:12px 0 6px 0; font-weight:600; font-size:15px;">Stage Frequency Distribution</div>
         <div style="height:8px;"></div>
@@ -657,26 +652,6 @@ export class DetailSidebar extends Widget {
         });
       });
 
-      const stageLinksDiv = this.node.querySelector('#dsb-stage-links');
-      const flowLinksDiv = this.node.querySelector('#dsb-flow-links');
-      if (stageLinksDiv) {
-        stageLinksDiv.addEventListener('click', (e) => {
-          const target = e.target as HTMLElement;
-          if (target.classList.contains('dsb-stage-expand') || target.classList.contains('dsb-stage-expand-btn')) {
-            showAllStages = !showAllStages;
-            stageLinksDiv.innerHTML = renderStageLinks();
-          }
-        });
-      }
-      if (flowLinksDiv) {
-        flowLinksDiv.addEventListener('click', (e) => {
-          const target = e.target as HTMLElement;
-          if (target.classList.contains('dsb-flow-expand') || target.classList.contains('dsb-flow-expand-btn')) {
-            showAllFlows = !showAllFlows;
-            flowLinksDiv.innerHTML = renderFlowLinks();
-          }
-        });
-      }
       // 按钮hover效果
       const addHover = (selector: string) => {
         const btns = this.node.querySelectorAll(selector);
@@ -1633,28 +1608,23 @@ export class DetailSidebar extends Widget {
       .map(([flow, _]) => flow);
     const stageCountText = maxStageFreq > 0 ? `${maxStageFreq} count(s)` : 'None';
     const flowCountText = maxFlowFreq > 0 ? `${maxFlowFreq} count(s)` : 'None';
-    let showAllStages = false;
-    let showAllFlows = false;
-    // 渲染函数
-    const renderStageLinks = () => {
-      const arr = showAllStages ? mostFreqStages : mostFreqStages.slice(0, 3);
-      return arr.map(stage =>
-        `<a href=\"#\" class=\"dsb-stage-link\" data-stage=\"${stage}\" style=\"color:${this.colorMap.get(stage) || '#0066cc'} !important; text-decoration:underline; cursor:pointer; font-weight:600; font-size:14px; margin-right:8px;\">${LABEL_MAP[stage] ?? stage}</a>`
-      ).join('') + (mostFreqStages.length > 3 ? `<button type='button' class='dsb-stage-expand-btn' style='background:none; border:none; color:#1976d2; font-size:13px; font-weight:500; margin-left:6px; cursor:pointer; padding:0; text-decoration:underline; transition:color 0.15s;'>${showAllStages ? 'Show less' : 'Show more'}</button>` : '');
+    // 渲染函数，显示为纯文本
+    const renderStageText = () => {
+      return mostFreqStages.map(stage =>
+        `<span style="color:${this.colorMap.get(stage) || '#0066cc'}; font-weight:600; font-size:14px; margin-right:8px;">${LABEL_MAP[stage] ?? stage}</span>`
+      ).join('');
     };
-    const renderFlowLinks = () => {
+    const renderFlowText = () => {
       if (mostFreqFlows.length === 0) {
         return `<span style='color:#aaa; font-size:13px;'>无</span>`;
       }
-      const arr = showAllFlows ? mostFreqFlows : mostFreqFlows.slice(0, 3);
-      return arr.map(flow => {
+      return mostFreqFlows.map(flow => {
         const [from, to] = flow.split(/->|→/);
         const fromColor = this.colorMap.get(from) || '#1976d2';
         const toColor = this.colorMap.get(to) || '#42a5f5';
-        return `<div style=\"margin-bottom:4px;\"><a href=\"#\" class=\"dsb-flow-link\" data-flow=\"${flow}\" style=\"cursor:pointer; font-weight:600; font-size:14px; text-decoration:none; border-bottom:2px solid; border-image:linear-gradient(90deg, ${fromColor}, ${toColor}) 1;\"><span style=\"background: linear-gradient(90deg, ${fromColor}, ${toColor}); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; color: transparent;\">${LABEL_MAP[from] ?? from} → ${LABEL_MAP[to] ?? to}</span></a></div>`;
-      }).join('') + (mostFreqFlows.length > 3 ? `<button type='button' class='dsb-flow-expand-btn' style='background:none; border:none; color:#1976d2; font-size:13px; font-weight:500; margin-left:6px; cursor:pointer; padding:0; text-decoration:underline; transition:color 0.15s;'>${showAllFlows ? 'Show less' : 'Show more'}</button>` : '');
+        return `<div style="margin-bottom:4px;"><span style="font-weight:600; font-size:14px;"><span style="background: linear-gradient(90deg, ${fromColor}, ${toColor}); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; color: transparent;">${LABEL_MAP[from] ?? from} → ${LABEL_MAP[to] ?? to}</span></span></div>`;
+      }).join('');
     };
-
 
 
     // stage 频率柱状图
@@ -1739,16 +1709,15 @@ export class DetailSidebar extends Widget {
           <tr><td style="font-weight:500;">Total Cells</td><td style="text-align:right;"><b>${totalCellCount}</b></td></tr>
           <tr><td style="font-weight:500;">Average Cells per Notebook</td><td style="text-align:right;"><b>${avgCellCount.toFixed(2)}</b></td></tr>
         </table>
-
-        <hr style="margin:10px 0 8px 0; border:none; border-top:1px solid #eee;">
-        <div style="font-size:15px; font-weight:600; margin-bottom:8px;">Stage Analysis</div>
-        <div style="margin-bottom:12px;">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; color:#555;"><span style="font-weight:500;">Most Common Stage(s)</span><span style="color:#1976d2; font-size:13px; font-weight:600;">${stageCountText}</span></div>
-          <div style="display:flex; flex-wrap:wrap; gap:6px;" id="dsb-stage-links">${renderStageLinks()}</div>
+        <hr style="margin:16px 0 10px 0; border:none; border-top:1px solid #eee;">
+        <div style="font-size:16px; font-weight:600; margin-bottom:10px;">Stage Analysis</div>
+        <div style="margin-bottom:16px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; color:#555;"><span style="font-weight:500;">Most Common Stage(s)</span><span style="color:#1976d2; font-size:14px; font-weight:600;">${stageCountText}</span></div>
+          <div style="display:flex; flex-wrap:wrap; gap:8px;" id="dsb-stage-links">${renderStageText()}</div>
         </div>
-        <div style="margin-bottom:12px;">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; color:#555;"><span style="font-weight:500;">Most Common Transition(s)</span><span style="color:#1976d2; font-size:13px; font-weight:600;">${flowCountText}</span></div>
-          <div style="display:flex; flex-direction:column; gap:3px;" id="dsb-flow-links">${renderFlowLinks()}</div>
+        <div style="margin-bottom:16px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; color:#555;"><span style="font-weight:500;">Most Common Transition(s)</span><span style="color:#1976d2; font-size:14px; font-weight:600;">${flowCountText}</span></div>
+          <div style="display:flex; flex-direction:column; gap:4px;" id="dsb-flow-links">${renderFlowText()}</div>
         </div>
         <div style="margin:8px 0 4px 0; font-weight:600; font-size:14px;">Stage Frequency Distribution</div>
         <div style="height:4px;"></div>
@@ -1871,26 +1840,6 @@ export class DetailSidebar extends Widget {
     }, 0);
     // 展开/收起事件绑定（summary）
     setTimeout(() => {
-      const stageLinksDiv = this.node.querySelector('#dsb-stage-links');
-      const flowLinksDiv = this.node.querySelector('#dsb-flow-links');
-      if (stageLinksDiv) {
-        stageLinksDiv.addEventListener('click', (e) => {
-          const target = e.target as HTMLElement;
-          if (target.classList.contains('dsb-stage-expand') || target.classList.contains('dsb-stage-expand-btn')) {
-            showAllStages = !showAllStages;
-            stageLinksDiv.innerHTML = renderStageLinks();
-          }
-        });
-      }
-      if (flowLinksDiv) {
-        flowLinksDiv.addEventListener('click', (e) => {
-          const target = e.target as HTMLElement;
-          if (target.classList.contains('dsb-flow-expand') || target.classList.contains('dsb-flow-expand-btn')) {
-            showAllFlows = !showAllFlows;
-            flowLinksDiv.innerHTML = renderFlowLinks();
-          }
-        });
-      }
       // 按钮hover效果
       const addHover = (selector: string) => {
         const btns = this.node.querySelectorAll(selector);
