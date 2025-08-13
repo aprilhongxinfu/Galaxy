@@ -907,17 +907,23 @@ export class MatrixWidget extends Widget {
                             detail: { notebook: notebookObj }
                         }));
                         setTimeout(() => {
-                            window.dispatchEvent(new CustomEvent('galaxy-notebook-detail-jump', {
-                                detail: {
-                                    notebookIndex: nb.globalIndex,
-                                    cellIndex: i
-                                }
-                            }));
-                            window.dispatchEvent(new CustomEvent('galaxy-cell-detail', {
-                                detail: {
-                                    cell: { ...d, notebookIndex: nb.globalIndex, cellIndex: i, _notebookDetail: notebookObj }
-                                }
-                            }));
+                            // 如果是markdown cell，只跳转到notebook，不显示cell detail
+                            if (d.cellType === 'markdown') {
+                                // 不触发cell detail事件，让DetailSidebar显示notebook概览
+                            } else {
+                                // 对于code cell，显示cell detail
+                                window.dispatchEvent(new CustomEvent('galaxy-notebook-detail-jump', {
+                                    detail: {
+                                        notebookIndex: nb.globalIndex,
+                                        cellIndex: i
+                                    }
+                                }));
+                                window.dispatchEvent(new CustomEvent('galaxy-cell-detail', {
+                                    detail: {
+                                        cell: { ...d, notebookIndex: nb.globalIndex, cellIndex: i, _notebookDetail: notebookObj }
+                                    }
+                                }));
+                            }
                         }, 0);
                     });
 

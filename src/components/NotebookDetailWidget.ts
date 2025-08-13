@@ -1137,6 +1137,22 @@ export class NotebookDetailWidget extends Widget {
           this.updateCellSelection();
           this.updateNavigationControls();
           
+          // 检查是否已经有cell detail打开，如果有则自动切换到当前cell的detail
+          const detailSidebar = document.querySelector('#galaxy-detail-sidebar');
+          if (detailSidebar && (detailSidebar.innerHTML.includes('/ Cell') || detailSidebar.innerHTML.includes('Cell /'))) {
+            const cell = this.notebook.cells[i];
+            window.dispatchEvent(new CustomEvent('galaxy-cell-detail', {
+              detail: {
+                cell: {
+                  ...cell,
+                  notebookIndex: this.notebook.index,
+                  cellIndex: i,
+                  _notebookDetail: this.notebook
+                }
+              }
+            }));
+          }
+          
           setTimeout(() => {
             const cellList = this.node.querySelector('#nbd-cell-list-scroll');
             if (!cellList) return;
@@ -1160,16 +1176,33 @@ export class NotebookDetailWidget extends Widget {
         // 选中cell的外层div（display:flex; flex-direction:row; align-items:stretch;）
         const cellWrappers = Array.from(cellListContainer.children) as HTMLElement[];
         cellWrappers.forEach((wrapper, idx) => {
-          wrapper.onclick = (e) => {
-            if (this.selectedCellIdx !== idx) {
-              this.selectedCellIdx = idx;
-              // 使用局部更新而不是全量 render
-              this.updateMinimapHighlight();
-              this.updateCellSelection();
-              this.updateNavigationControls();
-            }
-            e.stopPropagation();
-          };
+                  wrapper.onclick = (e) => {
+          if (this.selectedCellIdx !== idx) {
+            this.selectedCellIdx = idx;
+            // 使用局部更新而不是全量 render
+            this.updateMinimapHighlight();
+            this.updateCellSelection();
+            this.updateNavigationControls();
+          }
+          
+          // 检查是否已经有cell detail打开，如果有则自动切换到当前cell的detail
+          const detailSidebar = document.querySelector('#galaxy-detail-sidebar');
+          if (detailSidebar && (detailSidebar.innerHTML.includes('/ Cell') || detailSidebar.innerHTML.includes('Cell /'))) {
+            const cell = this.notebook.cells[idx];
+            window.dispatchEvent(new CustomEvent('galaxy-cell-detail', {
+              detail: {
+                cell: {
+                  ...cell,
+                  notebookIndex: this.notebook.index,
+                  cellIndex: idx,
+                  _notebookDetail: this.notebook
+                }
+              }
+            }));
+          }
+          
+          e.stopPropagation();
+        };
         });
       }
       // 恢复滚动位置
@@ -1572,6 +1605,22 @@ export class NotebookDetailWidget extends Widget {
         this.updateCellSelection();
         this.updateNavigationControls();
         
+        // 检查是否已经有cell detail打开，如果有则自动切换到当前cell的detail
+        const detailSidebar = document.querySelector('#galaxy-detail-sidebar');
+        if (detailSidebar && (detailSidebar.innerHTML.includes('/ Cell') || detailSidebar.innerHTML.includes('Cell /'))) {
+          const cell = this.notebook.cells[i];
+          window.dispatchEvent(new CustomEvent('galaxy-cell-detail', {
+            detail: {
+              cell: {
+                ...cell,
+                notebookIndex: this.notebook.index,
+                cellIndex: i,
+                _notebookDetail: this.notebook
+              }
+            }
+          }));
+        }
+        
         setTimeout(() => {
           const cellList = this.node.querySelector('#nbd-cell-list-scroll');
           if (!cellList) return;
@@ -1604,6 +1653,23 @@ export class NotebookDetailWidget extends Widget {
             this.updateCellSelection();
             this.updateNavigationControls();
           }
+          
+          // 检查是否已经有cell detail打开，如果有则自动切换到当前cell的detail
+          const detailSidebar = document.querySelector('#galaxy-detail-sidebar');
+          if (detailSidebar && (detailSidebar.innerHTML.includes('/ Cell') || detailSidebar.innerHTML.includes('Cell /'))) {
+            const cell = this.notebook.cells[idx];
+            window.dispatchEvent(new CustomEvent('galaxy-cell-detail', {
+              detail: {
+                cell: {
+                  ...cell,
+                  notebookIndex: this.notebook.index,
+                  cellIndex: idx,
+                  _notebookDetail: this.notebook
+                }
+              }
+            }));
+          }
+          
           e.stopPropagation();
         };
       });

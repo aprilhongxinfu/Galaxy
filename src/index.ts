@@ -765,12 +765,12 @@ function activate(
           // 读取对应的 CSV 文件（如果存在）
           if (competitionId && baseDir) {
             try {
-              const csvPath = `${baseDir}/cluster_data/${competitionId}_clustered.csv`;
+              const csvPath = `${baseDir}/cluster_data/${competitionId}_sorted.csv`;
               const csvModel = await contentsManager.get(csvPath, { type: 'file', format: 'text', content: true });
               similarityGroups = csvParse(csvModel.content as string);
-              console.log(`成功加载聚类数据: ${competitionId}_clustered.csv`);
+              console.log(`成功加载聚类数据: ${competitionId}_sorted.csv`);
             } catch (e) {
-              console.log(`聚类文件不存在，跳过: ${competitionId}_clustered.csv`);
+              console.log(`聚类文件不存在，跳过: ${competitionId}_sorted.csv`);
               similarityGroups = [];
             }
           } else {

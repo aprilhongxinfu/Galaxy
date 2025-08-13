@@ -165,7 +165,12 @@ export class DetailSidebar extends Widget {
   }
   private _cellDetailHandler = (e: Event) => {
     const cell = (e as CustomEvent).detail.cell;
-    this.setCellDetail(cell);
+    // 如果是markdown cell，显示notebook信息而不是cell detail
+    if (cell.cellType === 'markdown') {
+      this.setNotebookDetail(cell._notebookDetail || cell.notebook, true);
+    } else {
+      this.setCellDetail(cell);
+    }
   };
 
 
@@ -799,11 +804,7 @@ export class DetailSidebar extends Widget {
     </div>`;
     // cellType label tag
     const cellTypeLabel = cell.cellType ? `<span style="display:inline-block; background:#e3eaf3; color:#1976d2; font-size:12px; border-radius:4px; padding:2px 8px; margin-left:8px; vertical-align:middle;">${cell.cellType}</span>` : '';
-    // tab header
-    const tabHeader = `<div style="display:flex; justify-content:center; gap:2px; margin:18px 0 10px 0;">
-      <button class="galaxy-tab-btn" data-tab="first" style="padding:6px 28px 6px 28px; border:none; border-bottom:2px solid #1976d2; border-radius:6px 6px 0 0; background:#fff; color:#1976d2; font-weight:700; font-size:15px; cursor:pointer; transition:color 0.15s;">first stage</button>
-      <button class="galaxy-tab-btn" data-tab="second" style="padding:6px 28px 6px 28px; border:none; border-bottom:2px solid transparent; border-radius:6px 6px 0 0; background:#f7f9fb; color:#888; font-weight:600; font-size:15px; cursor:pointer; transition:color 0.15s;">second stage</button>
-    </div>`;
+    // 删除tab header，直接展示内容
     // 获取所有notebook和当前notebook索引
     const allNotebooksArr = Array.isArray(this._allData) && this._allData.length > 0 ? this._allData.map((nb, i) => ({ ...nb, index: nb.index !== undefined ? nb.index : i })) : (cell && cell._notebookDetail ? [{ ...cell._notebookDetail, index: cell._notebookDetail.index !== undefined ? cell._notebookDetail.index : 0 }] : []);
     const currentNbIdx = cell.notebookIndex !== undefined ? cell.notebookIndex : 0;
@@ -955,8 +956,8 @@ export class DetailSidebar extends Widget {
 
       return containerDiv.outerHTML;
     }
-    // tab content
-    const tabContent = `<div class="galaxy-tab-content" data-tab-content="first">
+    // 直接展示第一个tab的内容，不包装在tab中
+    const cellDetailContent = `
       <table style="width:100%; border-collapse:collapse; margin-bottom:10px;">
         <tr>
           <td style="font-weight:500;">Stage</td>
@@ -977,8 +978,7 @@ export class DetailSidebar extends Widget {
       <div style="font-size:16px; font-weight:600; margin:18px 0 10px 0; color:#222;">Cells in this Stage</div>
       ${notebookSelectHtml}
       <div id="galaxy-stage-cell-list">${renderStageCellCards(allNotebooksArr[currentNbIdx], cell["1st-level label"] ?? "")}</div>
-    </div>
-    <div class="galaxy-tab-content" data-tab-content="second" style="display:none;"></div>`;
+    `;
     this.node.innerHTML = `<div style="padding:24px 18px 18px 18px; margin:18px 0; width:100%; font-size:15px; color:#222; box-sizing:border-box;">
       <div style="font-size:17px; font-weight:600; margin-bottom:12px; display:flex; align-items:center; gap:10px; flex-wrap;" id="detail-sidebar-title">
         <div style="display:flex; align-items:center; gap:8px;">
@@ -992,8 +992,7 @@ export class DetailSidebar extends Widget {
         ${cellIdx ? `<span style='color:#888; font-size:14px;'>/ Cell ${cellIdx}</span>` : ''}
         ${cellTypeLabel}
       </div>
-      ${tabHeader}
-      ${tabContent}
+      ${cellDetailContent}
     </div>
     <style>
       .nbd-md-area {
@@ -1031,33 +1030,8 @@ export class DetailSidebar extends Widget {
         line-height: normal !important;
       }
     </style>`;
-    // tab 切换逻辑
+    // 事件绑定逻辑
     setTimeout(() => {
-      const btns = this.node.querySelectorAll('.galaxy-tab-btn');
-      const contents = this.node.querySelectorAll('.galaxy-tab-content');
-      btns.forEach(btn => {
-        btn.addEventListener('click', () => {
-          btns.forEach(b => {
-            if (b.getAttribute('data-tab') === btn.getAttribute('data-tab')) {
-              b.setAttribute('style', 'padding:6px 28px 6px 28px; border:none; border-bottom:2px solid #1976d2; border-radius:6px 6px 0 0; background:#fff; color:#1976d2; font-weight:700; font-size:15px; cursor:pointer; transition:color 0.15s;');
-            } else {
-              b.setAttribute('style', 'padding:6px 28px 6px 28px; border:none; border-bottom:2px solid transparent; border-radius:6px 6px 0 0; background:#f7f9fb; color:#888; font-weight:600; font-size:15px; cursor:pointer; transition:color 0.15s;');
-            }
-          });
-          contents.forEach(c => {
-            c.setAttribute('style', c.getAttribute('data-tab-content') === btn.getAttribute('data-tab') ? '' : 'display:none;');
-          });
-        });
-        // 鼠标悬浮效果
-        btn.addEventListener('mouseenter', () => {
-          if (!btn.classList.contains('active')) (btn as HTMLElement).style.color = '#1976d2';
-        });
-        btn.addEventListener('mouseleave', () => {
-          if (!btn.classList.contains('active') && btn.getAttribute('data-tab') === 'second') (btn as HTMLElement).style.color = '#888';
-        });
-      });
-      // 默认激活 first stage
-      (btns[0] as HTMLElement).click();
       // 为跳转icon绑定事件
       function bindJumpIconEvents(cellListDiv: HTMLElement | null) {
         if (!cellListDiv) return;
