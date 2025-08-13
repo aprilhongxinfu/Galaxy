@@ -1668,44 +1668,6 @@ export class DetailSidebar extends Widget {
       }).join('') + (mostFreqFlows.length > 3 ? `<button type='button' class='dsb-flow-expand-btn' style='background:none; border:none; color:#1976d2; font-size:13px; font-weight:500; margin-left:6px; cursor:pointer; padding:0; text-decoration:underline; transition:color 0.15s;'>${showAllFlows ? 'Show less' : 'Show more'}</button>` : '');
     };
 
-    // 统计每个 notebook 的 unique stage 数
-    const uniqueStageCounts = filteredData.map(nb => {
-      // 只统计非None的stage
-      const stages = new Set((nb.cells ?? []).map((cell: any) => {
-        const stage = String(cell["1st-level label"] ?? 'None');
-        return stage !== 'None' ? stage : undefined;
-      }).filter((stage) => stage !== undefined));
-      return stages.size;
-    });
-    // 统计 unique stage 数的分布
-    const uniqueStageDist: Record<number, number> = {};
-    uniqueStageCounts.forEach(count => {
-      uniqueStageDist[count] = (uniqueStageDist[count] || 0) + 1;
-    });
-    const uniqueStageDistArr = Object.entries(uniqueStageDist)
-      .map(([count, n]) => [parseInt(count), n])
-      .sort((a, b) => a[0] - b[0]);
-    const maxDistCount = Math.max(...uniqueStageDistArr.map(([_, n]) => n), 1);
-    const barW3 = 24, barH3 = 40, gap3 = 6;
-    const svgW3 = uniqueStageDistArr.length * (barW3 + gap3);
-    const svgH3 = barH3 + 32;
-    // 自适应宽度
-    const viewBoxW = Math.max(svgW3 + 20, 200);
-    const uniqueStageDistChart = `<svg width="100%" height="${svgH3}" viewBox="0 0 ${viewBoxW} ${svgH3}" style="overflow:visible;">
-      <g transform="translate(18,0)">
-        ${uniqueStageDistArr.map(([count, n], i) => `
-          <rect x="${i * (barW3 + gap3)}" y="${barH3 - (n / maxDistCount) * barH3}" width="${barW3}" height="${(n / maxDistCount) * barH3}" fill="#3182bd" rx="3" ry="3"
-            onmousemove="(function(evt){var t=document.getElementById('galaxy-tooltip');if(!t){t=document.createElement('div');t.id='galaxy-tooltip';t.style.position='fixed';t.style.display='none';t.style.pointerEvents='none';t.style.background='rgba(0,0,0,0.75)';t.style.color='#fff';t.style.padding='6px 10px';t.style.borderRadius='4px';t.style.fontSize='12px';t.style.zIndex='9999';document.body.appendChild(t);}t.innerHTML='${count} unique stages: ${n} notebooks';t.style.display='block';t.style.left=evt.clientX+12+'px';t.style.top=evt.clientY+12+'px';}) (event)"
-            onmouseleave="(function(){var t=document.getElementById('galaxy-tooltip');if(t)t.style.display='none';})()"
-          >
-          </rect>
-          <text x="${i * (barW3 + gap3) + barW3 / 2}" y="${barH3 + 14}" font-size="11" text-anchor="middle" fill="#888">${count}</text>
-          <text x="${i * (barW3 + gap3) + barW3 / 2}" y="${barH3 - (n / maxDistCount) * barH3 - 4}" font-size="11" text-anchor="middle" fill="#222">${n}</text>
-        `).join('')}
-        <text x="-6" y="${barH3 + 4}" font-size="10" text-anchor="end" fill="#888">0</text>
-        <text x="-6" y="10" font-size="10" text-anchor="end" fill="#888">${maxDistCount}</text>
-      </g>
-    </svg>`;
 
     // stage 频率柱状图
     const stageFreqArr = Object.entries(stageFreq).sort((a, b) => b[1] - a[1]);
@@ -1779,21 +1741,6 @@ export class DetailSidebar extends Widget {
       }).join('');
     }
 
-    // 找到所有cell数等于最大值和最小值的notebook索引
-    const maxCellCount = Math.max(...cellCountsWithIndex.map(x => x.count));
-    const minCellCount = Math.min(...cellCountsWithIndex.map(x => x.count));
-    const longest = cellCountsWithIndex.filter(x => x.count === maxCellCount && x.globalIndex !== -1);
-    const shortest = cellCountsWithIndex.filter(x => x.count === minCellCount && x.globalIndex !== -1);
-    const longestLinks = longest
-      .filter(x => x.globalIndex > 0)
-      .map(x =>
-        `<a href=\"#\" class=\"dsb-nb-longest-link\" data-idx=\"${x.globalIndex}\" data-global-idx=\"${x.globalIndex}\" style=\"color:#0066cc !important; text-decoration:underline; cursor:pointer; font-weight:600; font-size:14px;\">#${x.globalIndex}</a>`
-      ).join(', ');
-    const shortestLinks = shortest
-      .filter(x => x.globalIndex > 0)
-      .map(x =>
-        `<a href=\"#\" class=\"dsb-nb-shortest-link\" data-idx=\"${x.globalIndex}\" data-global-idx=\"${x.globalIndex}\" style=\"color:#0066cc !important; text-decoration:underline; cursor:pointer; font-weight:600; font-size:14px;\">#${x.globalIndex}</a>`
-      ).join(', ');
     // 渲染
     this.node.innerHTML = `
       <div style="padding:20px 18px 18px 18px; font-size:14px; line-height:1.7; color:#222;">
@@ -1802,15 +1749,7 @@ export class DetailSidebar extends Widget {
           <tr><td style="font-weight:500;">Total Notebooks</td><td style="text-align:right;"><b>${notebookCount}</b></td></tr>
           <tr><td style="font-weight:500;">Total Cells</td><td style="text-align:right;"><b>${totalCellCount}</b></td></tr>
           <tr><td style="font-weight:500;">Average Cells per Notebook</td><td style="text-align:right;"><b>${avgCellCount.toFixed(2)}</b></td></tr>
-          <tr><td style="font-weight:500;">Notebook(s) with Most Cells</td><td style="text-align:right;"><b>${maxCellCount} cell(s)</b></td></tr>
         </table>
-        <div style='margin: 0 0 8px 0; font-size:13px; color:#1976d2;'><span> ${longestLinks}</span></div>
-        <table style="width:100%; border-collapse:collapse;">
-          <tr><td style="font-weight:500;">Notebook(s) with Fewest Cells</td><td style="text-align:right;"><b>${minCellCount} cell(s)</b></td></tr>
-        </table>
-        <div style='margin: 0 0 8px 0; font-size:13px; color:#1976d2;'><span> ${shortestLinks}</span></div>
-        <div style="font-weight:500; margin-bottom:10px;">Number of Unique Stages Distribution</div>
-        <div style="margin: 8px 0 12px 0; width:100%; max-width:600px; margin-left:auto; margin-right:auto;">${uniqueStageDistChart}</div>
         <hr style="margin:16px 0 10px 0; border:none; border-top:1px solid #eee;">
         <div style="font-size:16px; font-weight:600; margin-bottom:10px;">Stage Analysis</div>
         <div style="margin-bottom:16px;">
