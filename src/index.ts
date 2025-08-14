@@ -29,6 +29,27 @@ function extractCompetitionId(jsonPath: string): string | null {
   return match ? match[1] : null;
 }
 
+// 根据competition ID获取competition信息
+function getCompetitionInfo(competitionId: string): { id: string; name: string; url: string } | null {
+  const competitionMap: { [key: string]: { name: string; url: string } } = {
+    '18599': {
+      name: 'M5 forecasting accuracy',
+      url: 'https://www.kaggle.com/competitions/m5-forecasting-accuracy'
+    },
+    '50160': {
+      name: 'Home Credit - Credit Risk Model Stability',
+      url: 'https://www.kaggle.com/competitions/home-credit-credit-risk-model-stability'
+    },
+    '35332': {
+      name: 'American Express',
+      url: 'https://www.kaggle.com/competitions/amex-default-prediction'
+    }
+  };
+  
+  const info = competitionMap[competitionId];
+  return info ? { id: competitionId, ...info } : null;
+}
+
 // 从JSON文件路径中提取基础目录
 function extractBaseDir(jsonPath: string): string | null {
   // 移除文件名，获取目录路径
@@ -848,7 +869,14 @@ function activate(
           closeSidebarsIfNoMainWidgets(app);
         });
         const notebookOrder = matrixWidget.getNotebookOrder();
-        const detailSidebarInstance = new DetailSidebar(colorMapModule, notebookOrder, undefined, similarityGroups, voteData);
+        
+        // 获取competition信息
+        let competitionInfo: { id: string; name: string; url: string } | undefined = undefined;
+        if (competitionIdForMatrix) {
+          competitionInfo = getCompetitionInfo(competitionIdForMatrix) || undefined;
+        }
+        
+        const detailSidebarInstance = new DetailSidebar(colorMapModule, notebookOrder, undefined, similarityGroups, voteData, competitionInfo);
         detailSidebar = detailSidebarInstance;
         const { mostFreqStage: mfs, mostFreqFlow: mff } = flowChartWidget.getMostFrequentStageAndFlow();
         mostFreqStage = mfs;

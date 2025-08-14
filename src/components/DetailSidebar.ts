@@ -23,6 +23,7 @@ export class DetailSidebar extends Widget {
   private currentNotebook: any = null; // 保存当前 notebook detail
   private _currentTitle: string = 'Notebook Overview'; // 跟踪当前标题
   private _currentSelection: any = null; // 跟踪当前选中状态
+  private competitionInfo: { id: string; name: string; url: string } | null = null; // 添加competition信息
 
   private _getTitleStyle(): string {
     if (!this._currentSelection) return 'color: #222';
@@ -55,12 +56,13 @@ export class DetailSidebar extends Widget {
 
 
 
-  constructor(colorMap: Map<string, string>, notebookOrder: number[], hiddenStages?: Set<string>, similarityGroups?: any[], voteData?: any[]) {
+  constructor(colorMap: Map<string, string>, notebookOrder: number[], hiddenStages?: Set<string>, similarityGroups?: any[], voteData?: any[], competitionInfo?: { id: string; name: string; url: string }) {
     super();
     this.colorMap = colorMap;
     this.notebookOrder = notebookOrder || []; // 保存notebook的原始排序
     this.similarityGroups = similarityGroups || []; // 保存similarity groups数据
     this.voteData = voteData || []; // 保存投票数据
+    this.competitionInfo = competitionInfo || null; // 保存competition信息
     this.id = 'galaxy-detail-sidebar';
     this.title.label = 'Details';
     this.title.closable = true;
@@ -955,6 +957,13 @@ export class DetailSidebar extends Widget {
     }
     this._mostFreqStage = mostFreqStage;
     this._mostFreqFlow = mostFreqFlow;
+    
+    // 设置标题为competition名称
+    if (this.competitionInfo) {
+      this._currentTitle = this.competitionInfo.name;
+    } else {
+      this._currentTitle = 'Notebook Overview';
+    }
     const hiddenStages = this._hiddenStages ?? new Set(['6', '1']);
     // 过滤掉 hiddenStages 的 cell
     let filteredData = data.map((nb) => {
@@ -1433,7 +1442,21 @@ export class DetailSidebar extends Widget {
     // 渲染
     this.node.innerHTML = `
       <div style="padding:16px 16px 16px 16px; font-size:14px; line-height:1.5; color:#222;">
-        <div style="font-size:17px; font-weight:600; margin-bottom:10px;" id="detail-sidebar-title"><span style="${this._getTitleStyle()}">${this._currentTitle}</span></div>
+        <div style="margin-bottom:16px;" id="detail-sidebar-title">
+          <div style="font-size:18px; font-weight:700; margin-bottom:6px; line-height:1.3; color:#222;">
+            <span style="${this._getTitleStyle()}">${this._currentTitle}</span>
+          </div>
+          ${this.competitionInfo ? `
+          <div style="display:flex; align-items:center; gap:8px;">
+            <a href="${this.competitionInfo.url}" target="_blank" class="kaggle-link" style="font-size:13px; color:#1976d2; text-decoration:none; display:inline-flex; align-items:center; gap:5px; font-weight:500; padding:6px 10px; border-radius:6px; background:rgba(25,118,210,0.08); border:1px solid rgba(25,118,210,0.2); transition:all 0.2s ease;">
+              <span>View on Kaggle</span>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M7 17L17 7M17 7H7M17 7V17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </a>
+          </div>
+          ` : ''}
+        </div>
         <table style="width:100%; border-collapse:collapse; margin-bottom:8px;">
           <tr><td style="font-weight:500;">Total Notebooks</td><td style="text-align:right;"><b>${notebookCount}</b></td></tr>
           <tr><td style="font-weight:500;">Total Cells</td><td style="text-align:right;"><b>${totalCellCount}</b></td></tr>
@@ -1469,6 +1492,18 @@ export class DetailSidebar extends Widget {
           </table>
         </div>
       </div>
+      <style>
+        .kaggle-link:hover {
+          background: rgba(25,118,210,0.12) !important;
+          border-color: rgba(25,118,210,0.3) !important;
+          transform: translateY(-1px);
+          box-shadow: 0 2px 6px rgba(25,118,210,0.2);
+        }
+        .kaggle-link:active {
+          transform: translateY(0);
+          box-shadow: 0 1px 3px rgba(25,118,210,0.15);
+        }
+      </style>
     `;
     // 绑定 notebook 行点击事件和悬停效果
     setTimeout(() => {
