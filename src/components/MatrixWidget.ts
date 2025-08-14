@@ -31,9 +31,9 @@ export class MatrixWidget extends Widget {
     private voteData: any[] = []; // 投票数据
     private cellHeightMode: 'fixed' | 'dynamic' = 'fixed'; // cell高度模式：固定、动态
     private showMarkdown: boolean = true; // markdown显示状态
-    private kernelTitleMap: Map<string, { title: string; creationDate: string; totalLines: number }> = new Map(); // 存储kernelVersionId到Title的映射
+    private kernelTitleMap: Map<string, { title: string; creationDate: string; totalLines: number; displayname?: string }> = new Map(); // 存储kernelVersionId到Title的映射
 
-    constructor(data: Notebook[], colorScale: (label: string) => string, similarityGroups?: any[], kernelTitleMap?: Map<string, { title: string; creationDate: string; totalLines: number }>, voteData?: any[]) {
+    constructor(data: Notebook[], colorScale: (label: string) => string, similarityGroups?: any[], kernelTitleMap?: Map<string, { title: string; creationDate: string; totalLines: number; displayname?: string }>, voteData?: any[]) {
         super();
         this.data = data.map((nb, i) => ({ ...nb, globalIndex: i + 1 }));
         this.colorScale = colorScale;

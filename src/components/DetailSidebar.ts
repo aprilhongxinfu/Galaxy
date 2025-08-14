@@ -369,6 +369,15 @@ export class DetailSidebar extends Widget {
       <div style="padding:28px 18px 18px 18px; font-size:15px; color:#222; max-width:420px; margin:0 auto;">
         <div style="font-size:20px; font-weight:700; margin-bottom:18px; line-height:1.2; word-break:break-all;" id="detail-sidebar-title"><span style="${this._getTitleStyle()}">Notebook ${nb.globalIndex !== undefined ? nb.globalIndex : ''}: ${nb.notebook_name ?? nb.kernelVersionId}</span></div>
         
+        ${nb.displayname ? `
+        <div style="margin-bottom:18px;">
+          <div style="display:flex; align-items:center; gap:8px; justify-content:flex-end;">
+            <span style="font-size:14px; color:#666; font-weight:500;">by</span>
+            <span style="font-size:15px; color:#333; font-weight:600;">${nb.displayname}</span>
+          </div>
+        </div>
+        ` : ''}
+        
         ${nb.creationDate || nb.totalLines || this.getVoteCount(nb) ? `
         <div style="display:flex; flex-direction:row; gap:18px; margin-bottom:18px;">
           ${nb.creationDate ? `
