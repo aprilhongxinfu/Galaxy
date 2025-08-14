@@ -1,5 +1,4 @@
 import { Widget } from '@lumino/widgets';
-import { RenderMimeRegistry, standardRendererFactories } from '@jupyterlab/rendermime';
 import { LABEL_MAP } from './labelMap';
 
 // 工具函数：根据英文名或 id 找到 stage id（字符串）
@@ -24,7 +23,6 @@ export class DetailSidebar extends Widget {
   private currentNotebook: any = null; // 保存当前 notebook detail
   private _currentTitle: string = 'Notebook Overview'; // 跟踪当前标题
   private _currentSelection: any = null; // 跟踪当前选中状态
-  private rendermime: RenderMimeRegistry;
 
   private _getTitleStyle(): string {
     if (!this._currentSelection) return 'color: #222';
@@ -51,67 +49,11 @@ export class DetailSidebar extends Widget {
     return 'color: #222';
   }
 
-  private markdownToHtml(md: string): string {
-    // 更完整的markdown转HTML，用于JupyterLab HTML渲染器
-    let html = md
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
 
-    // 标题
-    html = html.replace(/^### (.*)$/gm, '<h3>$1</h3>');
-    html = html.replace(/^## (.*)$/gm, '<h2>$1</h2>');
-    html = html.replace(/^# (.*)$/gm, '<h1>$1</h1>');
 
-    // 粗体和斜体
-    html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-    html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
 
-    // 链接
-    html = html.replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank">$1</a>');
 
-    // 代码块
-    html = html.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
-    html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
 
-    // 换行
-    html = html.replace(/\n/g, '<br>');
-
-    return html;
-  }
-
-  private simpleMarkdownRender(md: string): string {
-    // 支持 # ## ### #### ##### ######、**bold**、*italic*、[text](url)、换行
-    let html = md
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
-    // 标题 - 从6级到1级，避免冲突
-    html = html.replace(/^###### (.*)$/gm, '<h6>$1</h6>');
-    html = html.replace(/^##### (.*)$/gm, '<h5>$1</h5>');
-    html = html.replace(/^#### (.*)$/gm, '<h4>$1</h4>');
-    html = html.replace(/^### (.*)$/gm, '<h3>$1</h3>');
-    html = html.replace(/^## (.*)$/gm, '<h2>$1</h2>');
-    html = html.replace(/^# (.*)$/gm, '<h1>$1</h1>');
-    html = html.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
-    html = html.replace(/\*(.*?)\*/g, '<i>$1</i>');
-    html = html.replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank">$1</a>');
-    html = html.replace(/\n/g, '<br>');
-    return html;
-  }
-
-  // 动态插入 JupyterLab 主题样式（只插入一次）
-  private ensureJupyterlabThemeStyle() {
-    const styleId = 'jupyterlab-theme-style';
-    if (!document.getElementById(styleId)) {
-      const link = document.createElement('link');
-      link.id = styleId;
-      link.rel = 'stylesheet';
-      // 使用light主题
-      link.href = 'https://unpkg.com/@jupyterlab/theme-light-extension/style/theme.css';
-      document.head.appendChild(link);
-    }
-  }
 
   constructor(colorMap: Map<string, string>, notebookOrder: number[], hiddenStages?: Set<string>, similarityGroups?: any[], voteData?: any[]) {
     super();
@@ -123,9 +65,6 @@ export class DetailSidebar extends Widget {
     this.title.label = 'Details';
     this.title.closable = true;
     this.addClass('galaxy-detail-sidebar');
-    this.rendermime = new RenderMimeRegistry({
-      initialFactories: standardRendererFactories
-    });
     this.setDefault();
     this.node.style.overflowY = 'auto';
     this.node.style.minWidth = '305px'; // 设置最小宽度
@@ -775,157 +714,7 @@ export class DetailSidebar extends Widget {
     // cellType label tag
     const cellTypeLabel = cell.cellType ? `<span style="display:inline-block; background:#e3eaf3; color:#1976d2; font-size:12px; border-radius:4px; padding:2px 8px; margin-left:8px; vertical-align:middle;">${cell.cellType}</span>` : '';
     // 删除tab header，直接展示内容
-    // 获取所有notebook和当前notebook索引
-    const allNotebooksArr = Array.isArray(this._allData) && this._allData.length > 0 ? this._allData.map((nb, i) => ({ ...nb, index: nb.globalIndex !== undefined ? nb.globalIndex : i + 1 })) : (cell && cell._notebookDetail ? [{ ...cell._notebookDetail, index: cell._notebookDetail.globalIndex !== undefined ? cell._notebookDetail.globalIndex : 1 }] : []);
-    const currentNbIdx = cell.notebookIndex !== undefined ? cell.notebookIndex : 0;
-    // 下拉框HTML
-    const notebookSelectHtml = `<div style="margin:18px 0 8px 0;">
-      <label style="font-size:13px; color:#888; margin-right:8px;">Notebook:</label>
-      <select id="galaxy-stage-nb-select" style="font-size:14px; padding:3px 10px; border-radius:4px; border:1px solid #bbb;">
-        ${allNotebooksArr.map((nb, i) => `<option value="${i}" ${i === currentNbIdx ? 'selected' : ''}>${nb.kernelVersionId ?? nb.path ?? 'Notebook ' + (i + 1)}</option>`).join('')}
-      </select>
-    </div>`;
-    // cell卡片渲染函数（完全按照NotebookDetailWidget的方式）
-    const renderStageCellCards = (nb: any, stage: string) => {
-      const cells = (nb.cells ?? [])
-        .map((c: any, i: number) => ({ ...c, cellIndex: i }))
-        .filter((c: any) => c["1st-level label"] === stage && c.cellIndex !== cell.cellIndex);
-      if (!cells.length) return '<div style="color:#aaa; font-size:13px; margin-bottom:12px;">No other cells in this stage in this notebook.</div>';
 
-      // 创建容器div
-      const containerDiv = document.createElement('div');
-      containerDiv.style.display = 'flex';
-      containerDiv.style.flexDirection = 'column';
-      containerDiv.style.gap = '14px';
-      containerDiv.style.marginBottom = '12px';
-
-      cells.forEach((c: any) => {
-        const content = c.source ?? c.code ?? '';
-        const cellIdx = c.cellIndex !== undefined ? c.cellIndex + 1 : '';
-        const nbIdx = c.notebookIndex !== undefined ? c.notebookIndex : (nb.index !== undefined ? nb.index : 0);
-
-        // cell外层div
-        const wrapper = document.createElement('div');
-        wrapper.style.display = 'flex';
-        wrapper.style.flexDirection = 'row';
-        wrapper.style.alignItems = 'stretch';
-
-        // 左侧序号栏
-        const left = document.createElement('div');
-        left.style.position = 'relative';
-        left.style.minWidth = '36px';
-        left.style.marginRight = '8px';
-        left.style.height = '100%';
-
-        const idxDiv = document.createElement('div');
-        idxDiv.style.color = '#888';
-        idxDiv.style.fontSize = '15px';
-        idxDiv.style.textAlign = 'right';
-        idxDiv.style.userSelect = 'none';
-        idxDiv.style.lineHeight = '1.6';
-        idxDiv.style.marginLeft = '8px';
-        idxDiv.style.display = 'flex';
-        idxDiv.style.flexDirection = 'column';
-        idxDiv.style.alignItems = 'flex-end';
-        idxDiv.textContent = `[${cellIdx}]`;
-        left.appendChild(idxDiv);
-
-        // 跳转图标
-        const jumpIcon = document.createElement('div');
-        jumpIcon.className = 'nbd-jump-icon';
-        jumpIcon.setAttribute('data-nb-idx', String(nbIdx));
-        jumpIcon.setAttribute('data-cell-idx', String(c.cellIndex));
-        jumpIcon.style.cursor = 'pointer';
-        jumpIcon.style.marginTop = '2px';
-        jumpIcon.style.textAlign = 'right';
-        jumpIcon.style.fontSize = '12px';
-        jumpIcon.style.color = '#999';
-        jumpIcon.innerHTML = '<svg width="18" height="18" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="10" cy="10" r="7" stroke="#1976d2" stroke-width="2"/><circle cx="10" cy="10" r="2.5" fill="#1976d2"/><line x1="10" y1="3" x2="10" y2="0" stroke="#1976d2" stroke-width="1.5"/><line x1="10" y1="17" x2="10" y2="20" stroke="#1976d2" stroke-width="1.5"/><line x1="3" y1="10" x2="0" y2="10" stroke="#1976d2" stroke-width="1.5"/><line x1="17" y1="10" x2="20" y2="10" stroke="#1976d2" stroke-width="1.5"/></svg>';
-        left.appendChild(jumpIcon);
-
-        // cell内容区
-        const cellDiv = document.createElement('div');
-        cellDiv.className = 'nbd-cell';
-        cellDiv.setAttribute('contenteditable', 'false');
-        cellDiv.style.flex = '1 1 0';
-        cellDiv.style.minWidth = '0';
-        cellDiv.style.display = 'flex';
-        cellDiv.style.borderRadius = '6px';
-        cellDiv.style.boxShadow = '0 1px 4px #0001';
-        cellDiv.style.background = '#fff';
-
-        // stage色条
-        const colorBar = document.createElement('div');
-        colorBar.style.width = '6px';
-        colorBar.style.borderRadius = '6px 0 0 6px';
-        colorBar.style.background = stageColor;
-        colorBar.style.marginRight = '0';
-        cellDiv.appendChild(colorBar);
-
-        // 内容区
-        const contentDiv = document.createElement('div');
-        contentDiv.style.flex = '1';
-        contentDiv.style.padding = '14px 18px 10px 14px';
-        contentDiv.style.minWidth = '0';
-
-        // 渲染内容
-        if (c.cellType === 'markdown') {
-          try {
-            // 确保JupyterLab样式已加载
-            this.ensureJupyterlabThemeStyle();
-
-            // 尝试使用HTML渲染器
-            const htmlWidget = this.rendermime.createRenderer('text/html');
-            const htmlContent = this.markdownToHtml(content);
-            const model = this.rendermime.createModel({
-              data: { 'text/html': htmlContent },
-              metadata: {},
-              trusted: true
-            });
-
-            if (htmlWidget && htmlWidget.node) {
-              htmlWidget.renderModel(model);
-              contentDiv.appendChild(htmlWidget.node);
-            } else {
-              throw new Error('HTML widget not properly initialized');
-            }
-          } catch (error) {
-            // console.error('HTML rendering failed for cell:', c.cellIndex, 'error:', error);
-            // 如果JupyterLab渲染器失败，使用简单的HTML渲染
-            const fallbackDiv = document.createElement('div');
-            fallbackDiv.className = 'nbd-md-area';
-            fallbackDiv.innerHTML = this.simpleMarkdownRender(content);
-            contentDiv.appendChild(fallbackDiv);
-          }
-        } else if (c.cellType === 'code') {
-          // 创建代码内容 - 使用 Prism.js 官方行号插件
-          const preElement = document.createElement('pre');
-          preElement.classList.add('line-numbers');
-          preElement.style.margin = '0';
-          preElement.style.background = 'transparent';
-          preElement.style.border = 'none';
-          preElement.style.fontFamily = 'var(--jp-code-font-family, "SF Mono", "Monaco", "Consolas", monospace)';
-          preElement.style.fontSize = '13px';
-
-          const codeElement = document.createElement('code');
-          codeElement.className = 'language-python';
-          codeElement.textContent = content;
-
-          preElement.appendChild(codeElement);
-          contentDiv.appendChild(preElement);
-        } else {
-          // 其它类型直接显示
-          contentDiv.textContent = content;
-        }
-
-        cellDiv.appendChild(contentDiv);
-        wrapper.appendChild(left);
-        wrapper.appendChild(cellDiv);
-        containerDiv.appendChild(wrapper);
-      });
-
-      return containerDiv.outerHTML;
-    }
     // 直接展示第一个tab的内容，不包装在tab中
     const cellDetailContent = `
       <table style="width:100%; border-collapse:collapse; margin-bottom:10px;">
@@ -945,9 +734,6 @@ export class DetailSidebar extends Widget {
       ${legendHtml}
       <div style="font-size:16px; font-weight:600; margin-bottom:10px; color:#222;">Code Line Count Distribution</div>
       <div style="width:100%; max-width:320px;">${this._renderCodeLineDistChart(cell, allNotebooks, stageColor)}</div>
-      <div style="font-size:16px; font-weight:600; margin:18px 0 10px 0; color:#222;">Cells in this Stage</div>
-      ${notebookSelectHtml}
-      <div id="galaxy-stage-cell-list">${renderStageCellCards(allNotebooksArr[currentNbIdx], cell["1st-level label"] ?? "")}</div>
     `;
     this.node.innerHTML = `<div style="padding:24px 18px 18px 18px; margin:18px 0; width:100%; font-size:15px; color:#222; box-sizing:border-box;">
       <div style="font-size:17px; font-weight:600; margin-bottom:12px; display:flex; align-items:center; gap:10px; flex-wrap;" id="detail-sidebar-title">
@@ -1002,66 +788,7 @@ export class DetailSidebar extends Widget {
     </style>`;
     // 事件绑定逻辑
     setTimeout(() => {
-      // 为跳转icon绑定事件
-      function bindJumpIconEvents(cellListDiv: HTMLElement | null) {
-        if (!cellListDiv) return;
-        const jumpIcons = cellListDiv.querySelectorAll('.nbd-jump-icon');
-        if (!jumpIcons) return;
-        jumpIcons.forEach(icon => {
-          icon.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const nbIdx = parseInt((icon as HTMLElement).getAttribute('data-nb-idx') || '0', 10);
-            const cellIdx = parseInt((icon as HTMLElement).getAttribute('data-cell-idx') || '0', 10);
-            // 智能 notebook 跳转/高亮
-            if (allNotebooksArr[nbIdx]) {
-              const currentNotebookIndex = (window as any).galaxyCurrentNotebookDetail?.index;
-              if (currentNotebookIndex === nbIdx) {
-                window.dispatchEvent(new CustomEvent('galaxy-notebook-detail-jump', {
-                  detail: { notebookIndex: nbIdx, cellIndex: cellIdx }
-                }));
-                // 不再立即触发 cell-detail 事件
-              } else {
-                // 不是当前 notebook，切换 notebook
-                window.dispatchEvent(new CustomEvent('galaxy-notebook-selected', {
-                  detail: { notebook: allNotebooksArr[nbIdx], jumpCellIndex: cellIdx }
-                }));
-                setTimeout(() => {
-                  const targetCell = allNotebooksArr[nbIdx].cells[cellIdx];
-                  if (targetCell) {
-                    window.dispatchEvent(new CustomEvent('galaxy-cell-detail', {
-                      detail: { cell: { ...targetCell, notebookIndex: nbIdx, cellIndex: cellIdx, _notebookDetail: allNotebooksArr[nbIdx] } }
-                    }));
-                  }
-                }, 0);
-              }
-            }
-          });
-        });
-      }
-      // notebook下拉框切换事件
-      const nbSelect = this.node.querySelector('#galaxy-stage-nb-select') as HTMLSelectElement;
-      const cellListDiv = this.node.querySelector('#galaxy-stage-cell-list');
-      if (nbSelect && cellListDiv) {
-        nbSelect.addEventListener('change', () => {
-          const nbIdx = parseInt(nbSelect.value, 10);
-          cellListDiv.innerHTML = renderStageCellCards(allNotebooksArr[nbIdx], cell["1st-level label"] ?? "");
-          // 重新绑定 jump icon 事件
-          bindJumpIconEvents(cellListDiv as HTMLElement);
-
-          // 激活Prism.js行号
-          setTimeout(() => {
-            const Prism = (window as any).Prism;
-            if (Prism && Prism.plugins && Prism.plugins.lineNumbers) {
-              Prism.highlightAll();
-            }
-          }, 50);
-        });
-      }
-      // 初始绑定
-      bindJumpIconEvents(cellListDiv as HTMLElement);
-    }, 0);
-    // 绑定 notebook 返回事件
-    setTimeout(() => {
+      // 绑定 notebook 返回事件
       const backBtn = this.node.querySelector('.dsb-back-btn');
       if (backBtn) {
         backBtn.addEventListener('click', () => {
@@ -1143,13 +870,7 @@ export class DetailSidebar extends Widget {
       });
     }, 0);
 
-    // 激活Prism.js行号
-    setTimeout(() => {
-      const Prism = (window as any).Prism;
-      if (Prism && Prism.plugins && Prism.plugins.lineNumbers) {
-        Prism.highlightAll();
-      }
-    }, 50);
+
   }
 
   setFilter(selection: any, skipEventDispatch: boolean = false) {
