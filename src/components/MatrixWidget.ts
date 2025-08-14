@@ -354,9 +354,9 @@ export class MatrixWidget extends Widget {
 
         if (this.voteEnabled && this.sortState !== 3) {
             // vote激活且similarity未激活：全局按vote排序
-            const arr = this.data.map((nb, i) => ({ 
-                i, 
-                votes: voteMap.get((nb as any).kernelVersionId?.toString()) || 0 
+            const arr = this.data.map((nb, i) => ({
+                i,
+                votes: voteMap.get((nb as any).kernelVersionId?.toString()) || 0
             }));
             arr.sort((a, b) => b.votes - a.votes);
             this.notebookOrder = arr.map(d => d.i);
@@ -559,7 +559,7 @@ export class MatrixWidget extends Widget {
                 this.notebookOrder.forEach((row, colIdx) => {
                     const nb = this.data[row];
                     const sortedCells = nb.cells.sort((a, b) => a.cellId - b.cellId);
-                    
+
                     // 过滤可见cells（与drawMatrix中的逻辑保持一致）
                     const processedCells = sortedCells.filter(cell =>
                         this.showMarkdown || cell.cellType !== 'markdown'
@@ -1082,11 +1082,11 @@ export class MatrixWidget extends Widget {
                 }
             }
         }
-        
+
         if (this.similaritySortButton) {
             this.similaritySortButton.title = 'Toggle clustering';
         }
-        
+
         if (this.voteSortButton) {
             if (this.voteEnabled) {
                 this.voteSortButton.title = 'Sorted by votes (highest to lowest)';
@@ -1094,7 +1094,7 @@ export class MatrixWidget extends Widget {
                 this.voteSortButton.title = 'Sort by votes';
             }
         }
-        
+
         if (this.cellHeightButton) {
             if (this.cellHeightMode === 'fixed') {
                 this.cellHeightButton.title = 'Fixed cell height mode';
@@ -1102,7 +1102,7 @@ export class MatrixWidget extends Widget {
                 this.cellHeightButton.title = 'Cell height by line count';
             }
         }
-        
+
         if (this.markdownButton) {
             this.markdownButton.title = 'Toggle markdown visibility';
         }
@@ -1184,14 +1184,14 @@ export class MatrixWidget extends Widget {
             this.voteSortButton.innerHTML = this.getVoteSortIcon();
             this.cellHeightButton.innerHTML = this.getCellHeightIcon();
             this.markdownButton.innerHTML = this.getMarkdownIcon();
-            
+
             // 恢复vote按钮的active状态
             if (this.voteEnabled) {
                 this.voteSortButton.classList.add('active');
             } else {
                 this.voteSortButton.classList.remove('active');
             }
-            
+
             this.updateSortButtonState();
 
             // 恢复assignment和student筛选器的值
@@ -1231,10 +1231,10 @@ export class MatrixWidget extends Widget {
             this.voteSortButton.innerHTML = this.getVoteSortIcon();
             this.cellHeightButton.innerHTML = this.getCellHeightIcon();
             this.markdownButton.innerHTML = this.getMarkdownIcon();
-            
+
             // 重置vote按钮的active状态
             this.voteSortButton.classList.remove('active');
-            
+
             this.updateSortButtonState();
 
             // 重置筛选器

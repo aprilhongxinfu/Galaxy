@@ -50,12 +50,6 @@ export class DetailSidebar extends Widget {
     return 'color: #222';
   }
 
-
-
-
-
-
-
   constructor(colorMap: Map<string, string>, notebookOrder: number[], hiddenStages?: Set<string>, similarityGroups?: any[], voteData?: any[], competitionInfo?: { id: string; name: string; url: string }) {
     super();
     this.colorMap = colorMap;
@@ -121,7 +115,17 @@ export class DetailSidebar extends Widget {
   setDefault() {
     this.currentNotebook = null; // 重置notebook状态
     this._currentSelection = null; // 重置选择状态
-    this.node.innerHTML = `<div style="padding:16px; color:#888;">请选择一个 notebook 或 cell 查看详情。</div>`;
+    this.node.innerHTML = `
+      <div style="padding:40px 20px; text-align:center; color:#6c757d;">
+        <div style="margin-bottom:16px;">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M9 12H15M9 16H15M9 8H15M5 3H19C20.1046 3 21 3.89543 21 5V19C21 20.1046 20.1046 21 19 21H5C3.89543 21 3 20.1046 3 19V5C3 3.89543 3.89543 3 5 3Z" stroke="#dee2e6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div style="font-size:16px; font-weight:500; margin-bottom:8px; color:#495057;">No Selection</div>
+        <div style="font-size:14px; color:#6c757d;">Please select a notebook or cell to view details.</div>
+      </div>
+    `;
   }
 
   setNotebookDetail(nb: any, skipEventDispatch: boolean = false) {
@@ -221,16 +225,32 @@ export class DetailSidebar extends Widget {
     });
     // 渲染函数，显示为纯文本
     const renderStageText = () => {
+      // 检查是否所有stage都只出现一次
+      const allStageFreqs = Object.values(stageFreq);
+      const allStagesOnlyOnce = allStageFreqs.length > 0 && allStageFreqs.every(freq => freq === 1);
+
+      if (allStagesOnlyOnce && mostFreqStagesFiltered.length > 3) {
+        return `<span style="color:#6c757d; font-size:13px; font-style:italic;">All stages appear only once (${mostFreqStagesFiltered.length} unique stages)</span>`;
+      }
+
       return mostFreqStagesFiltered.map(stage =>
-        `<span style="color:${this.colorMap.get(stage) || '#0066cc'}; font-weight:600; font-size:14px; margin-right:8px;">${LABEL_MAP[stage] ?? stage}</span>`
+        `<span style="color:${this.colorMap.get(stage) || '#0066cc'}; font-weight:600; font-size:13px; margin-right:6px;">${LABEL_MAP[stage] ?? stage}</span>`
       ).join('');
     };
     const renderFlowText = () => {
+      // 检查是否所有transition都只出现一次
+      const allFlowFreqs = Object.values(transitions);
+      const allFlowsOnlyOnce = allFlowFreqs.length > 0 && allFlowFreqs.every(freq => freq === 1);
+
+      if (allFlowsOnlyOnce && mostFreqFlowsFiltered.length > 3) {
+        return `<span style="color:#6c757d; font-size:13px; font-style:italic;">All transitions appear only once (${mostFreqFlowsFiltered.length} unique transitions)</span>`;
+      }
+
       return mostFreqFlowsFiltered.map(flow => {
         const [from, to] = flow.split(/->|→/);
         const fromColor = this.colorMap.get(from) || '#1976d2';
         const toColor = this.colorMap.get(to) || '#42a5f5';
-        return `<div style="margin-bottom:4px;"><span style="font-weight:600; font-size:14px;"><span style="background: linear-gradient(90deg, ${fromColor}, ${toColor}); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; color: transparent;">${LABEL_MAP[from] ?? from} → ${LABEL_MAP[to] ?? to}</span></span></div>`;
+        return `<div style="margin-bottom:3px;"><span style="font-weight:600; font-size:13px;"><span style="background: linear-gradient(90deg, ${fromColor}, ${toColor}); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; color: transparent;">${LABEL_MAP[from] ?? from} → ${LABEL_MAP[to] ?? to}</span></span></div>`;
       }).join('');
     };
 
@@ -248,24 +268,38 @@ export class DetailSidebar extends Widget {
     const svgW = sortedStages.length * (barW + gap);
     const svgH = barH + 38;
 
-    const barChart = `<svg width="100%" height="${svgH}" viewBox="0 0 ${svgW} ${svgH}" style="overflow:visible;">
-      <g>
+    // 自适应缩放：如果图表宽度超过容器，则缩小bar宽度和间距
+    let actualBarW = barW;
+    let actualGap = gap;
+    let actualSvgW = svgW;
+
+    if (svgW > 280) { // 留20px边距
+      const scale = 280 / svgW;
+      actualBarW = Math.max(barW * scale, 10); // 最小10px宽度
+      actualGap = Math.max(gap * scale, 3); // 最小3px间距
+      actualSvgW = sortedStages.filter(([stage]) => stage !== "None").length * (actualBarW + actualGap);
+    }
+
+    const barChart = `<svg width="100%" height="${svgH}" viewBox="0 0 320 ${svgH}" style="overflow:visible;">
+      <g transform="translate(${(320 - actualSvgW) / 2}, ${(svgH - barH) / 2})">
         ${sortedStages
         .filter(([stage]) => stage !== "None")
         .map(([stage, n], i) => `
-            <rect x="${i * (barW + gap)}"
+            <rect x="${i * (actualBarW + actualGap)}"
                   y="${barH - (n / maxBar) * barH}"
-                  width="${barW}"
+                  width="${actualBarW}"
                   height="${(n / maxBar) * barH}"
                   fill="${colorMap.get(stage) || '#bbb'}"
-                  rx="4" ry="4"
-                  data-tooltip="${LABEL_MAP?.[stage] ?? stage}: ${n}">
+                  rx="6" ry="6"
+                  data-tooltip="${LABEL_MAP?.[stage] ?? stage}: ${n}"
+                  style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));">
             </rect>
-            <text x="${i * (barW + gap) + barW / 2}"
-                  y="${barH - (n / maxBar) * barH - 6}"
-                  font-size="12"
+            <text x="${i * (actualBarW + actualGap) + actualBarW / 2}"
+                  y="${barH - (n / maxBar) * barH - 8}"
+                  font-size="11"
+                  font-weight="600"
                   text-anchor="middle"
-                  fill="#222">${n}</text>
+                  fill="#495057">${n}</text>
           `).join('')}
       </g>
     </svg>`;
@@ -293,17 +327,22 @@ export class DetailSidebar extends Widget {
       const stageLabel = LABEL_MAP[this.filter.stage] ?? this.filter.stage;
       selectedStageInfo = `
         <div style="margin-bottom:16px;">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; color:#555;">
-            <span style="font-weight:500;">Selected Stage: <span style="color:${stageColor}; font-weight:600;">${stageLabel}</span></span>
+          <div style="font-size:14px; font-weight:600; margin-bottom:8px; color:#222; display:flex; align-items:center; gap:6px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M9 12L11 14L15 10M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Selected Stage: <span style="color:${stageColor}; font-weight:600;">${stageLabel}</span>
           </div>
-          <div style="display:flex; flex-direction:row; gap:18px;">
-            <div style="flex:1;">
-              <div style="font-size:13px; color:#888;">Occurrences</div>
-              <div style="font-size:20px; font-weight:600;">${selectedStageCount}</div>
-            </div>
-            <div style="flex:1;">
-              <div style="font-size:13px; color:#888;">Avg Lines</div>
-              <div style="font-size:20px; font-weight:600;">${selectedStageAvgLines.toFixed(1)}</div>
+          <div style="background:#fff; border-radius:6px; padding:12px; border:1px solid #e9ecef; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+            <div style="display:flex; flex-direction:row; gap:12px;">
+              <div style="flex:1;">
+                <div style="font-size:11px; color:#6c757d; margin-bottom:2px;">Occurrences</div>
+                <div style="font-size:13px; font-weight:600; color:#495057;">${selectedStageCount}</div>
+              </div>
+              <div style="flex:1;">
+                <div style="font-size:11px; color:#6c757d; margin-bottom:2px;">Avg Lines</div>
+                <div style="font-size:13px; font-weight:600; color:#495057;">${selectedStageAvgLines.toFixed(1)}</div>
+              </div>
             </div>
           </div>
         </div>
@@ -349,17 +388,22 @@ export class DetailSidebar extends Widget {
       const toLabel = LABEL_MAP[this.filter.to] ?? this.filter.to;
       selectedTransitionInfo = `
         <div style="margin-bottom:16px;">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; color:#555;">
-            <span style="font-weight:500;">Selected Transition: <span style="background: linear-gradient(90deg, ${fromColor}, ${toColor}); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; color: transparent; font-weight:600;">${fromLabel} → ${toLabel}</span></span>
+          <div style="font-size:14px; font-weight:600; margin-bottom:8px; color:#222; display:flex; align-items:center; gap:6px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M7 17L17 7M17 7H7M17 7V17" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Selected Transition: <span style="background: linear-gradient(90deg, ${fromColor}, ${toColor}); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; color: transparent; font-weight:600;">${fromLabel} → ${toLabel}</span>
           </div>
-          <div style="display:flex; flex-direction:row; gap:18px;">
-            <div style="flex:1;">
-              <div style="font-size:13px; color:#888;">Occurrences</div>
-              <div style="font-size:20px; font-weight:600;">${flowCount}</div>
-            </div>
-            <div style="flex:1;">
-              <div style="font-size:13px; color:#888;">Avg Lines</div>
-              <div style="font-size:20px; font-weight:600;">${avgLines.toFixed(1)}</div>
+          <div style="background:#fff; border-radius:6px; padding:12px; border:1px solid #e9ecef; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+            <div style="display:flex; flex-direction:row; gap:12px;">
+              <div style="flex:1;">
+                <div style="font-size:11px; color:#6c757d; margin-bottom:2px;">Occurrences</div>
+                <div style="font-size:13px; font-weight:600; color:#495057;">${flowCount}</div>
+              </div>
+              <div style="flex:1;">
+                <div style="font-size:11px; color:#6c757d; margin-bottom:2px;">Avg Lines</div>
+                <div style="font-size:13px; font-weight:600; color:#495057;">${avgLines.toFixed(1)}</div>
+              </div>
             </div>
           </div>
         </div>
@@ -368,88 +412,127 @@ export class DetailSidebar extends Widget {
 
     // 插入内容
     this.node.innerHTML = `
-      <div style="padding:28px 18px 18px 18px; font-size:15px; color:#222; max-width:420px; margin:0 auto;">
-        <div style="font-size:20px; font-weight:700; margin-bottom:18px; line-height:1.2; word-break:break-all;" id="detail-sidebar-title"><span style="${this._getTitleStyle()}">Notebook ${nb.globalIndex !== undefined ? nb.globalIndex : ''}: ${nb.notebook_name ?? nb.kernelVersionId}</span></div>
+      <div style="padding:16px 12px 12px 12px; font-size:14px; color:#222; max-width:420px; margin:0 auto;">
+        <div style="font-size:16px; font-weight:700; margin-bottom:12px; line-height:1.3; word-break:break-all; padding-bottom:8px; border-bottom:1px solid #e9ecef;" id="detail-sidebar-title">
+          <span style="${this._getTitleStyle()}">Notebook ${nb.globalIndex !== undefined ? nb.globalIndex : ''}: ${nb.notebook_name ?? nb.kernelVersionId}</span>
+        </div>
         
         ${nb.displayname ? `
-        <div style="margin-bottom:18px;">
-          <div style="display:flex; align-items:center; gap:8px; justify-content:flex-end;">
-            <span style="font-size:14px; color:#666; font-weight:500;">by</span>
-            <span style="font-size:15px; color:#333; font-weight:600;">${nb.displayname}</span>
+        <div style="margin-bottom:12px;">
+          <div style="display:flex; align-items:center; gap:6px; justify-content:flex-end;">
+            <span style="font-size:12px; color:#6c757d; font-weight:500;">by</span>
+            <span style="font-size:13px; color:#495057; font-weight:600;">${nb.displayname}</span>
           </div>
         </div>
         ` : ''}
         
         ${nb.creationDate || nb.totalLines || this.getVoteCount(nb) ? `
-        <div style="display:flex; flex-direction:row; gap:18px; margin-bottom:18px;">
-          ${nb.creationDate ? `
-          <div style="flex:1; display:flex; flex-direction:column; justify-content:flex-end;">
-            <div style="font-size:13px; color:#888;">Creation Date</div>
-            <div style="font-size:16px; font-weight:600;">${nb.creationDate.split(' ')[0]}</div>
+        <div style="background:#f8f9fa; border-radius:6px; padding:12px; margin-bottom:12px; border:1px solid #e9ecef;">
+          <div style="display:flex; flex-direction:row; gap:12px;">
+            ${nb.creationDate ? `
+            <div style="flex:1; display:flex; flex-direction:column; justify-content:flex-end;">
+              <div style="font-size:11px; color:#6c757d; margin-bottom:2px;">Creation Date</div>
+              <div style="font-size:13px; font-weight:600; color:#495057;">${nb.creationDate.split(' ')[0]}</div>
+            </div>
+            ` : ''}
+            ${nb.totalLines ? `
+            <div style="flex:1; display:flex; flex-direction:column; justify-content:flex-end;">
+              <div style="font-size:11px; color:#6c757d; margin-bottom:2px;">Total Lines</div>
+              <div style="font-size:13px; font-weight:600; color:#495057;">${nb.totalLines.toLocaleString()}</div>
+            </div>
+            ` : ''}
+            ${this.getVoteCount(nb) !== null ? `
+            <div style="flex:1; display:flex; flex-direction:column; justify-content:flex-end;">
+              <div style="font-size:11px; color:#6c757d; margin-bottom:2px;">Total Votes</div>
+              <div style="font-size:13px; font-weight:600; color:#495057;">${this.getVoteCount(nb)!.toLocaleString()}</div>
+            </div>
+            ` : ''}
           </div>
-          ` : ''}
-          ${nb.totalLines ? `
-          <div style="flex:1; display:flex; flex-direction:column; justify-content:flex-end;">
-            <div style="font-size:13px; color:#888;">Total Lines</div>
-            <div style="font-size:16px; font-weight:600;">${nb.totalLines.toLocaleString()}</div>
-          </div>
-          ` : ''}
-          ${this.getVoteCount(nb) !== null ? `
-          <div style="flex:1; display:flex; flex-direction:column; justify-content:flex-end;">
-            <div style="font-size:13px; color:#888;">Total Votes</div>
-            <div style="font-size:16px; font-weight:600;">${this.getVoteCount(nb)!.toLocaleString()}</div>
-          </div>
-          ` : ''}
         </div>
         ` : ''}
         
-        <div style="display:flex; flex-direction:row; gap:18px; margin-bottom:18px;">
-          <div style="flex:1; display:flex; flex-direction:column; justify-content:flex-end;">
-            <div style="font-size:13px; color:#888;">Total Cells</div>
-            <div style="font-size:16px; font-weight:600;">${total}</div>
-          </div>
-          <div style="flex:1; display:flex; flex-direction:column; justify-content:flex-end;">
-            <div style="font-size:13px; color:#888;">Code Cells</div>
-            <div style="font-size:16px; font-weight:600;">${codeCount}</div>
-          </div>
-          <div style="flex:1; display:flex; flex-direction:column; justify-content:flex-end;">
-            <div style="font-size:13px; color:#888;">Md Cells</div>
-            <div style="font-size:16px; font-weight:600;">${mdCount}</div>
+        <div style="background:#f8f9fa; border-radius:6px; padding:12px; margin-bottom:12px; border:1px solid #e9ecef;">
+          <div style="display:flex; flex-direction:row; gap:12px;">
+            <div style="flex:1; display:flex; flex-direction:column; justify-content:flex-end;">
+              <div style="font-size:11px; color:#6c757d; margin-bottom:2px;">Total Cells</div>
+              <div style="font-size:13px; font-weight:600; color:#495057;">${total}</div>
+            </div>
+            <div style="flex:1; display:flex; flex-direction:column; justify-content:flex-end;">
+              <div style="font-size:11px; color:#6c757d; margin-bottom:2px;">Code Cells</div>
+              <div style="font-size:13px; font-weight:600; color:#495057;">${codeCount}</div>
+            </div>
+            <div style="flex:1; display:flex; flex-direction:column; justify-content:flex-end;">
+              <div style="font-size:11px; color:#6c757d; margin-bottom:2px;">Md Cells</div>
+              <div style="font-size:13px; font-weight:600; color:#495057;">${mdCount}</div>
+            </div>
           </div>
         </div>
         
-        <div style="font-size:16px; font-weight:600; margin-bottom:10px;">Stage Analysis</div>
         <div style="margin-bottom:16px;">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; color:#555;"><span style="font-weight:500;">Most Common Stage(s)</span><span style="color:#1976d2; font-size:14px; font-weight:600;">${stageCountText}</span></div>
-          <div style="display:flex; flex-wrap:wrap; gap:8px;" id="dsb-stage-links">${renderStageText()}</div>
+          <div style="font-size:14px; font-weight:600; margin-bottom:8px; color:#222; display:flex; align-items:center; gap:6px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M9 11H15M9 15H15M9 7H15M5 3H19C20.1046 3 21 3.89543 21 5V19C21 20.1046 20.1046 21 19 21H5C3.89543 21 3 20.1046 3 19V5C3 3.89543 3.89543 3 5 3Z" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Stage Analysis
+          </div>
+          <div style="background:#fff; border-radius:6px; padding:12px; border:1px solid #e9ecef; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+            <div style="margin-bottom:12px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; color:#495057;">
+                <span style="font-weight:500; font-size:13px;">Most Common Stage(s)</span>
+                <span style="color:#1976d2; font-size:12px; font-weight:600;">${stageCountText}</span>
+              </div>
+              <div style="display:flex; flex-wrap:wrap; gap:6px;" id="dsb-stage-links">${renderStageText()}</div>
+            </div>
+            <div style="margin-bottom:12px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; color:#495057;">
+                <span style="font-weight:500; font-size:13px;">Most Common Transition(s)</span>
+                <span style="color:#1976d2; font-size:12px; font-weight:600;">${flowCountText}</span>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:3px;" id="dsb-flow-links">${renderFlowText()}</div>
+            </div>
+          </div>
         </div>
+        
         <div style="margin-bottom:16px;">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; color:#555;"><span style="font-weight:500;">Most Common Transition(s)</span><span style="color:#1976d2; font-size:14px; font-weight:600;">${flowCountText}</span></div>
-          <div style="display:flex; flex-direction:column; gap:4px;" id="dsb-flow-links">${renderFlowText()}</div>
+          <div style="font-size:14px; font-weight:600; margin-bottom:8px; color:#222; display:flex; align-items:center; gap:6px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M3 3v18h18" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M18 17V9" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M13 17V5" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M8 17v-3" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Stage Frequency Distribution
+          </div>
+          <div style="background:#fff; border-radius:6px; padding:8px; border:1px solid #e9ecef; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+            <div style="width:100%; max-width:320px; margin:0 auto;">${barChart}</div>
+          </div>
         </div>
-        <div style="margin:12px 0 6px 0; font-weight:600; font-size:15px;">Stage Frequency Distribution</div>
-        <div style="height:8px;"></div>
-        <div style="margin: 6px 0 4px 0; width:100%; max-width:600px; margin-left:auto; margin-right:auto;">${barChart}</div>
         
         ${selectedStageInfo}
         ${selectedTransitionInfo}
         
         ${nb.toc && nb.toc.length > 0 ? `
-        <div style="margin:18px 0 8px 0; font-weight:600; font-size:15px;">Table of Contents</div>
-        <div class="toc-scroll" style="background:#f8f9fa; border-radius:8px; padding:20px; margin-bottom:16px; max-height:300px; overflow-y:auto; overflow-x:hidden; border:1px solid #e0e0e0;">
-          ${nb.toc.map((item: any) => {
+        <div style="margin-bottom:12px;">
+          <div style="font-size:14px; font-weight:600; margin-bottom:8px; color:#222; display:flex; align-items:center; gap:6px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M4 6H20M4 10H20M4 14H20M4 18H20" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Table of Contents
+          </div>
+          <div class="toc-scroll" style="background:#fff; border-radius:6px; padding:12px; max-height:240px; overflow-y:auto; overflow-x:hidden; border:1px solid #e9ecef; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+            ${nb.toc.map((item: any) => {
       // 统计#数量，决定层级
       const match = item.heading.match(/^(#+)\s+/);
       const level = match ? match[1].length : 1;
-      const marginLeft = 12 * (level - 1);
-      const fontSize = level === 1 ? 15 : (level === 2 ? 14 : 13);
+      const marginLeft = 10 * (level - 1);
+      const fontSize = level === 1 ? 13 : (level === 2 ? 12 : 11);
       const fontWeight = level === 1 ? 600 : (level === 2 ? 500 : 400);
-      const color = level === 1 ? '#1976d2' : (level === 2 ? '#1565c0' : '#666');
-      const padding = level === 1 ? '8px 0' : (level === 2 ? '6px 0' : '4px 0');
+      const color = level === 1 ? '#1976d2' : (level === 2 ? '#1565c0' : '#6c757d');
+      const padding = level === 1 ? '4px 0' : (level === 2 ? '3px 0' : '2px 0');
       return `
-              <div style="margin-bottom:2px; margin-left:${marginLeft}px;">
+              <div style="margin-bottom:1px; margin-left:${marginLeft}px;">
                 <div class="toc-item" data-cell-id="${item.cellId}" 
-                     style="color:${color}; font-size:${fontSize}px; font-weight:${fontWeight}; cursor:pointer; line-height:1.4; padding:${padding}; border-radius:4px; transition:all 0.2s ease;"
+                     style="color:${color}; font-size:${fontSize}px; font-weight:${fontWeight}; cursor:pointer; line-height:1.3; padding:${padding}; border-radius:3px; transition:all 0.2s ease;"
                      onmouseover="this.style.background='#e3f2fd'; this.style.color='#1565c0';"
                      onmouseout="this.style.background='transparent'; this.style.color='${color}';">
                   ${item.heading.replace(/^#+\s*/, '')}
@@ -457,30 +540,38 @@ export class DetailSidebar extends Widget {
               </div>
             `;
     }).join('')}
+          </div>
         </div>
         ` : `
-        <div style="margin:18px 0 8px 0; font-weight:600; font-size:15px;">Table of Contents</div>
-        <div style="background:#f8f9fa; border-radius:8px; padding:20px; margin-bottom:16px; color:#888; font-size:14px; text-align:center; border:1px solid #e0e0e0;">
-          No table of contents available for this notebook.
+        <div style="margin-bottom:12px;">
+          <div style="font-size:14px; font-weight:600; margin-bottom:8px; color:#222; display:flex; align-items:center; gap:6px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M4 6H20M4 10H20M4 14H20M4 18H20" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Table of Contents
+          </div>
+          <div style="background:#fff; border-radius:6px; padding:12px; color:#6c757d; font-size:12px; text-align:center; border:1px solid #e9ecef; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+            No table of contents available for this notebook.
+          </div>
         </div>
         `}
       </div>
       <style>
         /* TOC滚动条样式 */
         .toc-scroll::-webkit-scrollbar {
-          width: 8px;
+          width: 6px;
         }
         .toc-scroll::-webkit-scrollbar-track {
-          background: #f5f5f5;
-          border-radius: 4px;
+          background: #f8f9fa;
+          border-radius: 3px;
         }
         .toc-scroll::-webkit-scrollbar-thumb {
-          background: #d0d0d0;
-          border-radius: 4px;
-          border: 1px solid #f5f5f5;
+          background: #dee2e6;
+          border-radius: 3px;
+          border: 1px solid #f8f9fa;
         }
         .toc-scroll::-webkit-scrollbar-thumb:hover {
-          background: #b0b0b0;
+          background: #adb5bd;
         }
         /* TOC项目悬停效果 */
         .toc-item:hover {
@@ -496,11 +587,12 @@ export class DetailSidebar extends Widget {
         tooltip = document.createElement("div");
         tooltip.id = "tooltip";
         tooltip.style.position = "absolute";
-        tooltip.style.background = "rgba(0, 0, 0, 0.8)";
+        tooltip.style.background = "rgba(33, 37, 41, 0.9)";
         tooltip.style.color = "white";
-        tooltip.style.padding = "6px 10px";
+        tooltip.style.padding = "8px 12px";
         tooltip.style.fontSize = "12px";
-        tooltip.style.borderRadius = "4px";
+        tooltip.style.borderRadius = "6px";
+        tooltip.style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)";
         tooltip.style.pointerEvents = "none";
         tooltip.style.opacity = "0";
         tooltip.style.transition = "opacity 0.2s ease";
@@ -677,86 +769,111 @@ export class DetailSidebar extends Widget {
     const maxBin = Math.max(...bins, 1);
     const avgPos = allStagePositions.length ? allStagePositions.reduce((a, b) => a + b, 0) / allStagePositions.length : null;
     // 柱状图 SVG
-    const chartW = 220, chartH = 48, barW = chartW / binCount;
+    const chartW = 280, chartH = 100, barW = chartW / binCount;
     // 获取当前 stage 的主色
     const stageLabelStr = String((cell && cell["1st-level label"]) ?? "None");
     const stageColor = this.colorMap?.get?.(stageLabelStr) || '#90caf9';
     let barsSvg = '';
     for (let i = 0; i < binCount; ++i) {
       const x = i * barW;
-      const h = bins[i] / maxBin * (chartH - 16);
+      const h = bins[i] / maxBin * (chartH - 28);
       const binStart = (i / binCount).toFixed(2);
       const binEnd = ((i + 1) / binCount).toFixed(2);
-      const tooltip = `Pos: [${binStart}, ${binEnd})\nCount: ${bins[i]}`;
+      const tooltip = `Position: [${binStart}, ${binEnd})\nCount: ${bins[i]}`;
       barsSvg += `<rect x="${x}" y="${chartH - h}" width="${barW - 2}" height="${h}" fill="${stageColor}" rx="2" data-tooltip="${tooltip}" />`;
     }
     // 平均位置线
     let avgLineSvg = '';
     if (avgPos !== null) {
       const avgX = avgPos * chartW;
-      avgLineSvg = `<line x1="${avgX}" y1="0" x2="${avgX}" y2="${chartH}" stroke="#1976d2" stroke-width="2" stroke-dasharray="3,2" />`;
+      avgLineSvg = `<line x1="${avgX}" y1="0" x2="${avgX}" y2="${chartH}" stroke="#1976d2" stroke-width="2.5" stroke-dasharray="4,3" />`;
     }
     // 当前 cell 位置高亮
     let currLineSvg = '';
     if (currentCellPosition !== null) {
       const currX = currentCellPosition * chartW;
-      currLineSvg = `<line x1="${currX}" y1="0" x2="${currX}" y2="${chartH}" stroke="#c41a16" stroke-width="2" />`;
+      currLineSvg = `<line x1="${currX}" y1="0" x2="${currX}" y2="${chartH}" stroke="#dc3545" stroke-width="2.5" />`;
     }
     // 横纵坐标标注
     const axisTicks = [0, 0.25, 0.5, 0.75, 1];
     const axisSvg = [
       // 横坐标主线
-      `<line x1="0" y1="${chartH}" x2="${chartW}" y2="${chartH}" stroke="#bbb" stroke-width="1" />`,
+      `<line x1="0" y1="${chartH}" x2="${chartW}" y2="${chartH}" stroke="#dee2e6" stroke-width="1" />`,
       // 横坐标刻度
-      ...axisTicks.map(t => `<text x="${t * chartW}" y="${chartH + 12}" font-size="11" fill="#888" text-anchor="middle">${t}</text>`),
+      ...axisTicks.map(t => `<text x="${t * chartW}" y="${chartH + 12}" font-size="11" fill="#6c757d" text-anchor="middle">${t}</text>`),
       // 纵坐标主线
-      `<line x1="0" y1="0" x2="0" y2="${chartH}" stroke="#bbb" stroke-width="1" />`,
+      `<line x1="0" y1="0" x2="0" y2="${chartH}" stroke="#dee2e6" stroke-width="1" />`,
       // 纵坐标最大值和0
-      `<text x="-2" y="10" font-size="11" fill="#888" text-anchor="end">${maxBin}</text>`,
-      `<text x="-2" y="${chartH}" font-size="11" fill="#888" text-anchor="end">0</text>`
+      `<text x="-4" y="10" font-size="11" fill="#6c757d" text-anchor="end">${maxBin}</text>`,
+      `<text x="-4" y="${chartH}" font-size="11" fill="#6c757d" text-anchor="end">0</text>`
     ].join('');
-    const chartSvg = `<svg width="100%" height="${chartH + 22}" viewBox="-18 0 ${chartW + 18} ${chartH + 22}">${barsSvg}${avgLineSvg}${currLineSvg}${axisSvg}</svg>`;
+    const chartSvg = `<svg width="100%" height="${chartH + 32}" viewBox="-8 0 320 ${chartH + 32}">
+      <g transform="translate(${(320 - chartW + 8) / 2}, ${(chartH + 32 - chartH) / 2})">
+        ${barsSvg}${avgLineSvg}${currLineSvg}${axisSvg}
+      </g>
+    </svg>`;
     // legend 英文精致版
-    const legendHtml = `<div style="display:flex; align-items:center; gap:14px; font-size:12px; color:#888; margin-top:2px; justify-content:center;">
-      <span style="display:inline-flex;align-items:center;"><span style="display:inline-block;width:18px;height:8px;background:${stageColor};border-radius:2px;margin-right:4px;"></span>Count</span>
-      <span style="display:inline-flex;align-items:center;"><span style="display:inline-block;width:14px;height:0;border-top:2px dashed #1976d2;margin-right:4px;"></span>Mean</span>
-      <span style="display:inline-flex;align-items:center;"><span style="display:inline-block;width:14px;height:0;border-top:2px solid #c41a16;margin-right:4px;"></span>Current Cell</span>
+    const legendHtml = `<div style="display:flex; align-items:center; gap:6px; font-size:11px; color:#6c757d; margin-top:6px; justify-content:center;">
+      <span style="display:inline-flex;align-items:center; padding:2px 5px; background:#f8f9fa; border-radius:3px;"><span style="display:inline-block;width:8px;height:0;border-top:2px dashed #1976d2;margin-right:3px;"></span>Mean</span>
+      <span style="display:inline-flex;align-items:center; padding:2px 5px; background:#f8f9fa; border-radius:3px;"><span style="display:inline-block;width:8px;height:0;border-top:2px solid #dc3545;margin-right:3px;"></span>Current</span>
     </div>`;
     // cellType label tag
-    const cellTypeLabel = cell.cellType ? `<span style="display:inline-block; background:#e3eaf3; color:#1976d2; font-size:12px; border-radius:4px; padding:2px 8px; margin-left:8px; vertical-align:middle;">${cell.cellType}</span>` : '';
+    const cellTypeLabel = cell.cellType ? `<span style="display:inline-block; background:#e3f2fd; color:#1976d2; font-size:10px; border-radius:10px; padding:2px 8px; margin-left:6px; vertical-align:middle; font-weight:500; border:1px solid #bbdefb;">${cell.cellType}</span>` : '';
     // 删除tab header，直接展示内容
 
     // 直接展示第一个tab的内容，不包装在tab中
     const cellDetailContent = `
-      <table style="width:100%; border-collapse:collapse; margin-bottom:10px;">
-        <tr>
-          <td style="font-weight:500;">Stage</td>
-          <td style="text-align:right;">
-            <span style="background:${stageColor}; color:#fff; border:none; border-radius:16px; padding:3px 18px; font-size:15px; font-weight:700; display:inline-block;">${stageLabel}</span>
-          </td>
-        </tr>
-        <tr>
-          <td style="font-weight:500;">Code lines</td>
-          <td style="text-align:right; font-weight:600; color:#222;">${codeLines.length}</td>
-        </tr>
-      </table>
-      <div style="font-size:16px; font-weight:600; margin-bottom:10px; color:#222;">Stage Position Distribution</div>
-      <div style="width:100%; max-width:320px; margin-bottom:12px;">${chartSvg}</div>
-      ${legendHtml}
-      <div style="font-size:16px; font-weight:600; margin-bottom:10px; color:#222;">Code Line Count Distribution</div>
-      <div style="width:100%; max-width:320px;">${this._renderCodeLineDistChart(cell, allNotebooks, stageColor)}</div>
+      <div style="background:#f8f9fa; border-radius:6px; padding:12px; margin-bottom:12px; border:1px solid #e9ecef;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+          <div style="font-weight:600; color:#495057; font-size:13px;">Stage</div>
+          <span style="background:${stageColor}; color:#fff; border:none; border-radius:16px; padding:3px 12px; font-size:13px; font-weight:600; display:inline-block; box-shadow:0 2px 4px rgba(0,0,0,0.1);">${stageLabel}</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div style="font-weight:600; color:#495057; font-size:13px;">Code Lines</div>
+          <div style="font-weight:700; color:#222; font-size:14px;">${codeLines.length}</div>
+        </div>
+      </div>
+      
+      <div style="margin-bottom:16px;">
+        <div style="font-size:14px; font-weight:600; margin-bottom:8px; color:#222; display:flex; align-items:center; gap:6px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M3 3v18h18" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M18 17V9" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M13 17V5" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M8 17v-3" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Stage Position Distribution
+        </div>
+        <div style="background:#fff; border-radius:6px; padding:8px; border:1px solid #e9ecef; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+          <div style="width:100%; max-width:320px; margin:0 auto;">${chartSvg}</div>
+          <div style="margin-top:6px;">${legendHtml}</div>
+        </div>
+      </div>
+      
+      <div style="margin-bottom:12px;">
+        <div style="font-size:14px; font-weight:600; margin-bottom:8px; color:#222; display:flex; align-items:center; gap:6px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M3 3v18h18" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M9 9l3 3 3-3" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Code Line Count Distribution
+        </div>
+        <div style="background:#fff; border-radius:6px; padding:8px; border:1px solid #e9ecef; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+          <div style="width:100%; max-width:320px; margin:0 auto;">${this._renderCodeLineDistChart(cell, allNotebooks, stageColor)}</div>
+        </div>
+      </div>
     `;
-    this.node.innerHTML = `<div style="padding:24px 18px 18px 18px; margin:18px 0; width:100%; font-size:15px; color:#222; box-sizing:border-box;">
-      <div style="font-size:17px; font-weight:600; margin-bottom:12px; display:flex; align-items:center; gap:10px; flex-wrap;" id="detail-sidebar-title">
-        <div style="display:flex; align-items:center; gap:8px;">
-          <div class="dsb-back-btn" style="cursor: pointer; display: flex; align-items: center; gap: 4px;" title="Back to notebook overview">
-            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M15 10H5M5 10L10 15M5 10L10 5" stroke="#888" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    this.node.innerHTML = `<div style="padding:16px 12px 12px 12px; width:100%; font-size:14px; color:#222; box-sizing:border-box;">
+      <div style="font-size:15px; font-weight:600; margin-bottom:12px; display:flex; align-items:center; gap:8px; flex-wrap; padding-bottom:8px; border-bottom:1px solid #e9ecef;" id="detail-sidebar-title">
+        <div style="display:flex; align-items:center; gap:6px;">
+          <div class="dsb-back-btn" style="cursor: pointer; display: flex; align-items: center; gap: 3px; padding:3px; border-radius:3px; transition:background-color 0.2s;" title="Back to notebook overview">
+            <svg width="14" height="14" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M15 10H5M5 10L10 15M5 10L10 5" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
           </div>
-          <span style="font-weight:600;">Notebook ${nbIdx ? + nbIdx : ''}</span>
+          <span style="font-weight:600; color:#333;">Notebook ${nbIdx ? + nbIdx : ''}</span>
         </div>
-        ${cellIdx ? `<span style='color:#888; font-size:14px;'>/ Cell ${cellIdx}</span>` : ''}
+        ${cellIdx ? `<span style='color:#6c757d; font-size:12px; font-weight:500;'>/ Cell ${cellIdx}</span>` : ''}
         ${cellTypeLabel}
       </div>
       ${cellDetailContent}
@@ -810,46 +927,19 @@ export class DetailSidebar extends Widget {
             this.setNotebookDetail((window as any).galaxyCurrentNotebookDetail, true); // skipEventDispatch = true
           }
         });
-      }
-    }, 0);
-    // 绑定柱状图 tooltip 事件
-    setTimeout(() => {
-      // code line 分布图 tooltip
-      const codeLineSvg = this.node.querySelector('svg[data-cdf]');
-      if (codeLineSvg) {
-        let tooltipDiv = document.getElementById('galaxy-tooltip');
-        if (!tooltipDiv) {
-          tooltipDiv = document.createElement('div');
-          tooltipDiv.id = 'galaxy-tooltip';
-          tooltipDiv.style.position = 'fixed';
-          tooltipDiv.style.display = 'none';
-          tooltipDiv.style.pointerEvents = 'none';
-          tooltipDiv.style.background = 'rgba(0,0,0,0.75)';
-          tooltipDiv.style.color = '#fff';
-          tooltipDiv.style.padding = '6px 10px';
-          tooltipDiv.style.borderRadius = '4px';
-          tooltipDiv.style.fontSize = '12px';
-          tooltipDiv.style.zIndex = '9999';
-          document.body.appendChild(tooltipDiv);
-        }
-        const points = codeLineSvg.querySelectorAll('circle[data-tooltip]');
-        points.forEach((pt) => {
-          pt.addEventListener('mouseenter', (e) => {
-            tooltipDiv!.textContent = pt.getAttribute('data-tooltip') ?? '';
-            tooltipDiv!.style.display = 'block';
-          });
-          pt.addEventListener('mousemove', (e) => {
-            tooltipDiv!.style.left = (e as MouseEvent).clientX + 12 + 'px';
-            tooltipDiv!.style.top = (e as MouseEvent).clientY + 12 + 'px';
-          });
-          pt.addEventListener('mouseleave', () => {
-            tooltipDiv!.style.display = 'none';
-          });
+
+        // 添加返回按钮悬停效果
+        backBtn.addEventListener('mouseenter', () => {
+          (backBtn as HTMLElement).style.backgroundColor = '#f8f9fa';
+        });
+        backBtn.addEventListener('mouseleave', () => {
+          (backBtn as HTMLElement).style.backgroundColor = 'transparent';
         });
       }
-      // 其它柱状图 tooltip
-      const chartDiv = this.node.querySelector('svg');
-      if (!chartDiv) return;
+    }, 0);
+    // 绑定图表 tooltip 事件
+    setTimeout(() => {
+      // 创建或获取tooltip元素
       let tooltipDiv = document.getElementById('galaxy-tooltip');
       if (!tooltipDiv) {
         tooltipDiv = document.createElement('div');
@@ -857,25 +947,30 @@ export class DetailSidebar extends Widget {
         tooltipDiv.style.position = 'fixed';
         tooltipDiv.style.display = 'none';
         tooltipDiv.style.pointerEvents = 'none';
-        tooltipDiv.style.background = 'rgba(0,0,0,0.75)';
+        tooltipDiv.style.background = 'rgba(33, 37, 41, 0.9)';
         tooltipDiv.style.color = '#fff';
-        tooltipDiv.style.padding = '6px 10px';
-        tooltipDiv.style.borderRadius = '4px';
+        tooltipDiv.style.padding = '8px 12px';
+        tooltipDiv.style.borderRadius = '6px';
         tooltipDiv.style.fontSize = '12px';
+        tooltipDiv.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
         tooltipDiv.style.zIndex = '9999';
+        tooltipDiv.style.whiteSpace = 'pre-line';
         document.body.appendChild(tooltipDiv);
       }
-      const bars = chartDiv.querySelectorAll('rect[data-tooltip]');
-      bars.forEach((bar) => {
-        bar.addEventListener('mouseenter', (e) => {
-          tooltipDiv!.textContent = bar.getAttribute('data-tooltip') ?? '';
+
+      // 为所有带有data-tooltip属性的元素绑定事件
+      const tooltipElements = this.node.querySelectorAll('[data-tooltip]');
+      tooltipElements.forEach((element) => {
+        element.addEventListener('mouseenter', (e) => {
+          const tooltipText = element.getAttribute('data-tooltip') ?? '';
+          tooltipDiv!.textContent = tooltipText;
           tooltipDiv!.style.display = 'block';
         });
-        bar.addEventListener('mousemove', (e) => {
+        element.addEventListener('mousemove', (e) => {
           tooltipDiv!.style.left = (e as MouseEvent).clientX + 12 + 'px';
           tooltipDiv!.style.top = (e as MouseEvent).clientY + 12 + 'px';
         });
-        bar.addEventListener('mouseleave', () => {
+        element.addEventListener('mouseleave', () => {
           tooltipDiv!.style.display = 'none';
         });
       });
@@ -957,7 +1052,7 @@ export class DetailSidebar extends Widget {
     }
     this._mostFreqStage = mostFreqStage;
     this._mostFreqFlow = mostFreqFlow;
-    
+
     // 设置标题为competition名称
     if (this.competitionInfo) {
       this._currentTitle = this.competitionInfo.name;
@@ -1089,26 +1184,46 @@ export class DetailSidebar extends Widget {
 
         return `
           <tr class="filtered-notebook-item" data-notebook-index="${displayIndex}" style="cursor:pointer; transition:background-color 0.15s;">
-            <td style="padding:8px 12px; border-bottom:1px solid #eee; text-align:center; color:#888; font-size:12px; width:40px;">${nb.globalIndex}</td>
-            <td style="padding:8px 12px; border-bottom:1px solid #eee; text-align:center; color:#666; font-size:12px; width:60px;">${clusterId}</td>
-            <td style="padding:8px 12px; border-bottom:1px solid #eee; font-weight:500; color:#333;">${nb.notebook_name ?? nb.kernelVersionId ?? `Notebook ${nb.globalIndex}`}</td>
-            <td style="padding:8px 12px; border-bottom:1px solid #eee; text-align:right; color:#666;">${occurrenceCount}</td>
+            <td style="padding:8px 12px; border-bottom:1px solid #e9ecef; text-align:center; color:#6c757d; font-size:12px; width:40px;">${nb.globalIndex}</td>
+            <td style="padding:8px 12px; border-bottom:1px solid #e9ecef; text-align:center; color:#6c757d; font-size:12px; width:60px;">${clusterId}</td>
+            <td style="padding:8px 12px; border-bottom:1px solid #e9ecef; font-weight:500; color:#495057;">${nb.notebook_name ?? nb.kernelVersionId ?? `Notebook ${nb.globalIndex}`}</td>
+            <td style="padding:8px 12px; border-bottom:1px solid #e9ecef; text-align:right; color:#6c757d;">${occurrenceCount}</td>
           </tr>`;
       }).join('');
 
       this.node.innerHTML = `
-        <div style="padding:20px 18px 18px 18px; font-size:14px; line-height:1.7; color:#222;">
-          <div style="font-size:18px; font-weight:600; margin-bottom:14px;" id="detail-sidebar-title"><span style="${this._getTitleStyle()}">${this._currentTitle}</span></div>
-          <table style="width:100%; border-collapse:collapse; margin-bottom:16px;">
-            <tr><td style="font-weight:500;">Total Occurrences</td><td style="text-align:right;"><b>${totalOccurrences}</b></td></tr>
-            <tr><td style="font-weight:500;">Containing Notebooks</td><td style="text-align:right;"><b>${containingNotebooks}</b></td></tr>
-            <tr><td style="font-weight:500;">Avg per Notebook</td><td style="text-align:right;"><b>${avgPerNotebook.toFixed(1)}</b></td></tr>
-          </table>
-          <div style="margin-top:16px;">
-            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
-              <div style="font-weight:600; color:#333;">Filtered Notebooks (${filteredData.length})</div>
+        <div style="padding:20px 16px 16px 16px; font-size:14px; line-height:1.7; color:#222;">
+          <div style="font-size:18px; font-weight:600; margin-bottom:16px; padding-bottom:12px; border-bottom:1px solid #e9ecef;" id="detail-sidebar-title">
+            <span style="${this._getTitleStyle()}">${this._currentTitle}</span>
+          </div>
+          
+          <div style="background:#f8f9fa; border-radius:8px; padding:16px; margin-bottom:16px; border:1px solid #e9ecef;">
+            <div style="display:flex; flex-direction:row; gap:16px;">
+              <div style="flex:1; display:flex; flex-direction:column; justify-content:flex-end;">
+                <div style="font-size:12px; color:#6c757d; margin-bottom:4px;">Total Occurrences</div>
+                <div style="font-size:15px; font-weight:600; color:#495057;">${totalOccurrences}</div>
+              </div>
+              <div style="flex:1; display:flex; flex-direction:column; justify-content:flex-end;">
+                <div style="font-size:12px; color:#6c757d; margin-bottom:4px;">Containing Notebooks</div>
+                <div style="font-size:15px; font-weight:600; color:#495057;">${containingNotebooks}</div>
+              </div>
+              <div style="flex:1; display:flex; flex-direction:column; justify-content:flex-end;">
+                <div style="font-size:12px; color:#6c757d; margin-bottom:4px;">Avg per Notebook</div>
+                <div style="font-size:15px; font-weight:600; color:#495057;">${avgPerNotebook.toFixed(1)}</div>
+              </div>
+            </div>
+          </div>
+          
+          <div style="margin-bottom:16px;">
+            <div style="font-size:15px; font-weight:600; margin-bottom:12px; color:#222; display:flex; align-items:center; justify-content:space-between;">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M9 12H15M9 16H15M9 8H15M5 3H19C20.1046 3 21 3.89543 21 5V19C21 20.1046 20.1046 21 19 21H5C3.89543 21 3 20.1046 3 19V5C3 3.89543 3.89543 3 5 3Z" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                Filtered Notebooks (${filteredData.length})
+              </div>
               <div style="display:flex; align-items:center; gap:4px;">
-                <span style="font-size:12px; color:#666;">Sort by:</span>
+                <span style="font-size:12px; color:#6c757d;">Sort by:</span>
                 <button id="sort-occurrences-btn" style="background:none; border:none; cursor:pointer; padding:4px; border-radius:4px; transition:background-color 0.15s;" title="Original order (click for occurrences desc)">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M3 12h18" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -1116,14 +1231,14 @@ export class DetailSidebar extends Widget {
                 </button>
               </div>
             </div>
-            <div style="max-height:300px; overflow-y:auto;">
+            <div style="background:#fff; border-radius:8px; border:1px solid #e9ecef; box-shadow:0 1px 3px rgba(0,0,0,0.05); max-height:300px; overflow-y:auto;">
               <table style="width:100%; border-collapse:collapse; font-size:13px;">
                 <thead>
-                  <tr style="background:#f5f5f5;">
-                    <th style="padding:8px 12px; text-align:center; font-weight:600; color:#333; border-bottom:2px solid #ddd; width:40px;">#</th>
-                    <th style="padding:8px 12px; text-align:center; font-weight:600; color:#333; border-bottom:2px solid #ddd; width:60px;">Cluster</th>
-                    <th style="padding:8px 12px; text-align:left; font-weight:600; color:#333; border-bottom:2px solid #ddd;">Notebook</th>
-                    <th style="padding:8px 12px; text-align:right; font-weight:600; color:#333; border-bottom:2px solid #ddd;">Occurrences</th>
+                  <tr style="background:#f8f9fa;">
+                    <th style="padding:8px 12px; text-align:center; font-weight:600; color:#495057; border-bottom:1px solid #e9ecef; width:40px;">#</th>
+                    <th style="padding:8px 12px; text-align:center; font-weight:600; color:#495057; border-bottom:1px solid #e9ecef; width:60px;">Cluster</th>
+                    <th style="padding:8px 12px; text-align:left; font-weight:600; color:#495057; border-bottom:1px solid #e9ecef;">Notebook</th>
+                    <th style="padding:8px 12px; text-align:right; font-weight:600; color:#495057; border-bottom:1px solid #e9ecef;">Occurrences</th>
                   </tr>
                 </thead>
                 <tbody id="filtered-notebooks-tbody">
@@ -1138,16 +1253,17 @@ export class DetailSidebar extends Widget {
       setTimeout(() => {
         const notebookItems = this.node.querySelectorAll('.filtered-notebook-item');
         notebookItems.forEach((item, index) => {
-          item.addEventListener('click', () => {
+          item.addEventListener('click', (e) => {
+            e.stopPropagation(); // 阻止事件冒泡
             const notebook = sortedFilteredData[index];
             if (notebook) {
-              this.setNotebookDetail(notebook);
+              this.setNotebookDetail(notebook, false); // 恢复事件派发，让主程序打开tab
             }
           });
 
           // 添加悬停效果
           item.addEventListener('mouseenter', () => {
-            (item as HTMLElement).style.backgroundColor = '#f0f8ff';
+            (item as HTMLElement).style.backgroundColor = '#e3f2fd';
           });
           item.addEventListener('mouseleave', () => {
             (item as HTMLElement).style.backgroundColor = '';
@@ -1272,10 +1388,15 @@ export class DetailSidebar extends Widget {
               // 重新绑定点击事件
               const newNotebookItems = tbody.querySelectorAll('.filtered-notebook-item');
               newNotebookItems.forEach((item, index) => {
-                item.addEventListener('click', () => {
+                // 先移除可能存在的旧事件监听器
+                const newItem = item.cloneNode(true) as HTMLElement;
+                item.parentNode?.replaceChild(newItem, item);
+                
+                newItem.addEventListener('click', (e) => {
+                  e.stopPropagation(); // 阻止事件冒泡
                   const notebook = sortedData[index];
                   if (notebook) {
-                    this.setNotebookDetail(notebook);
+                    this.setNotebookDetail(notebook, false); // 恢复事件派发，让主程序打开tab
                   }
                 });
 
@@ -1349,19 +1470,36 @@ export class DetailSidebar extends Widget {
     const flowCountText = maxFlowFreq > 0 ? `${maxFlowFreq} count(s)` : 'None';
     // 渲染函数，显示为纯文本
     const renderStageText = () => {
+      // 检查是否所有stage都只出现一次
+      const allStageFreqs = Object.values(stageFreq);
+      const allStagesOnlyOnce = allStageFreqs.length > 0 && allStageFreqs.every(freq => freq === 1);
+
+      if (allStagesOnlyOnce && mostFreqStages.length > 3) {
+        return `<span style="color:#6c757d; font-size:13px; font-style:italic;">All stages appear only once (${mostFreqStages.length} unique stages)</span>`;
+      }
+
       return mostFreqStages.map(stage =>
-        `<span style="color:${this.colorMap.get(stage) || '#0066cc'}; font-weight:600; font-size:14px; margin-right:8px;">${LABEL_MAP[stage] ?? stage}</span>`
+        `<span style="color:${this.colorMap.get(stage) || '#0066cc'}; font-weight:600; font-size:13px; margin-right:6px;">${LABEL_MAP[stage] ?? stage}</span>`
       ).join('');
     };
     const renderFlowText = () => {
       if (mostFreqFlows.length === 0) {
-        return `<span style='color:#aaa; font-size:13px;'>无</span>`;
+        return `<span style='color:#6c757d; font-size:13px; font-style:italic;'>None</span>`;
       }
+
+      // 检查是否所有transition都只出现一次
+      const allFlowFreqs = Object.values(stageFlowFreq);
+      const allFlowsOnlyOnce = allFlowFreqs.length > 0 && allFlowFreqs.every(freq => freq === 1);
+
+      if (allFlowsOnlyOnce && mostFreqFlows.length > 3) {
+        return `<span style="color:#6c757d; font-size:13px; font-style:italic;">All transitions appear only once (${mostFreqFlows.length} unique transitions)</span>`;
+      }
+
       return mostFreqFlows.map(flow => {
         const [from, to] = flow.split(/->|→/);
         const fromColor = this.colorMap.get(from) || '#1976d2';
         const toColor = this.colorMap.get(to) || '#42a5f5';
-        return `<div style="margin-bottom:4px;"><span style="font-weight:600; font-size:14px;"><span style="background: linear-gradient(90deg, ${fromColor}, ${toColor}); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; color: transparent;">${LABEL_MAP[from] ?? from} → ${LABEL_MAP[to] ?? to}</span></span></div>`;
+        return `<div style="margin-bottom:3px;"><span style="font-weight:600; font-size:13px;"><span style="background: linear-gradient(90deg, ${fromColor}, ${toColor}); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; color: transparent;">${LABEL_MAP[from] ?? from} → ${LABEL_MAP[to] ?? to}</span></span></div>`;
       }).join('');
     };
 
@@ -1372,20 +1510,32 @@ export class DetailSidebar extends Widget {
     const barW2 = 24, barH2 = 60, gap2 = 6;
     const svgW2 = stageFreqArr.length * (barW2 + gap2);
     const svgH2 = barH2 + 32;
-    // Stage Occurrence 柱状图自适应宽度+tooltip
-    const stageBarViewBoxW = Math.max(svgW2 + 20, 200);
-    const stageBarChart = `<svg width="100%" height="${svgH2}" viewBox="0 0 ${stageBarViewBoxW} ${svgH2}" style="overflow:visible;">
-      <g transform="translate(18,16)">
+
+    // 自适应缩放：如果图表宽度超过容器，则缩小bar宽度和间距
+    let actualBarW = barW2;
+    let actualGap = gap2;
+    let actualSvgW = svgW2;
+
+    if (svgW2 > 280) { // 留20px边距
+      const scale = 280 / svgW2;
+      actualBarW = Math.max(barW2 * scale, 8); // 最小8px宽度
+      actualGap = Math.max(gap2 * scale, 2); // 最小2px间距
+      actualSvgW = stageFreqArr.length * (actualBarW + actualGap);
+    }
+
+    const stageBarChart = `<svg width="100%" height="${svgH2}" viewBox="0 0 320 ${svgH2}" style="overflow:visible;">
+      <g transform="translate(${(320 - actualSvgW) / 2}, ${(svgH2 - barH2) / 2})">
         ${stageFreqArr.map(([stage, count], i) => `
-          <rect x="${i * (barW2 + gap2)}" y="${barH2 - (count / maxStageCount) * barH2}" width="${barW2}" height="${(count / maxStageCount) * barH2}" fill="${this.colorMap.get(stage) || '#3182bd'}" rx="3" ry="3"
+          <rect x="${i * (actualBarW + actualGap)}" y="${barH2 - (count / maxStageCount) * barH2}" width="${actualBarW}" height="${(count / maxStageCount) * barH2}" fill="${this.colorMap.get(stage) || '#3182bd'}" rx="4" ry="4"
+            style="filter: drop-shadow(0 1px 3px rgba(0,0,0,0.1));"
             onmousemove="(function(evt){var t=document.getElementById('galaxy-tooltip');if(!t){t=document.createElement('div');t.id='galaxy-tooltip';t.style.position='fixed';t.style.display='none';t.style.pointerEvents='none';t.style.background='rgba(0,0,0,0.75)';t.style.color='#fff';t.style.padding='6px 10px';t.style.borderRadius='4px';t.style.fontSize='12px';t.style.zIndex='9999';document.body.appendChild(t);}t.innerHTML='${LABEL_MAP[stage] ?? stage}: ${count}';t.style.display='block';t.style.left=evt.clientX+12+'px';t.style.top=evt.clientY+12+'px';}) (event)"
             onmouseleave="(function(){var t=document.getElementById('galaxy-tooltip');if(t)t.style.display='none';})()"
           >
           </rect>
-          <text x="${i * (barW2 + gap2) + barW2 / 2}" y="${barH2 - (count / maxStageCount) * barH2 - 4}" font-size="11" text-anchor="middle" fill="#222">${count}</text>
+          <text x="${i * (actualBarW + actualGap) + actualBarW / 2}" y="${barH2 - (count / maxStageCount) * barH2 - 6}" font-size="10" font-weight="600" text-anchor="middle" fill="#495057">${count}</text>
         `).join('')}
-        <text x="-6" y="${barH2 + 4}" font-size="10" text-anchor="end" fill="#888">0</text>
-        <text x="-6" y="10" font-size="10" text-anchor="end" fill="#888">${maxStageCount}</text>
+        <text x="-6" y="${barH2 + 4}" font-size="9" text-anchor="end" fill="#6c757d">0</text>
+        <text x="-6" y="10" font-size="9" text-anchor="end" fill="#6c757d">${maxStageCount}</text>
       </g>
     </svg>`;
 
@@ -1417,9 +1567,9 @@ export class DetailSidebar extends Widget {
         const clusterId = simRow ? simRow.cluster_id : '-';
 
         return `<tr class="overview-notebook-item" data-notebook-index="${nb.globalIndex}" style="cursor:pointer; transition:background-color 0.15s;">
-          <td style="padding:8px 12px; border-bottom:1px solid #eee; text-align:center; color:#888; font-size:12px; width:40px;">${nb.globalIndex}</td>
-          <td style="padding:8px 12px; border-bottom:1px solid #eee; text-align:center; color:#666; font-size:12px; width:60px;">${clusterId}</td>
-          <td style="padding:8px 12px; border-bottom:1px solid #eee; font-weight:500; color:#333;">${nb.notebook_name ?? nb.kernelVersionId}</td>
+          <td style="padding:6px 8px; border-bottom:1px solid #e9ecef; text-align:center; color:#6c757d; font-size:11px; width:35px;">${nb.globalIndex}</td>
+          <td style="padding:6px 8px; border-bottom:1px solid #e9ecef; text-align:center; color:#6c757d; font-size:11px; width:50px;">${clusterId}</td>
+          <td style="padding:6px 8px; border-bottom:1px solid #e9ecef; font-weight:500; color:#495057; font-size:12px;">${nb.notebook_name ?? nb.kernelVersionId}</td>
         </tr>`;
       }).join('');
     } else {
@@ -1431,9 +1581,9 @@ export class DetailSidebar extends Widget {
         const clusterId = simRow ? simRow.cluster_id : '-';
 
         return `<tr class="overview-notebook-item" data-notebook-index="${nb.globalIndex}" style="cursor:pointer; transition:background-color 0.15s;">
-          <td style="padding:8px 12px; border-bottom:1px solid #eee; text-align:center; color:#888; font-size:12px; width:40px;">${nb.globalIndex}</td>
-          <td style="padding:8px 12px; border-bottom:1px solid #eee; text-align:center; color:#666; font-size:12px; width:60px;">${clusterId}</td>
-          <td style="padding:8px 12px; border-bottom:1px solid #eee; font-weight:500; color:#333;">${nb.notebook_name ?? nb.kernelVersionId}</td>
+          <td style="padding:6px 8px; border-bottom:1px solid #e9ecef; text-align:center; color:#6c757d; font-size:11px; width:35px;">${nb.globalIndex}</td>
+          <td style="padding:6px 8px; border-bottom:1px solid #e9ecef; text-align:center; color:#6c757d; font-size:11px; width:50px;">${clusterId}</td>
+          <td style="padding:6px 8px; border-bottom:1px solid #e9ecef; font-weight:500; color:#495057; font-size:12px;">${nb.notebook_name ?? nb.kernelVersionId}</td>
         </tr>`;
       }).join('');
     }
@@ -1441,67 +1591,105 @@ export class DetailSidebar extends Widget {
 
     // 渲染
     this.node.innerHTML = `
-      <div style="padding:16px 16px 16px 16px; font-size:14px; line-height:1.5; color:#222;">
-        <div style="margin-bottom:16px;" id="detail-sidebar-title">
-          <div style="font-size:18px; font-weight:700; margin-bottom:6px; line-height:1.3; color:#222;">
-            <span style="${this._getTitleStyle()}">${this._currentTitle}</span>
-          </div>
-          ${this.competitionInfo ? `
-          <div style="display:flex; align-items:center; gap:8px;">
-            <a href="${this.competitionInfo.url}" target="_blank" class="kaggle-link" style="font-size:13px; color:#1976d2; text-decoration:none; display:inline-flex; align-items:center; gap:5px; font-weight:500; padding:6px 10px; border-radius:6px; background:rgba(25,118,210,0.08); border:1px solid rgba(25,118,210,0.2); transition:all 0.2s ease;">
-              <span>View on Kaggle</span>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M7 17L17 7M17 7H7M17 7V17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <div style="padding:16px 12px 12px 12px; font-size:13px; line-height:1.4; color:#222;">
+        <div style="margin-bottom:12px;" id="detail-sidebar-title">
+          <div style="font-size:18px; font-weight:700; margin-bottom:6px; line-height:1.3; color:#222; padding-bottom:8px; border-bottom:1px solid #e9ecef;">
+            <span style="${this._getTitleStyle()}">${this._currentTitle}</span>${this.competitionInfo ? `
+            <a href="${this.competitionInfo.url}" target="_blank" class="kaggle-link" style="display:inline-flex; align-items:center; text-decoration:none; margin-left:8px; vertical-align:baseline; height:23.4px; line-height:23.4px;" title="View on Kaggle">
+              <svg width="24" height="24" viewBox="0 0 163 63.2" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M26.92 47c-.05.18-.24.27-.56.27h-6.17a1.24 1.24 0 0 1-1-.48L9 33.78l-2.83 2.71v10.06a.61.61 0 0 1-.69.69H.69a.61.61 0 0 1-.69-.69V.69A.61.61 0 0 1 .69 0h4.79a.61.61 0 0 1 .69.69v28.24l12.21-12.35a1.44 1.44 0 0 1 1-.49h6.39a.54.54 0 0 1 .55.35.59.59 0 0 1-.07.63L13.32 29.55l13.46 16.72a.65.65 0 0 1 .14.73ZM51.93 47.24h-4.79c-.51 0-.76-.23-.76-.69v-1a12.77 12.77 0 0 1-7.84 2.29A11.28 11.28 0 0 1 31 45.16a9 9 0 0 1-3.12-7.07q0-6.81 8.46-9.23a61.55 61.55 0 0 1 10.06-1.67A5.47 5.47 0 0 0 40.48 21a14 14 0 0 0-7.91 2.77c-.41.24-.71.19-.9-.13l-2.5-3.54c-.23-.28-.16-.6.21-1a19.32 19.32 0 0 1 11.1-3.68A13.29 13.29 0 0 1 48 17.55q4.59 3.06 4.58 9.78v19.22a.61.61 0 0 1-.65.69Zm-5.55-14.5q-6.8.7-9.3 1.81Q33.69 36 34 38.71a3.49 3.49 0 0 0 1.53 2.46 5.87 5.87 0 0 0 3 1.08 9.49 9.49 0 0 0 7.77-2.57ZM81 59.28q-3.81 3.92-10.74 3.92a15.41 15.41 0 0 1-7.63-2c-.51-.33-1.11-.76-1.81-1.29s-1.5-1.19-2.43-2a.72.72 0 0 1-.07-1l3.26-3.26a.76.76 0 0 1 .56-.21.68.68 0 0 1 .49.21c2.58 2.58 5.11 3.88 7.56 3.88q8.39 0 8.39-8.74v-3.63a13.1 13.1 0 0 1-8.67 2.71 12.48 12.48 0 0 1-10.55-5.07A18.16 18.16 0 0 1 56 31.63a18 18 0 0 1 3.2-10.82 12.19 12.19 0 0 1 10.61-5.34 13.93 13.93 0 0 1 8.74 2.71v-1.39a.62.62 0 0 1 .69-.7h4.79a.62.62 0 0 1 .7.7v31q.03 7.57-3.73 11.49ZM78.58 26q-1.74-4.44-8-4.44-8.11 0-8.11 10.12 0 5.63 2.7 8.19a7.05 7.05 0 0 0 5.21 2q6.51 0 8.25-4.44ZM113.59 59.28q-3.78 3.91-10.72 3.92a15.44 15.44 0 0 1-7.63-2q-.76-.49-1.8-1.29c-.7-.53-1.51-1.19-2.43-2a.7.7 0 0 1-.07-1l3.26-3.26a.74.74 0 0 1 .55-.21.67.67 0 0 1 .49.21c2.59 2.58 5.11 3.88 7.56 3.88q8.4 0 8.4-8.74v-3.63a13.14 13.14 0 0 1-8.68 2.71A12.46 12.46 0 0 1 92 42.8a18.09 18.09 0 0 1-3.33-11.17 18 18 0 0 1 3.19-10.82 12.21 12.21 0 0 1 10.61-5.34 14 14 0 0 1 8.75 2.71v-1.39a.62.62 0 0 1 .69-.7h4.79a.62.62 0 0 1 .69.7v31q-.02 7.57-3.8 11.49ZM111.2 26q-1.74-4.44-8-4.44-8.2-.05-8.2 10.07 0 5.63 2.71 8.19a7 7 0 0 0 5.2 2q6.53 0 8.26-4.44ZM128 47.24h-4.78a.62.62 0 0 1-.7-.69V.69a.62.62 0 0 1 .7-.69H128a.61.61 0 0 1 .7.69v45.86a.61.61 0 0 1-.7.69ZM162.91 33.16a.62.62 0 0 1-.7.69h-22.54a8.87 8.87 0 0 0 2.91 5.69 10.63 10.63 0 0 0 7.15 2.46 11.64 11.64 0 0 0 6.86-2.15c.42-.28.77-.28 1 0l3.26 3.33c.37.37.37.69 0 1a18.76 18.76 0 0 1-11.58 3.75 16 16 0 0 1-11.8-4.72 16.2 16.2 0 0 1-4.57-11.86 16 16 0 0 1 4.51-11.52 14.36 14.36 0 0 1 10.82-4.3A14.07 14.07 0 0 1 158.88 20 15 15 0 0 1 163 31.63ZM153.82 23a8.18 8.18 0 0 0-5.69-2.15 8.06 8.06 0 0 0-5.48 2.08 9.24 9.24 0 0 0-3 5.41h16.71a7 7 0 0 0-2.54-5.34Z" fill="#20beff"/>
+              </svg>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin-left:2px;">
+                <path d="M7 17L17 7M17 7H7M17 7V17" stroke="#20beff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
             </a>
+            ` : ''}
           </div>
-          ` : ''}
         </div>
-        <table style="width:100%; border-collapse:collapse; margin-bottom:8px;">
-          <tr><td style="font-weight:500;">Total Notebooks</td><td style="text-align:right;"><b>${notebookCount}</b></td></tr>
-          <tr><td style="font-weight:500;">Total Cells</td><td style="text-align:right;"><b>${totalCellCount}</b></td></tr>
-          <tr><td style="font-weight:500;">Average Cells per Notebook</td><td style="text-align:right;"><b>${avgCellCount.toFixed(2)}</b></td></tr>
-        </table>
-        <hr style="margin:16px 0 10px 0; border:none; border-top:1px solid #eee;">
-        <div style="font-size:16px; font-weight:600; margin-bottom:10px;">Stage Analysis</div>
+        
+        <div style="background:#f8f9fa; border-radius:6px; padding:12px; margin-bottom:12px; border:1px solid #e9ecef;">
+          <div style="display:flex; flex-direction:row; gap:12px;">
+            <div style="flex:1; display:flex; flex-direction:column; justify-content:flex-end;">
+              <div style="font-size:11px; color:#6c757d; margin-bottom:2px;">Total Notebooks</div>
+              <div style="font-size:14px; font-weight:600; color:#495057;">${notebookCount}</div>
+            </div>
+            <div style="flex:1; display:flex; flex-direction:column; justify-content:flex-end;">
+              <div style="font-size:11px; color:#6c757d; margin-bottom:2px;">Total Cells</div>
+              <div style="font-size:14px; font-weight:600; color:#495057;">${totalCellCount}</div>
+            </div>
+            <div style="flex:1; display:flex; flex-direction:column; justify-content:flex-end;">
+              <div style="font-size:11px; color:#6c757d; margin-bottom:2px;">Avg Cells</div>
+              <div style="font-size:14px; font-weight:600; color:#495057;">${avgCellCount.toFixed(2)}</div>
+            </div>
+          </div>
+        </div>
+        
         <div style="margin-bottom:16px;">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; color:#555;"><span style="font-weight:500;">Most Common Stage(s)</span><span style="color:#1976d2; font-size:14px; font-weight:600;">${stageCountText}</span></div>
-          <div style="display:flex; flex-wrap:wrap; gap:8px;" id="dsb-stage-links">${renderStageText()}</div>
+          <div style="font-size:14px; font-weight:600; margin-bottom:8px; color:#222; display:flex; align-items:center; gap:6px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M9 11H15M9 15H15M9 7H15M5 3H19C20.1046 3 21 3.89543 21 5V19C21 20.1046 20.1046 21 19 21H5C3.89543 21 3 20.1046 3 19V5C3 3.89543 3.89543 3 5 3Z" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Stage Analysis
+          </div>
+          <div style="background:#fff; border-radius:6px; padding:12px; border:1px solid #e9ecef; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+            <div style="margin-bottom:12px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; color:#495057;">
+                <span style="font-weight:500; font-size:13px;">Most Common Stage(s)</span>
+                <span style="color:#1976d2; font-size:12px; font-weight:600;">${stageCountText}</span>
+              </div>
+              <div style="display:flex; flex-wrap:wrap; gap:6px;" id="dsb-stage-links">${renderStageText()}</div>
+            </div>
+            <div style="margin-bottom:0px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; color:#495057;">
+                <span style="font-weight:500; font-size:13px;">Most Common Transition(s)</span>
+                <span style="color:#1976d2; font-size:12px; font-weight:600;">${flowCountText}</span>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:3px;" id="dsb-flow-links">${renderFlowText()}</div>
+            </div>
+          </div>
         </div>
+        
         <div style="margin-bottom:16px;">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; color:#555;"><span style="font-weight:500;">Most Common Transition(s)</span><span style="color:#1976d2; font-size:14px; font-weight:600;">${flowCountText}</span></div>
-          <div style="display:flex; flex-direction:column; gap:4px;" id="dsb-flow-links">${renderFlowText()}</div>
+          <div style="font-size:14px; font-weight:600; margin-bottom:8px; color:#222; display:flex; align-items:center; gap:6px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M3 3v18h18" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M18 17V9" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M13 17V5" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M8 17v-3" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Stage Frequency Distribution
+          </div>
+          <div style="background:#fff; border-radius:6px; padding:8px; border:1px solid #e9ecef; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+            <div style="width:100%; max-width:320px; margin:0 auto;">${stageBarChart}</div>
+          </div>
         </div>
-        <div style="margin:8px 0 4px 0; font-weight:600; font-size:14px;">Stage Frequency Distribution</div>
-        <div style="height:4px;"></div>
-        <div style="margin: 4px 0 0px 0; width:100%; max-width:600px; margin-left:auto; margin-right:auto;">${stageBarChart}</div>
-        <hr style="margin:0px 0 8px 0; border:none; border-top:1px solid #eee;">
-        <div style="font-size:15px; font-weight:600; margin:12px 0 6px 0;">Notebook List</div>
-        <div style="max-height:280px; overflow-y:auto;">
-          <table style="width:100%; border-collapse:collapse; font-size:13px;">
-            <thead>
-              <tr style="background:#f5f5f5;">
-                <th style="padding:6px 10px; text-align:center; font-weight:600; color:#333; border-bottom:2px solid #ddd; width:40px;">#</th>
-                <th style="padding:6px 10px; text-align:center; font-weight:600; color:#333; border-bottom:2px solid #ddd; width:60px;">Cluster</th>
-                <th style="padding:6px 10px; text-align:left; font-weight:600; color:#333; border-bottom:2px solid #ddd;">Notebook</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${notebookListHtml}
-            </tbody>
-          </table>
+        
+        <div style="margin-bottom:12px;">
+          <div style="font-size:14px; font-weight:600; margin-bottom:8px; color:#222; display:flex; align-items:center; gap:6px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M9 12H15M9 16H15M9 8H15M5 3H19C20.1046 3 21 3.89543 21 5V19C21 20.1046 20.1046 21 19 21H5C3.89543 21 3 20.1046 3 19V5C3 3.89543 3.89543 3 5 3Z" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Notebook List
+          </div>
+          <div style="background:#fff; border-radius:6px; border:1px solid #e9ecef; box-shadow:0 1px 3px rgba(0,0,0,0.05); max-height:240px; overflow-y:auto;">
+            <table style="width:100%; border-collapse:collapse; font-size:12px;">
+              <thead>
+                <tr style="background:#f8f9fa;">
+                  <th style="padding:6px 8px; text-align:center; font-weight:600; color:#495057; border-bottom:1px solid #e9ecef; width:35px;">#</th>
+                  <th style="padding:6px 8px; text-align:center; font-weight:600; color:#495057; border-bottom:1px solid #e9ecef; width:50px;">Cluster</th>
+                  <th style="padding:6px 8px; text-align:left; font-weight:600; color:#495057; border-bottom:1px solid #e9ecef;">Notebook</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${notebookListHtml}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
       <style>
         .kaggle-link:hover {
-          background: rgba(25,118,210,0.12) !important;
-          border-color: rgba(25,118,210,0.3) !important;
-          transform: translateY(-1px);
-          box-shadow: 0 2px 6px rgba(25,118,210,0.2);
-        }
-        .kaggle-link:active {
-          transform: translateY(0);
-          box-shadow: 0 1px 3px rgba(25,118,210,0.15);
+          opacity: 0.8;
         }
       </style>
     `;
@@ -1511,15 +1699,16 @@ export class DetailSidebar extends Widget {
       notebookItems.forEach((item) => {
         const globalIdx = parseInt((item as HTMLElement).getAttribute('data-notebook-index') || '0', 10);
 
-        item.addEventListener('click', () => {
+        item.addEventListener('click', (e) => {
+          e.stopPropagation(); // 阻止事件冒泡
           if (this._allData && this._allData[globalIdx - 1]) { // globalIndex从1开始，所以需要减1
-            this.setNotebookDetail(this._allData[globalIdx - 1], false); // 不跳过事件派发，让setNotebookDetail来处理
+            this.setNotebookDetail(this._allData[globalIdx - 1], false); // 恢复事件派发，让主程序打开tab
           }
         });
 
         // 添加悬停效果
         item.addEventListener('mouseenter', () => {
-          (item as HTMLElement).style.backgroundColor = '#f0f8ff';
+          (item as HTMLElement).style.backgroundColor = '#e3f2fd';
         });
         item.addEventListener('mouseleave', () => {
           (item as HTMLElement).style.backgroundColor = '';
@@ -1569,11 +1758,12 @@ export class DetailSidebar extends Widget {
         tooltipDiv.style.position = 'fixed';
         tooltipDiv.style.display = 'none';
         tooltipDiv.style.pointerEvents = 'none';
-        tooltipDiv.style.background = 'rgba(0,0,0,0.75)';
+        tooltipDiv.style.background = 'rgba(33, 37, 41, 0.9)';
         tooltipDiv.style.color = '#fff';
-        tooltipDiv.style.padding = '6px 10px';
-        tooltipDiv.style.borderRadius = '4px';
+        tooltipDiv.style.padding = '8px 12px';
+        tooltipDiv.style.borderRadius = '6px';
         tooltipDiv.style.fontSize = '12px';
+        tooltipDiv.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
         tooltipDiv.style.zIndex = '9999';
         document.body.appendChild(tooltipDiv);
       }
@@ -1615,7 +1805,7 @@ export class DetailSidebar extends Widget {
 
   }
 
-  // 渲染代码行数分布柱状图
+  // 渲染代码行数分布直方图
   private _renderCodeLineDistChart(cell: any, allNotebooks: any[], stageColor?: string): string {
     // 收集所有同 stage 的 code cell 的代码行数
     const stage = cell["1st-level label"];
@@ -1629,67 +1819,109 @@ export class DetailSidebar extends Widget {
         }
       });
     });
-    if (codeLineCounts.length === 0) return '<div style="color:#aaa; font-size:13px;">No code cells in this stage.</div>';
-    // 累计分布（CDF）
-    codeLineCounts.sort((a, b) => a - b);
-    const n = codeLineCounts.length;
-    // 横轴分点（自适应，最多30个点）
-    const maxLine = codeLineCounts[n - 1];
-    let xTicks: number[] = [];
-    if (maxLine <= 30) {
-      for (let i = 0; i <= maxLine; ++i) xTicks.push(i);
-    } else {
-      const step = Math.ceil(maxLine / 30);
-      for (let i = 0; i <= maxLine; i += step) xTicks.push(i);
-      if (xTicks[xTicks.length - 1] !== maxLine) xTicks.push(maxLine);
+    if (codeLineCounts.length === 0) return '<div style="color:#6c757d; font-size:13px; text-align:center; padding:20px; font-style:italic;">No code cells in this stage.</div>';
+
+    // 计算直方图的区间
+    const minLines = Math.min(...codeLineCounts);
+    const maxLines = Math.max(...codeLineCounts);
+    const binCount = Math.min(15, Math.max(5, Math.ceil(Math.sqrt(codeLineCounts.length)))); // 自适应bin数量
+    const binWidth = (maxLines - minLines) / binCount;
+
+    // 统计每个区间的频率
+    const bins: number[] = Array(binCount).fill(0);
+    const binRanges: { start: number; end: number }[] = [];
+
+    for (let i = 0; i < binCount; i++) {
+      const start = minLines + i * binWidth;
+      const end = minLines + (i + 1) * binWidth;
+      binRanges.push({ start, end });
+
+      codeLineCounts.forEach(count => {
+        if (count >= start && count < end) {
+          bins[i]++;
+        }
+      });
     }
-    // 计算每个 xTick 的累计百分比
-    const cdf: { x: number, y: number }[] = xTicks.map(x => {
-      const count = codeLineCounts.filter(v => v <= x).length;
-      return { x, y: count / n };
-    });
+
+    // 处理最后一个区间包含最大值的情况
+    bins[binCount - 1] += codeLineCounts.filter(count => count === maxLines).length;
+
+    const maxFreq = Math.max(...bins);
+    const minBarHeight = 3; // 最小柱状图高度，确保小值也能看见
+
     // 当前 cell 的代码行数
     const currLines = (cell.source ?? cell.code ?? '').split(/\r?\n/).length;
-    // SVG
-    const chartW = 220, chartH = 48;
-    const xMin = 0, xMax = xTicks[xTicks.length - 1];
-    const yMin = 0, yMax = 1;
-    // 坐标变换，顶部留8像素边距
-    const yTopMargin = 8;
-    const yMap = (y: number) => yTopMargin + (chartH - yTopMargin) - ((y - yMin) / (yMax - yMin)) * (chartH - yTopMargin);
-    const xMap = (x: number) => ((x - xMin) / (xMax - xMin)) * chartW;
-    // 折线
-    let linePath = '';
-    cdf.forEach((pt, i) => {
-      const x = xMap(pt.x), y = yMap(pt.y);
-      linePath += (i === 0 ? 'M' : 'L') + x + ' ' + y + ' ';
+
+    // SVG 参数
+    const chartW = 280, chartH = 100;
+    const barW = chartW / binCount;
+    const gap = 1; // 柱状图之间的间距
+
+    // 生成直方图
+    let barsSvg = '';
+    bins.forEach((freq, i) => {
+      const barHeight = Math.max(minBarHeight, (freq / maxFreq) * (chartH - 28));
+      const x = i * barW;
+      const y = chartH - barHeight;
+
+      barsSvg += `<rect x="${x + gap / 2}" y="${y}" width="${barW - gap}" height="${barHeight}" 
+        fill="${stageColor || '#1976d2'}" rx="2" ry="2" 
+        style="filter: drop-shadow(0 1px 2px rgba(0,0,0,0.1));"
+        data-tooltip="Lines: ${binRanges[i].start.toFixed(0)}-${binRanges[i].end.toFixed(0)}\nCount: ${freq} cells" />`;
+
+      // 移除柱状图顶部的数值标签
     });
-    // 当前 cell 的竖线
-    const currX = xMap(currLines);
-    const mainColor = stageColor || '#1976d2';
-    const currLineSvg = `<line x1="${currX}" y1="${yTopMargin}" x2="${currX}" y2="${chartH}" stroke="${mainColor}" stroke-width="2" />`;
-    // 横纵坐标
+
+    // 添加当前cell位置的竖线
+    let currentLineSvg = '';
+    const currentBinIndex = binRanges.findIndex(range =>
+      currLines >= range.start && currLines < range.end
+    );
+
+    if (currentBinIndex !== -1) {
+      const currentX = currentBinIndex * barW + barW / 2;
+      currentLineSvg = `<line x1="${currentX}" y1="0" x2="${currentX}" y2="${chartH}" stroke="#dc3545" stroke-width="2.5" />`;
+    }
+
+    // 坐标轴
     const axisSvg = [
-      `<line x1="0" y1="${chartH}" x2="${chartW}" y2="${chartH}" stroke="#bbb" stroke-width="1" />`,
-      `<text x="0" y="${chartH + 12}" font-size="11" fill="#888" text-anchor="start">0</text>`,
-      `<text x="${chartW}" y="${chartH + 12}" font-size="11" fill="#888" text-anchor="end">${xMax}</text>`,
-      `<line x1="0" y1="${yTopMargin}" x2="0" y2="${chartH}" stroke="#bbb" stroke-width="1" />`,
-      `<text x="-2" y="${yTopMargin + 10}" font-size="11" fill="#888" text-anchor="end">100%</text>`,
-      `<text x="-2" y="${chartH}" font-size="11" fill="#888" text-anchor="end">0%</text>`
+      // 横坐标主线
+      `<line x1="0" y1="${chartH}" x2="${chartW}" y2="${chartH}" stroke="#dee2e6" stroke-width="1" />`,
+      // 纵坐标主线
+      `<line x1="0" y1="0" x2="0" y2="${chartH}" stroke="#dee2e6" stroke-width="1" />`,
+      // 纵坐标标签
+      `<text x="-4" y="10" font-size="11" fill="#6c757d" text-anchor="end">${maxFreq}</text>`,
+      `<text x="-4" y="${chartH}" font-size="11" fill="#6c757d" text-anchor="end">0</text>`
     ].join('');
-    // tooltip 事件
-    // 鼠标悬浮在折线上最近的点显示 tooltip
-    // 生成点
-    const pointsSvg = cdf.map(pt => {
-      const x = xMap(pt.x), y = yMap(pt.y);
-      return `<circle cx="${x}" cy="${y}" r="3" fill="${mainColor}" data-tooltip="≤${pt.x} lines: ${(pt.y * 100).toFixed(1)}%" />`;
+
+    // 横坐标标签（显示区间范围）
+    const labelStep = Math.max(1, Math.ceil(binCount / 6));
+    const labelsSvg = binRanges.map((range, i) => {
+      if (i % labelStep === 0 || i === binCount - 1) {
+        const x = i * barW + barW / 2;
+        const label = `${range.start.toFixed(0)}-${range.end.toFixed(0)}`;
+        return `<text x="${x}" y="${chartH + 12}" font-size="9" fill="#6c757d" text-anchor="middle">${label}</text>`;
+      }
+      return '';
     }).join('');
-    return `<svg data-cdf="1" width="100%" height="${chartH + 32}" viewBox="-18 0 ${chartW + 18} ${chartH + 32}">
-      <path d="${linePath}" fill="none" stroke="${mainColor}" stroke-width="2" />
-      ${pointsSvg}
-      ${currLineSvg}
-      ${axisSvg}
+
+    const chartSvg = `<svg width="100%" height="${chartH + 44}" viewBox="-8 0 320 ${chartH + 44}">
+      <g transform="translate(${(320 - chartW + 8) / 2}, ${(chartH + 44 - chartH) / 2})">
+        ${barsSvg}
+        ${currentLineSvg}
+        ${axisSvg}
+        ${labelsSvg}
+      </g>
     </svg>`;
+
+    // Legend
+    const legendHtml = `<div style="display:flex; align-items:center; gap:6px; font-size:11px; color:#6c757d; margin-top:6px; justify-content:center;">
+      <span style="display:inline-flex;align-items:center; padding:2px 5px; background:#f8f9fa; border-radius:3px;">
+        <span style="display:inline-block;width:10px;height:0;border-top:2px solid #dc3545;margin-right:3px;"></span>Current: ${currLines} lines
+      </span>
+    </div>`;
+
+    return chartSvg + legendHtml;
   }
 
   private getVoteCount(nb: any): number | null {
