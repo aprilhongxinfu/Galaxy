@@ -856,6 +856,18 @@ export class MatrixWidget extends Widget {
                             .classed('matrix-dim', false)
                             .attr('stroke', d.cellType === 'code' ? color(String(d["1st-level label"] ?? "None")) : '#bbb')
                             .attr('filter', 'drop-shadow(0px 0px 6px rgba(0,0,0,0.18))');
+                        
+                        // 派发notebook高亮事件
+                        const notebookIndex = (d as any).globalIndex || nb.globalIndex;
+                        if (notebookIndex) {
+                            window.dispatchEvent(new CustomEvent('galaxy-notebook-highlight', {
+                                detail: { 
+                                    notebookIndex: notebookIndex,
+                                    highlight: true 
+                                }
+                            }));
+                        }
+                        
                         let tooltip = document.getElementById('galaxy-tooltip');
                         if (!tooltip) {
                             tooltip = document.createElement('div');
@@ -913,7 +925,7 @@ export class MatrixWidget extends Widget {
                         tooltip!.style.left = event.clientX + 12 + 'px';
                         tooltip!.style.top = event.clientY + 12 + 'px';
                     })
-                    .on('mouseout', function () {
+                    .on('mouseout', function (event, d) {
                         d3.select(this).classed('matrix-highlight', false)
                             .attr('filter', null);
                         const datum = d3.select(this).datum() as Cell;
@@ -922,6 +934,18 @@ export class MatrixWidget extends Widget {
                         } else {
                             d3.select(this).attr('stroke', color(String(datum["1st-level label"] ?? "None")));
                         }
+                        
+                        // 取消notebook高亮
+                        const notebookIndex = (d as any).globalIndex || nb.globalIndex;
+                        if (notebookIndex) {
+                            window.dispatchEvent(new CustomEvent('galaxy-notebook-highlight', {
+                                detail: { 
+                                    notebookIndex: notebookIndex,
+                                    highlight: false 
+                                }
+                            }));
+                        }
+                        
                         const tooltip = document.getElementById('galaxy-tooltip');
                         tooltip!.style.display = 'none';
                     })

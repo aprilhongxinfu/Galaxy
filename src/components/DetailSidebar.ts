@@ -90,15 +90,19 @@ export class DetailSidebar extends Widget {
     window.addEventListener('galaxy-notebook-order-changed', (e: any) => {
       this.notebookOrder = e.detail?.notebookOrder ?? [];
     });
+    
+
   }
 
   onAfterAttach() {
     // 恢复之前的筛选状态
     this.restoreDetailFilterState();
     window.addEventListener('galaxy-cell-detail', this._cellDetailHandler);
+    window.addEventListener('galaxy-notebook-highlight', this._notebookHighlightHandler);
   }
   onBeforeDetach() {
     window.removeEventListener('galaxy-cell-detail', this._cellDetailHandler);
+    window.removeEventListener('galaxy-notebook-highlight', this._notebookHighlightHandler);
   }
   private _cellDetailHandler = (e: Event) => {
     const cell = (e as CustomEvent).detail.cell;
@@ -108,6 +112,11 @@ export class DetailSidebar extends Widget {
     } else {
       this.setCellDetail(cell);
     }
+  };
+  
+  private _notebookHighlightHandler = (e: Event) => {
+    const { notebookIndex, highlight } = (e as CustomEvent).detail;
+    this.highlightNotebookInList(notebookIndex, highlight);
   };
 
 
@@ -1234,7 +1243,7 @@ export class DetailSidebar extends Widget {
                 </button>
               </div>
             </div>
-            <div style="background:#fff; border-radius:8px; border:1px solid #e9ecef; box-shadow:0 1px 3px rgba(0,0,0,0.05); max-height:300px; overflow-y:auto;">
+            <div class="notebook-list-container" style="background:#fff; border-radius:8px; border:1px solid #e9ecef; box-shadow:0 1px 3px rgba(0,0,0,0.05); max-height:300px; overflow-y:auto;">
               <table style="width:100%; border-collapse:collapse; font-size:13px;">
                 <thead>
                   <tr style="background:#f8f9fa;">
@@ -1674,7 +1683,7 @@ export class DetailSidebar extends Widget {
             </svg>
             Notebook List
           </div>
-          <div style="background:#fff; border-radius:6px; border:1px solid #e9ecef; box-shadow:0 1px 3px rgba(0,0,0,0.05); max-height:240px; overflow-y:auto;">
+          <div class="notebook-list-container" style="background:#fff; border-radius:6px; border:1px solid #e9ecef; box-shadow:0 1px 3px rgba(0,0,0,0.05); max-height:240px; overflow-y:auto;">
             <table style="width:100%; border-collapse:collapse; font-size:12px;">
               <thead>
                 <tr style="background:#f8f9fa;">
@@ -2002,5 +2011,95 @@ export class DetailSidebar extends Widget {
         this.setSummary(this._allData, this._mostFreqStage, this._mostFreqFlow, this.notebookOrder);
       }
     }
+  }
+
+  // 高亮notebook列表中的指定notebook
+  private highlightNotebookInList(notebookIndex: number, highlight: boolean) {
+    // 处理overview notebooks
+    const overviewNotebookItems = this.node.querySelectorAll('.overview-notebook-item');
+    overviewNotebookItems.forEach((item) => {
+      const globalIdx = parseInt((item as HTMLElement).getAttribute('data-notebook-index') || '0', 10);
+      if (globalIdx === notebookIndex) {
+        (item as HTMLElement).style.backgroundColor = highlight ? '#e3f2fd' : '';
+        
+        // 如果是高亮，滚动到该notebook位置
+        if (highlight) {
+          const tableContainer = this.node.querySelector('.notebook-list-container');
+          if (tableContainer) {
+            item.scrollIntoView({ 
+              behavior: 'smooth', 
+              block: 'center',
+              inline: 'nearest'
+            });
+          }
+        }
+      }
+    });
+    
+    // 处理filtered notebooks
+    const filteredNotebookItems = this.node.querySelectorAll('.filtered-notebook-item');
+    filteredNotebookItems.forEach((item) => {
+      const displayIndex = parseInt((item as HTMLElement).getAttribute('data-notebook-index') || '0', 10);
+      // 对于filtered notebooks，我们需要通过displayIndex找到对应的notebook
+      // 这里需要根据当前的filteredData来确定
+      if (this.filter && this._allData) {
+        // 获取当前filteredData中对应displayIndex的notebook
+        const filteredData = this.getFilteredData();
+        if (filteredData && filteredData[displayIndex]) {
+          const nb = filteredData[displayIndex];
+          if (nb.globalIndex === notebookIndex) {
+            (item as HTMLElement).style.backgroundColor = highlight ? '#e3f2fd' : '';
+            
+            // 如果是高亮，滚动到该notebook位置
+            if (highlight) {
+              const tableContainer = this.node.querySelector('.notebook-list-container');
+              if (tableContainer) {
+                item.scrollIntoView({ 
+                  behavior: 'smooth', 
+                  block: 'center',
+                  inline: 'nearest'
+                });
+              }
+            }
+          }
+        }
+      }
+    });
+  }
+  
+  // 获取当前filtered data的辅助方法
+  private getFilteredData(): any[] {
+    if (!this._allData || !Array.isArray(this._allData) || this._allData.length === 0) {
+      return [];
+    }
+    
+    const hiddenStages = this._hiddenStages ?? new Set(['6', '1']);
+    let filteredData = this._allData.map((nb) => {
+      return {
+        ...nb,
+        cells: (nb.cells ?? []).filter(cell => {
+          const stage = String(cell["1st-level label"] ?? "None");
+          return !hiddenStages.has(stage);
+        })
+      };
+    }).filter(nb => nb.cells.length > 0);
+    
+    if (this.filter) {
+      if (this.filter.type === 'stage') {
+        filteredData = filteredData.filter(nb => nb.cells.some((cell: any) => String(cell["1st-level label"] ?? "None") === this.filter.stage));
+      } else if (this.filter.type === 'flow') {
+        filteredData = filteredData.filter(nb => {
+          const cells = nb.cells;
+          for (let i = 0; i < cells.length - 1; i++) {
+            const a = String(cells[i]["1st-level label"] ?? "None");
+            const b = String(cells[i + 1]["1st-level label"] ?? "None");
+            if (a === this.filter.from && b === this.filter.to) return true;
+          }
+          return false;
+        });
+      }
+    }
+    
+    return filteredData;
   }
 } 
