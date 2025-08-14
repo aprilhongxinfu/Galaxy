@@ -257,7 +257,10 @@ export class DetailSidebar extends Widget {
     const stageCounts: Record<string, number> = {};
     cells.forEach((c: any) => {
       const stage = String(c["1st-level label"] ?? "None");
-      stageCounts[stage] = (stageCounts[stage] || 0) + 1;
+      // 排除被隐藏的stage
+      if (stage !== 'None' && !hiddenStages.has(stage)) {
+        stageCounts[stage] = (stageCounts[stage] || 0) + 1;
+      }
     });
 
     const sortedStages = Object.entries(stageCounts).sort((a, b) => b[1] - a[1]);
@@ -277,13 +280,13 @@ export class DetailSidebar extends Widget {
       const scale = 280 / svgW;
       actualBarW = Math.max(barW * scale, 10); // 最小10px宽度
       actualGap = Math.max(gap * scale, 3); // 最小3px间距
-      actualSvgW = sortedStages.filter(([stage]) => stage !== "None").length * (actualBarW + actualGap);
+      actualSvgW = sortedStages.filter(([stage]) => stage !== "None" && !hiddenStages.has(stage)).length * (actualBarW + actualGap);
     }
 
     const barChart = `<svg width="100%" height="${svgH}" viewBox="0 0 320 ${svgH}" style="overflow:visible;">
       <g transform="translate(${(320 - actualSvgW) / 2}, ${(svgH - barH) / 2})">
         ${sortedStages
-        .filter(([stage]) => stage !== "None")
+        .filter(([stage]) => stage !== "None" && !hiddenStages.has(stage))
         .map(([stage, n], i) => `
             <rect x="${i * (actualBarW + actualGap)}"
                   y="${barH - (n / maxBar) * barH}"
@@ -1417,8 +1420,8 @@ export class DetailSidebar extends Widget {
     }
 
     // 没有filter时：显示原来的统计信息
-    // 统计真实cell数并保留全局globalIndex
-    const cellCountsWithIndex = data.map(nb => {
+    // 统计真实cell数并保留全局globalIndex（排除被隐藏的stage）
+    const cellCountsWithIndex = filteredData.map(nb => {
       const orig = this._allData.find(item =>
         item.kernelVersionId && nb.kernelVersionId && item.kernelVersionId === nb.kernelVersionId
       );
