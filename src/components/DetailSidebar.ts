@@ -340,9 +340,6 @@ export class DetailSidebar extends Widget {
       selectedStageInfo = `
         <div style="margin-bottom:16px;">
           <div style="font-size:14px; font-weight:600; margin-bottom:8px; color:#222; display:flex; align-items:center; gap:6px;">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M9 12L11 14L15 10M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
             Selected Stage: <span style="color:${stageColor}; font-weight:600;">${stageLabel}</span>
           </div>
           <div style="background:#fff; border-radius:6px; padding:12px; border:1px solid #e9ecef; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
@@ -401,9 +398,6 @@ export class DetailSidebar extends Widget {
       selectedTransitionInfo = `
         <div style="margin-bottom:16px;">
           <div style="font-size:14px; font-weight:600; margin-bottom:8px; color:#222; display:flex; align-items:center; gap:6px;">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M7 17L17 7M17 7H7M17 7V17" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
             Selected Transition: <span style="background: linear-gradient(90deg, ${fromColor}, ${toColor}); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; color: transparent; font-weight:600;">${fromLabel} → ${toLabel}</span>
           </div>
           <div style="background:#fff; border-radius:6px; padding:12px; border:1px solid #e9ecef; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
@@ -999,19 +993,15 @@ export class DetailSidebar extends Widget {
     if (selection) {
       if (selection.type === 'stage') {
         (window as any)._galaxyFlowSelection = { type: 'stage', stage: selection.stage };
-        const stageName = LABEL_MAP[selection.stage] || selection.stage;
-        this._currentTitle = stageName;
       } else if (selection.type === 'flow') {
         (window as any)._galaxyFlowSelection = { type: 'flow', from: selection.from, to: selection.to };
-        const fromName = LABEL_MAP[selection.from] || selection.from;
-        const toName = LABEL_MAP[selection.to] || selection.to;
-        const flowName = `${fromName} → ${toName}`;
-        this._currentTitle = flowName;
       }
     } else {
       (window as any)._galaxyFlowSelection = null;
-      this._currentTitle = this.currentNotebook ? 'Notebook Detail' : 'Notebook Overview';
     }
+    
+    // 保持标题不变，始终显示competition名称或Notebook Overview
+    this._currentTitle = this.competitionInfo ? this.competitionInfo.name : 'Notebook Overview';
 
     this.saveDetailFilterState();
 
@@ -1196,18 +1186,50 @@ export class DetailSidebar extends Widget {
 
         return `
           <tr class="filtered-notebook-item" data-notebook-index="${displayIndex}" style="cursor:pointer; transition:background-color 0.15s;">
-            <td style="padding:8px 12px; border-bottom:1px solid #e9ecef; text-align:center; color:#6c757d; font-size:12px; width:40px;">${nb.globalIndex}</td>
-            <td style="padding:8px 12px; border-bottom:1px solid #e9ecef; text-align:center; color:#6c757d; font-size:12px; width:60px;">${clusterId}</td>
+            <td style="padding:8px 12px; border-bottom:1px solid #e9ecef; text-align:center; color:#6c757d; font-size:12px; width:50px;">${nb.globalIndex}</td>
+            <td style="padding:8px 12px; border-bottom:1px solid #e9ecef; text-align:center; color:#6c757d; font-size:12px; width:80px;">${clusterId}</td>
             <td style="padding:8px 12px; border-bottom:1px solid #e9ecef; font-weight:500; color:#495057;">${nb.notebook_name ?? nb.kernelVersionId ?? `Notebook ${nb.globalIndex}`}</td>
-            <td style="padding:8px 12px; border-bottom:1px solid #e9ecef; text-align:right; color:#6c757d;">${occurrenceCount}</td>
+            <td style="padding:8px 12px; border-bottom:1px solid #e9ecef; text-align:right; color:#6c757d; width:100px;">${occurrenceCount}</td>
           </tr>`;
       }).join('');
+
+      // 生成选中项的显示信息
+      let selectedItemInfo = '';
+      if (this.filter) {
+        if (this.filter.type === 'stage') {
+          const stageColor = this.colorMap.get(this.filter.stage) || '#1976d2';
+          const stageLabel = LABEL_MAP[this.filter.stage] ?? this.filter.stage;
+          selectedItemInfo = `
+            <div>
+              <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+                <span style="font-size:14px; font-weight:600; color:#222;">Selected Stage:</span>
+                <span style="color:${stageColor}; border:none; border-radius:16px; padding:3px 12px; font-size:13px; font-weight:600; display:inline-block;">${stageLabel}</span>
+              </div>
+            </div>
+          `;
+        } else if (this.filter.type === 'flow') {
+          const fromColor = this.colorMap.get(this.filter.from) || '#1976d2';
+          const toColor = this.colorMap.get(this.filter.to) || '#42a5f5';
+          const fromLabel = LABEL_MAP[this.filter.from] ?? this.filter.from;
+          const toLabel = LABEL_MAP[this.filter.to] ?? this.filter.to;
+          selectedItemInfo = `
+            <div style="background:#f8f9fa; border-radius:6px; padding:12px; margin-bottom:16px; border:1px solid #e9ecef;">
+              <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+                <span style="font-size:14px; font-weight:600; color:#222;">Selected Transition:</span>
+                <span style="background: linear-gradient(90deg, ${fromColor}, ${toColor}); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; color: transparent; font-weight:600; font-size:13px;">${fromLabel} → ${toLabel}</span>
+              </div>
+            </div>
+          `;
+        }
+      }
 
       this.node.innerHTML = `
         <div style="padding:20px 16px 16px 16px; font-size:14px; line-height:1.7; color:#222;">
           <div style="font-size:18px; font-weight:600; margin-bottom:16px; padding-bottom:12px; border-bottom:1px solid #e9ecef;" id="detail-sidebar-title">
-            <span style="${this._getTitleStyle()}">${this._currentTitle}</span>
+            <span style="color: #222;">${this.competitionInfo ? this.competitionInfo.name : 'Notebook Overview'}</span>
           </div>
+          
+          ${selectedItemInfo}
           
           <div style="background:#f8f9fa; border-radius:8px; padding:16px; margin-bottom:16px; border:1px solid #e9ecef;">
             <div style="display:flex; flex-direction:row; gap:16px;">
@@ -1232,7 +1254,7 @@ export class DetailSidebar extends Widget {
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <path d="M9 12H15M9 16H15M9 8H15M5 3H19C20.1046 3 21 3.89543 21 5V19C21 20.1046 20.1046 21 19 21H5C3.89543 21 3 20.1046 3 19V5C3 3.89543 3.89543 3 5 3Z" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
-                Filtered Notebooks (${filteredData.length})
+                Filtered Notebooks
               </div>
               <div style="display:flex; align-items:center; gap:4px;">
                 <span style="font-size:12px; color:#6c757d;">Sort by:</span>
@@ -1243,21 +1265,7 @@ export class DetailSidebar extends Widget {
                 </button>
               </div>
             </div>
-            <div class="notebook-list-container" style="background:#fff; border-radius:8px; border:1px solid #e9ecef; box-shadow:0 1px 3px rgba(0,0,0,0.05); max-height:300px; overflow-y:auto;">
-              <table style="width:100%; border-collapse:collapse; font-size:13px;">
-                <thead>
-                  <tr style="background:#f8f9fa;">
-                    <th style="padding:8px 12px; text-align:center; font-weight:600; color:#495057; border-bottom:1px solid #e9ecef; width:40px;">#</th>
-                    <th style="padding:8px 12px; text-align:center; font-weight:600; color:#495057; border-bottom:1px solid #e9ecef; width:60px;">Cluster</th>
-                    <th style="padding:8px 12px; text-align:left; font-weight:600; color:#495057; border-bottom:1px solid #e9ecef;">Notebook</th>
-                    <th style="padding:8px 12px; text-align:right; font-weight:600; color:#495057; border-bottom:1px solid #e9ecef;">Occurrences</th>
-                  </tr>
-                </thead>
-                <tbody id="filtered-notebooks-tbody">
-                  ${notebookTableHtml}
-                </tbody>
-              </table>
-            </div>
+            ${this.generateNotebookListHTML(notebookTableHtml, true, '400px', '350px')}
           </div>
         </div>`;
 
@@ -1385,10 +1393,10 @@ export class DetailSidebar extends Widget {
 
               return `
                 <tr class="filtered-notebook-item" data-notebook-index="${displayIndex}" style="cursor:pointer; transition:background-color 0.15s;">
-                  <td style="padding:8px 12px; border-bottom:1px solid #eee; text-align:center; color:#888; font-size:12px; width:40px;">${nb.globalIndex}</td>
-                  <td style="padding:8px 12px; border-bottom:1px solid #eee; text-align:center; color:#666; font-size:12px; width:60px;">${clusterId}</td>
+                  <td style="padding:8px 12px; border-bottom:1px solid #eee; text-align:center; color:#888; font-size:12px; width:50px;">${nb.globalIndex}</td>
+                  <td style="padding:8px 12px; border-bottom:1px solid #eee; text-align:center; color:#666; font-size:12px; width:80px;">${clusterId}</td>
                   <td style="padding:8px 12px; border-bottom:1px solid #eee; font-weight:500; color:#333;">${nb.notebook_name ?? nb.kernelVersionId ?? `Notebook ${nb.globalIndex}`}</td>
-                  <td style="padding:8px 12px; border-bottom:1px solid #eee; text-align:right; color:#666;">${occurrenceCount}</td>
+                  <td style="padding:8px 12px; border-bottom:1px solid #eee; text-align:right; color:#666; width:100px;">${occurrenceCount}</td>
                 </tr>`;
             }).join('');
 
@@ -1579,8 +1587,8 @@ export class DetailSidebar extends Widget {
         const clusterId = simRow ? simRow.cluster_id : '-';
 
         return `<tr class="overview-notebook-item" data-notebook-index="${nb.globalIndex}" style="cursor:pointer; transition:background-color 0.15s;">
-          <td style="padding:6px 8px; border-bottom:1px solid #e9ecef; text-align:center; color:#6c757d; font-size:11px; width:35px;">${nb.globalIndex}</td>
-          <td style="padding:6px 8px; border-bottom:1px solid #e9ecef; text-align:center; color:#6c757d; font-size:11px; width:50px;">${clusterId}</td>
+          <td style="padding:6px 8px; border-bottom:1px solid #e9ecef; text-align:center; color:#6c757d; font-size:11px; width:40px;">${nb.globalIndex}</td>
+          <td style="padding:6px 8px; border-bottom:1px solid #e9ecef; text-align:center; color:#6c757d; font-size:11px; width:70px;">${clusterId}</td>
           <td style="padding:6px 8px; border-bottom:1px solid #e9ecef; font-weight:500; color:#495057; font-size:12px;">${nb.notebook_name ?? nb.kernelVersionId}</td>
         </tr>`;
       }).join('');
@@ -1593,8 +1601,8 @@ export class DetailSidebar extends Widget {
         const clusterId = simRow ? simRow.cluster_id : '-';
 
         return `<tr class="overview-notebook-item" data-notebook-index="${nb.globalIndex}" style="cursor:pointer; transition:background-color 0.15s;">
-          <td style="padding:6px 8px; border-bottom:1px solid #e9ecef; text-align:center; color:#6c757d; font-size:11px; width:35px;">${nb.globalIndex}</td>
-          <td style="padding:6px 8px; border-bottom:1px solid #e9ecef; text-align:center; color:#6c757d; font-size:11px; width:50px;">${clusterId}</td>
+          <td style="padding:6px 8px; border-bottom:1px solid #e9ecef; text-align:center; color:#6c757d; font-size:11px; width:40px;">${nb.globalIndex}</td>
+          <td style="padding:6px 8px; border-bottom:1px solid #e9ecef; text-align:center; color:#6c757d; font-size:11px; width:70px;">${clusterId}</td>
           <td style="padding:6px 8px; border-bottom:1px solid #e9ecef; font-weight:500; color:#495057; font-size:12px;">${nb.notebook_name ?? nb.kernelVersionId}</td>
         </tr>`;
       }).join('');
@@ -1606,7 +1614,7 @@ export class DetailSidebar extends Widget {
       <div style="padding:16px 12px 12px 12px; font-size:13px; line-height:1.4; color:#222;">
         <div style="margin-bottom:12px;" id="detail-sidebar-title">
           <div style="font-size:18px; font-weight:700; margin-bottom:6px; line-height:1.3; color:#222; padding-bottom:8px; border-bottom:1px solid #e9ecef;">
-            <span style="${this._getTitleStyle()}">${this._currentTitle}</span>${this.competitionInfo ? `
+            <span style="color: #222;">${this.competitionInfo ? this.competitionInfo.name : 'Notebook Overview'}</span>${this.competitionInfo ? `
             <a href="${this.competitionInfo.url}" target="_blank" class="kaggle-link" style="display:inline-flex; align-items:center; text-decoration:none; margin-left:8px; vertical-align:baseline; height:23.4px; line-height:23.4px;" title="View on Kaggle">
               <svg width="24" height="24" viewBox="0 0 163 63.2" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M26.92 47c-.05.18-.24.27-.56.27h-6.17a1.24 1.24 0 0 1-1-.48L9 33.78l-2.83 2.71v10.06a.61.61 0 0 1-.69.69H.69a.61.61 0 0 1-.69-.69V.69A.61.61 0 0 1 .69 0h4.79a.61.61 0 0 1 .69.69v28.24l12.21-12.35a1.44 1.44 0 0 1 1-.49h6.39a.54.54 0 0 1 .55.35.59.59 0 0 1-.07.63L13.32 29.55l13.46 16.72a.65.65 0 0 1 .14.73ZM51.93 47.24h-4.79c-.51 0-.76-.23-.76-.69v-1a12.77 12.77 0 0 1-7.84 2.29A11.28 11.28 0 0 1 31 45.16a9 9 0 0 1-3.12-7.07q0-6.81 8.46-9.23a61.55 61.55 0 0 1 10.06-1.67A5.47 5.47 0 0 0 40.48 21a14 14 0 0 0-7.91 2.77c-.41.24-.71.19-.9-.13l-2.5-3.54c-.23-.28-.16-.6.21-1a19.32 19.32 0 0 1 11.1-3.68A13.29 13.29 0 0 1 48 17.55q4.59 3.06 4.58 9.78v19.22a.61.61 0 0 1-.65.69Zm-5.55-14.5q-6.8.7-9.3 1.81Q33.69 36 34 38.71a3.49 3.49 0 0 0 1.53 2.46 5.87 5.87 0 0 0 3 1.08 9.49 9.49 0 0 0 7.77-2.57ZM81 59.28q-3.81 3.92-10.74 3.92a15.41 15.41 0 0 1-7.63-2c-.51-.33-1.11-.76-1.81-1.29s-1.5-1.19-2.43-2a.72.72 0 0 1-.07-1l3.26-3.26a.76.76 0 0 1 .56-.21.68.68 0 0 1 .49.21c2.58 2.58 5.11 3.88 7.56 3.88q8.39 0 8.39-8.74v-3.63a13.1 13.1 0 0 1-8.67 2.71 12.48 12.48 0 0 1-10.55-5.07A18.16 18.16 0 0 1 56 31.63a18 18 0 0 1 3.2-10.82 12.19 12.19 0 0 1 10.61-5.34 13.93 13.93 0 0 1 8.74 2.71v-1.39a.62.62 0 0 1 .69-.7h4.79a.62.62 0 0 1 .7.7v31q.03 7.57-3.73 11.49ZM78.58 26q-1.74-4.44-8-4.44-8.11 0-8.11 10.12 0 5.63 2.7 8.19a7.05 7.05 0 0 0 5.21 2q6.51 0 8.25-4.44ZM113.59 59.28q-3.78 3.91-10.72 3.92a15.44 15.44 0 0 1-7.63-2q-.76-.49-1.8-1.29c-.7-.53-1.51-1.19-2.43-2a.7.7 0 0 1-.07-1l3.26-3.26a.74.74 0 0 1 .55-.21.67.67 0 0 1 .49.21c2.59 2.58 5.11 3.88 7.56 3.88q8.4 0 8.4-8.74v-3.63a13.14 13.14 0 0 1-8.68 2.71A12.46 12.46 0 0 1 92 42.8a18.09 18.09 0 0 1-3.33-11.17 18 18 0 0 1 3.19-10.82 12.21 12.21 0 0 1 10.61-5.34 14 14 0 0 1 8.75 2.71v-1.39a.62.62 0 0 1 .69-.7h4.79a.62.62 0 0 1 .69.7v31q-.02 7.57-3.8 11.49ZM111.2 26q-1.74-4.44-8-4.44-8.2-.05-8.2 10.07 0 5.63 2.71 8.19a7 7 0 0 0 5.2 2q6.53 0 8.26-4.44ZM128 47.24h-4.78a.62.62 0 0 1-.7-.69V.69a.62.62 0 0 1 .7-.69H128a.61.61 0 0 1 .7.69v45.86a.61.61 0 0 1-.7.69ZM162.91 33.16a.62.62 0 0 1-.7.69h-22.54a8.87 8.87 0 0 0 2.91 5.69 10.63 10.63 0 0 0 7.15 2.46 11.64 11.64 0 0 0 6.86-2.15c.42-.28.77-.28 1 0l3.26 3.33c.37.37.37.69 0 1a18.76 18.76 0 0 1-11.58 3.75 16 16 0 0 1-11.8-4.72 16.2 16.2 0 0 1-4.57-11.86 16 16 0 0 1 4.51-11.52 14.36 14.36 0 0 1 10.82-4.3A14.07 14.07 0 0 1 158.88 20 15 15 0 0 1 163 31.63ZM153.82 23a8.18 8.18 0 0 0-5.69-2.15 8.06 8.06 0 0 0-5.48 2.08 9.24 9.24 0 0 0-3 5.41h16.71a7 7 0 0 0-2.54-5.34Z" fill="#20beff"/>
@@ -1683,25 +1691,75 @@ export class DetailSidebar extends Widget {
             </svg>
             Notebook List
           </div>
-          <div class="notebook-list-container" style="background:#fff; border-radius:6px; border:1px solid #e9ecef; box-shadow:0 1px 3px rgba(0,0,0,0.05); max-height:240px; overflow-y:auto;">
-            <table style="width:100%; border-collapse:collapse; font-size:12px;">
-              <thead>
-                <tr style="background:#f8f9fa;">
-                  <th style="padding:6px 8px; text-align:center; font-weight:600; color:#495057; border-bottom:1px solid #e9ecef; width:35px;">#</th>
-                  <th style="padding:6px 8px; text-align:center; font-weight:600; color:#495057; border-bottom:1px solid #e9ecef; width:50px;">Cluster</th>
-                  <th style="padding:6px 8px; text-align:left; font-weight:600; color:#495057; border-bottom:1px solid #e9ecef;">Notebook</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${notebookListHtml}
-              </tbody>
-            </table>
-          </div>
+          ${this.generateNotebookListHTML(notebookListHtml, false, '240px', '200px')}
         </div>
       </div>
       <style>
         .kaggle-link:hover {
           opacity: 0.8;
+        }
+        
+        /* 固定表头样式 */
+        .notebook-list-wrapper {
+          position: relative;
+        }
+        
+        .notebook-list-container table {
+          table-layout: fixed;
+          width: 100%;
+          min-width: 400px;
+        }
+        
+        .notebook-list-container th,
+        .notebook-list-container td {
+          box-sizing: border-box;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        
+        /* 表头文字样式优化 */
+        .notebook-list-container th {
+          font-size: 12px;
+          line-height: 1.2;
+          word-break: keep-all;
+        }
+        
+        /* 确保表头和内容列宽一致 - overview模式 */
+        .notebook-list-wrapper:not(.filtered-mode) .notebook-list-container th:nth-child(1),
+        .notebook-list-wrapper:not(.filtered-mode) .notebook-list-container td:nth-child(1) {
+          width: 40px;
+        }
+        
+        .notebook-list-wrapper:not(.filtered-mode) .notebook-list-container th:nth-child(2),
+        .notebook-list-wrapper:not(.filtered-mode) .notebook-list-container td:nth-child(2) {
+          width: 70px;
+        }
+        
+        .notebook-list-wrapper:not(.filtered-mode) .notebook-list-container th:nth-child(3),
+        .notebook-list-wrapper:not(.filtered-mode) .notebook-list-container td:nth-child(3) {
+          width: calc(100% - 110px);
+        }
+        
+        /* filtered notebooks的列宽 - 使用更可靠的选择器 */
+        .notebook-list-wrapper.filtered-mode .notebook-list-container th:nth-child(1),
+        .notebook-list-wrapper.filtered-mode .notebook-list-container td:nth-child(1) {
+          width: 50px;
+        }
+        
+        .notebook-list-wrapper.filtered-mode .notebook-list-container th:nth-child(2),
+        .notebook-list-wrapper.filtered-mode .notebook-list-container td:nth-child(2) {
+          width: 80px;
+        }
+        
+        .notebook-list-wrapper.filtered-mode .notebook-list-container th:nth-child(3),
+        .notebook-list-wrapper.filtered-mode .notebook-list-container td:nth-child(3) {
+          width: calc(100% - 210px);
+        }
+        
+        .notebook-list-wrapper.filtered-mode .notebook-list-container th:nth-child(4),
+        .notebook-list-wrapper.filtered-mode .notebook-list-container td:nth-child(4) {
+          width: 100px;
         }
       </style>
     `;
@@ -2026,10 +2084,17 @@ export class DetailSidebar extends Widget {
         if (highlight) {
           const tableContainer = this.node.querySelector('.notebook-list-container');
           if (tableContainer) {
-            item.scrollIntoView({ 
-              behavior: 'smooth', 
-              block: 'center',
-              inline: 'nearest'
+            // 计算item相对于滚动容器的位置
+            const itemTop = (item as HTMLElement).offsetTop;
+            const containerHeight = tableContainer.clientHeight;
+            const itemHeight = (item as HTMLElement).clientHeight;
+            
+            // 计算目标滚动位置，使item居中显示
+            const targetScrollTop = itemTop - (containerHeight / 2) + (itemHeight / 2);
+            
+            tableContainer.scrollTo({
+              top: targetScrollTop,
+              behavior: 'smooth'
             });
           }
         }
@@ -2054,10 +2119,17 @@ export class DetailSidebar extends Widget {
             if (highlight) {
               const tableContainer = this.node.querySelector('.notebook-list-container');
               if (tableContainer) {
-                item.scrollIntoView({ 
-                  behavior: 'smooth', 
-                  block: 'center',
-                  inline: 'nearest'
+                // 计算item相对于滚动容器的位置
+                const itemTop = (item as HTMLElement).offsetTop;
+                const containerHeight = tableContainer.clientHeight;
+                const itemHeight = (item as HTMLElement).clientHeight;
+                
+                // 计算目标滚动位置，使item居中显示
+                const targetScrollTop = itemTop - (containerHeight / 2) + (itemHeight / 2);
+                
+                tableContainer.scrollTo({
+                  top: targetScrollTop,
+                  behavior: 'smooth'
                 });
               }
             }
@@ -2067,6 +2139,48 @@ export class DetailSidebar extends Widget {
     });
   }
   
+  // 生成notebook list HTML结构的辅助方法
+  private generateNotebookListHTML(
+    notebookListHtml: string, 
+    isFiltered: boolean = false, 
+    maxHeight: string = '240px',
+    containerMaxHeight: string = '200px'
+  ): string {
+    const fontSize = isFiltered ? '13px' : '12px';
+    const padding = isFiltered ? '8px 12px' : '6px 8px';
+    const borderRadius = isFiltered ? '8px' : '6px';
+    
+    const headerColumns = isFiltered 
+      ? `
+        <th style="padding:${padding}; text-align:center; font-weight:600; color:#495057; width:50px;">#</th>
+        <th style="padding:${padding}; text-align:center; font-weight:600; color:#495057; width:80px;">Cluster</th>
+        <th style="padding:${padding}; text-align:left; font-weight:600; color:#495057;">Notebook</th>
+        <th style="padding:${padding}; text-align:right; font-weight:600; color:#495057;">Occurrences</th>
+      `
+      : `
+        <th style="padding:${padding}; text-align:center; font-weight:600; color:#495057; width:40px;">#</th>
+        <th style="padding:${padding}; text-align:center; font-weight:600; color:#495057; width:70px;">Cluster</th>
+        <th style="padding:${padding}; text-align:left; font-weight:600; color:#495057;">Notebook</th>
+      `;
+    
+    return `
+      <div class="notebook-list-wrapper${isFiltered ? ' filtered-mode' : ''}" style="background:#fff; border-radius:${borderRadius}; border:1px solid #e9ecef; box-shadow:0 1px 3px rgba(0,0,0,0.05); max-height:${maxHeight};">
+        <div class="notebook-list-container" style="overflow:auto; max-height:${containerMaxHeight};">
+          <table style="width:100%; border-collapse:collapse; font-size:${fontSize}; min-width:400px;">
+            <thead style="position:sticky; top:0; background:#f8f9fa; border-bottom:1px solid #e9ecef; z-index:10;">
+              <tr>
+                ${headerColumns}
+              </tr>
+            </thead>
+            <tbody ${isFiltered ? 'id="filtered-notebooks-tbody"' : ''}>
+              ${notebookListHtml}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  }
+
   // 获取当前filtered data的辅助方法
   private getFilteredData(): any[] {
     if (!this._allData || !Array.isArray(this._allData) || this._allData.length === 0) {
