@@ -1703,6 +1703,15 @@ export class DetailSidebar extends Widget {
         .kaggle-link:hover {
           opacity: 0.8;
         }
+        .notebook-list-container thead {
+          position: sticky;
+          top: 0;
+          z-index: 10;
+        }
+        .notebook-list-container thead th {
+          background: #f8f9fa !important;
+          box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        }
       </style>
     `;
     // 绑定 notebook 行点击事件和悬停效果
