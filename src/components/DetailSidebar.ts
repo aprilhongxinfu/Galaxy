@@ -372,19 +372,19 @@ export class DetailSidebar extends Widget {
         ${nb.creationDate || nb.totalLines || this.getVoteCount(nb) ? `
         <div style="display:flex; flex-direction:row; gap:18px; margin-bottom:18px;">
           ${nb.creationDate ? `
-          <div style="flex:1;">
+          <div style="flex:1; display:flex; flex-direction:column; justify-content:flex-end;">
             <div style="font-size:13px; color:#888;">Creation Date</div>
             <div style="font-size:16px; font-weight:600;">${nb.creationDate.split(' ')[0]}</div>
           </div>
           ` : ''}
           ${nb.totalLines ? `
-          <div style="flex:1;">
+          <div style="flex:1; display:flex; flex-direction:column; justify-content:flex-end;">
             <div style="font-size:13px; color:#888;">Total Lines</div>
             <div style="font-size:16px; font-weight:600;">${nb.totalLines.toLocaleString()}</div>
           </div>
           ` : ''}
           ${this.getVoteCount(nb) !== null ? `
-          <div style="flex:1;">
+          <div style="flex:1; display:flex; flex-direction:column; justify-content:flex-end;">
             <div style="font-size:13px; color:#888;">Total Votes</div>
             <div style="font-size:16px; font-weight:600;">${this.getVoteCount(nb)!.toLocaleString()}</div>
           </div>
@@ -393,17 +393,17 @@ export class DetailSidebar extends Widget {
         ` : ''}
         
         <div style="display:flex; flex-direction:row; gap:18px; margin-bottom:18px;">
-          <div style="flex:1;">
+          <div style="flex:1; display:flex; flex-direction:column; justify-content:flex-end;">
             <div style="font-size:13px; color:#888;">Total Cells</div>
-            <div style="font-size:20px; font-weight:600;">${total}</div>
+            <div style="font-size:16px; font-weight:600;">${total}</div>
           </div>
-          <div style="flex:1;">
+          <div style="flex:1; display:flex; flex-direction:column; justify-content:flex-end;">
             <div style="font-size:13px; color:#888;">Code Cells</div>
-            <div style="font-size:20px; font-weight:600;">${codeCount}</div>
+            <div style="font-size:16px; font-weight:600;">${codeCount}</div>
           </div>
-          <div style="flex:1;">
-            <div style="font-size:13px; color:#888;">Markdown Cells</div>
-            <div style="font-size:20px; font-weight:600;">${mdCount}</div>
+          <div style="flex:1; display:flex; flex-direction:column; justify-content:flex-end;">
+            <div style="font-size:13px; color:#888;">Md Cells</div>
+            <div style="font-size:16px; font-weight:600;">${mdCount}</div>
           </div>
         </div>
         
