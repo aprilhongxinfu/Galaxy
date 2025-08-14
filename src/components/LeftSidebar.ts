@@ -74,17 +74,41 @@ export class LeftSidebar extends Widget {
         this.node.style.padding = '16px 16px 12px 16px'; // 统一内边距
         this.node.style.minWidth = '340px'; // 保证sidebar最小宽度不小于SVG
 
-        // 右上角重置排序 icon
+        // 右下角重置排序 icon
         const resetDiv = document.createElement('div');
         resetDiv.style.position = 'absolute';
-        resetDiv.style.top = '12px';
+        resetDiv.style.bottom = '8px'; // 调整位置与legend最后一行持平
         resetDiv.style.right = '18px';
         resetDiv.style.zIndex = '10';
         resetDiv.style.cursor = 'pointer';
-        resetDiv.title = '重置排序';
-        resetDiv.innerHTML = `<svg width="18" height="18" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="10" cy="10" r="9" stroke="#888" stroke-width="1.5" fill="#fff"/><path d="M6.5 10A3.5 3.5 0 0 1 10 6.5c1.93 0 3.5 1.57 3.5 3.5h1.2c0-2.6-2.1-4.7-4.7-4.7S5.3 7.4 5.3 10s2.1 4.7 4.7 4.7c1.5 0 2.8-.7 3.7-1.8l-1-.8c-.7.8-1.7 1.3-2.7 1.3A3.5 3.5 0 0 1 6.5 10Z" fill="#888"/></svg>`;
-        resetDiv.onmouseenter = () => { resetDiv.style.background = '#f0f0f0'; };
-        resetDiv.onmouseleave = () => { resetDiv.style.background = 'none'; };
+        resetDiv.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" fill="currentColor"/></svg>`;
+        resetDiv.onmouseenter = (e) => { 
+            resetDiv.style.background = '#f0f0f0'; 
+            // 显示自定义tooltip
+            const tooltip = document.getElementById('galaxy-tooltip');
+            if (tooltip) {
+                tooltip.innerHTML = 'Reset Order';
+                tooltip.style.display = 'block';
+                tooltip.style.left = e.clientX + 12 + 'px';
+                tooltip.style.top = e.clientY + 12 + 'px';
+            }
+        };
+        resetDiv.onmousemove = (e) => {
+            // 更新tooltip位置
+            const tooltip = document.getElementById('galaxy-tooltip');
+            if (tooltip && tooltip.style.display === 'block') {
+                tooltip.style.left = e.clientX + 12 + 'px';
+                tooltip.style.top = e.clientY + 12 + 'px';
+            }
+        };
+        resetDiv.onmouseleave = () => { 
+            resetDiv.style.background = 'none'; 
+            // 隐藏tooltip
+            const tooltip = document.getElementById('galaxy-tooltip');
+            if (tooltip) {
+                tooltip.style.display = 'none';
+            }
+        };
         resetDiv.onclick = () => {
             // 重置排序
             this.stageData = this.initialStageOrder.map(stage => {
@@ -114,7 +138,8 @@ export class LeftSidebar extends Widget {
         this.legendDiv.style.flex = 'none';
         this.legendDiv.style.margin = '0';
         this.legendDiv.style.padding = '0';
-        this.legendDiv.style.height = '140px'; // 增加高度
+        this.legendDiv.style.height = 'auto'; // 根据内容自适应高度
+        this.legendDiv.style.minHeight = '0'; // 允许收缩
         this.node.appendChild(this.legendDiv);
 
         // SVG 渲染到中间
@@ -375,7 +400,7 @@ export class LeftSidebar extends Widget {
 
         this.svg.selectAll('*').remove();
         // 预留 legend 区域高度，保证legend始终可见且不重叠
-        const legendAreaHeight = 220; // 增加高度
+        const legendAreaHeight = 120; // 减少固定高度，让legend自适应
         const chartPadding = 30;  // 减少底部padding
         // 计算SVG高度，基于yScale的范围
         const virtualHeight = 1000; // 使用固定的逻辑高度
@@ -955,12 +980,12 @@ export class LeftSidebar extends Widget {
             if (!stageMap.has(from) || !stageMap.has(to)) return; // 只渲染可见的
             renderedFlows.push({ from, to, count });
         });
-        const renderedFlowCounts = renderedFlows.map(f => f.count);
+        // const renderedFlowCounts = renderedFlows.map(f => f.count);
 
         // --- legend 渲染到底部 div ---
         this.legendDiv.innerHTML = '';
 
-        // 特殊处理：Environment 原地隐藏，其他组将隐藏项移到末尾
+        // 按组分类，保持原有顺序
         const processGroups = () => {
             const allStages = this.stageData.filter(d => d.count > 0);
             const groups: Record<string, typeof this.stageData> = {
@@ -982,20 +1007,6 @@ export class LeftSidebar extends Widget {
                 }
             });
 
-            // 对每个组进行排序：显示的在前，隐藏的在后
-            Object.keys(groups).forEach(groupName => {
-                // 所有组：显示的在前，隐藏的在后
-                groups[groupName].sort((a, b) => {
-                    const aHidden = this.hiddenStages.has(a.stage);
-                    const bHidden = this.hiddenStages.has(b.stage);
-                    if (aHidden === bHidden) {
-                        // 如果都是显示或都是隐藏，按stage ID排序
-                        return 0;
-                    }
-                    return aHidden ? 1 : -1; // 隐藏的排在后面
-                });
-            });
-
             return groups;
         };
 
@@ -1006,6 +1017,7 @@ export class LeftSidebar extends Widget {
         legendContainer.style.display = 'flex';
         legendContainer.style.flexDirection = 'column';
         legendContainer.style.width = '100%';
+        legendContainer.style.minWidth = '0'; // 允许容器收缩
         legendContainer.style.gap = '2px'; // 进一步减少垂直间隔
 
         // 创建单个组件的函数
@@ -1019,7 +1031,8 @@ export class LeftSidebar extends Widget {
             if (shouldHaveBox) {
                 groupBox.style.border = '1px solid #ddd';
                 groupBox.style.borderRadius = '4px';
-                groupBox.style.padding = '8px';
+                groupBox.style.padding = '6px'; // 减少内边距
+                groupBox.style.width = 'fit-content'; // 根据内容自适应宽度
                 // groupBox.style.backgroundColor = '#f9f9f9';
                 // Model-oriented 使用虚线边框
                 if (groupName === 'Model-oriented') {
@@ -1040,86 +1053,66 @@ export class LeftSidebar extends Widget {
                 groupBox.appendChild(groupTitle);
             }
 
-            // 组内容 - Data-oriented 和 Model-oriented 分三列，Other 分两列
+            // 组内容 - Data-oriented 和 Model-oriented 使用单列布局
             const groupContent = document.createElement('div');
             if (shouldHaveBox) {
-                // 三列布局
+                // 单列布局
                 groupContent.style.display = 'flex';
-                groupContent.style.flexDirection = 'row';
-                groupContent.style.gap = '4px';
+                groupContent.style.flexDirection = 'column';
+                groupContent.style.gap = '2px';
 
-                // 分三列
-                const colSize = Math.ceil(stages.length / 3);
-                const col1 = stages.slice(0, colSize);
-                const col2 = stages.slice(colSize, colSize * 2);
-                const col3 = stages.slice(colSize * 2);
+                stages.forEach((d) => {
+                    const item = document.createElement('div');
+                    item.style.display = 'flex';
+                    item.style.alignItems = 'center';
+                    item.style.cursor = 'pointer';
+                    item.style.padding = '1px 4px';
+                    item.style.borderRadius = '2px';
 
-                const createColumn = (colStages: typeof this.stageData) => {
-                    const col = document.createElement('div');
-                    col.style.display = 'flex';
-                    col.style.flexDirection = 'column';
-                    col.style.flex = '1';
-                    col.style.gap = '2px';
+                    const isStageHidden = this.hiddenStages.has(d.stage);
+                    const colorBox = document.createElement('span');
+                    colorBox.style.display = 'inline-block';
+                    colorBox.style.width = '8px';
+                    colorBox.style.height = '10px';
+                    colorBox.style.borderRadius = '2px'; // 添加圆角
+                    colorBox.style.background = this.colorMap.get(d.stage) || '#ccc';
+                    colorBox.style.marginRight = '6px';
+                    colorBox.style.opacity = isStageHidden ? '0.3' : '1';
 
-                    colStages.forEach((d) => {
-                        const item = document.createElement('div');
-                        item.style.display = 'flex';
-                        item.style.alignItems = 'center';
-                        item.style.cursor = 'pointer';
-                        item.style.padding = '1px 4px';
-                        item.style.borderRadius = '2px';
-
-                        const isStageHidden = this.hiddenStages.has(d.stage);
-                        const colorBox = document.createElement('span');
-                        colorBox.style.display = 'inline-block';
-                        colorBox.style.width = '8px';
-                        colorBox.style.height = '10px';
-                        colorBox.style.borderRadius = '2px'; // 添加圆角
-                        colorBox.style.background = this.colorMap.get(d.stage) || '#ccc';
-                        colorBox.style.marginRight = '6px';
-                        colorBox.style.opacity = isStageHidden ? '0.3' : '1';
-
-                        // 为Data-oriented和Model-oriented添加border
-                        const group = STAGE_GROUP_MAP[d.stage];
-                        if (group === 'Data-oriented' || group === 'Model-oriented') {
-                            colorBox.style.border = '1px solid #666666';
-                            if (group === 'Model-oriented') {
-                                colorBox.style.borderStyle = 'dashed';
-                            }
+                    // 为Data-oriented和Model-oriented添加border
+                    const group = STAGE_GROUP_MAP[d.stage];
+                    if (group === 'Data-oriented' || group === 'Model-oriented') {
+                        colorBox.style.border = '1px solid #666666';
+                        if (group === 'Model-oriented') {
+                            colorBox.style.borderStyle = 'dashed';
                         }
+                    }
 
-                        const label = document.createElement('span');
-                        label.style.fontSize = '9px';
-                        label.textContent = LABEL_MAP[d.stage] ?? d.stage;
-                        label.style.opacity = isStageHidden ? '0.3' : '1';
+                    const label = document.createElement('span');
+                    label.style.fontSize = '9px';
+                    label.textContent = LABEL_MAP[d.stage] ?? d.stage;
+                    label.style.opacity = isStageHidden ? '0.3' : '1';
 
-                        item.appendChild(colorBox);
-                        item.appendChild(label);
+                    item.appendChild(colorBox);
+                    item.appendChild(label);
 
-                        // 点击切换显示/隐藏
-                        item.onclick = () => {
-                            if (isStageHidden) {
-                                this.hiddenStages.delete(d.stage);
-                            } else {
-                                this.hiddenStages.add(d.stage);
-                            }
-                            // 每次变更后派发事件
-                            window.dispatchEvent(new CustomEvent('galaxy-hidden-stages-changed', {
-                                detail: { hiddenStages: Array.from(this.hiddenStages) }
-                            }));
-                            this.saveFilterState();
-                            this.render();
-                        };
+                    // 点击切换显示/隐藏
+                    item.onclick = () => {
+                        if (isStageHidden) {
+                            this.hiddenStages.delete(d.stage);
+                        } else {
+                            this.hiddenStages.add(d.stage);
+                        }
+                        // 每次变更后派发事件
+                        window.dispatchEvent(new CustomEvent('galaxy-hidden-stages-changed', {
+                            detail: { hiddenStages: Array.from(this.hiddenStages) }
+                        }));
+                        this.saveFilterState();
+                        this.render();
+                    };
 
-                        col.appendChild(item);
-                    });
-
-                    return col;
-                };
-
-                groupContent.appendChild(createColumn(col1));
-                groupContent.appendChild(createColumn(col2));
-                groupContent.appendChild(createColumn(col3));
+                    groupContent.appendChild(item);
+                });
             } else if (groupName === 'Other') {
                 // Other 组：单列布局（因为 Commented 和 Other 不在 legend 中显示）
                 groupContent.style.display = 'flex';
@@ -1242,10 +1235,43 @@ export class LeftSidebar extends Widget {
             return groupBox;
         };
 
-        // 按顺序添加组：Environment, Data-oriented, Model-oriented, Data export, Other
-        const groupOrder = ['Environment', 'Data-oriented', 'Model-oriented', 'Data export', 'Other'];
+        // 按顺序添加组：Environment, Data-oriented+Model-oriented(左右并排), Data export, Other
+        const groupOrder = ['Environment', 'Data export', 'Other'];
 
-        groupOrder.forEach(groupName => {
+        // 先添加Environment组
+        const environmentGroup = createGroupBox('Environment', processedGroups['Environment'] || []);
+        if (environmentGroup) {
+            legendContainer.appendChild(environmentGroup);
+        }
+
+        // 创建Data-oriented和Model-oriented的容器，让它们左右并排
+        const dataModelContainer = document.createElement('div');
+        dataModelContainer.style.display = 'flex';
+        dataModelContainer.style.gap = '12px';
+        dataModelContainer.style.marginBottom = '1px';
+        dataModelContainer.style.width = '100%'; // 占满容器宽度
+        dataModelContainer.style.minWidth = '0'; // 允许容器收缩
+
+        // 添加Data-oriented和Model-oriented到左右两边
+        const dataGroup = createGroupBox('Data-oriented', processedGroups['Data-oriented'] || []);
+        const modelGroup = createGroupBox('Model-oriented', processedGroups['Model-oriented'] || []);
+        
+        if (dataGroup) {
+            dataGroup.style.flex = '1'; // 让Data-oriented组占据剩余空间的一半
+            dataModelContainer.appendChild(dataGroup);
+        }
+        if (modelGroup) {
+            modelGroup.style.flex = '1'; // 让Model-oriented组占据剩余空间的一半
+            dataModelContainer.appendChild(modelGroup);
+        }
+
+        // 添加Data-oriented和Model-oriented的容器
+        if (dataGroup || modelGroup) {
+            legendContainer.appendChild(dataModelContainer);
+        }
+
+        // 再添加其他组
+        groupOrder.slice(1).forEach(groupName => {
             const group = createGroupBox(groupName, processedGroups[groupName] || []);
             if (group) {
                 legendContainer.appendChild(group);
@@ -1256,6 +1282,8 @@ export class LeftSidebar extends Widget {
         this.legendDiv.style.border = '';
 
         // === legend SVG 渲染（width legend 和 size legend）放到所有背景之后 ===
+        // 注释掉 stage 和 transition frequency 的 legend
+        /*
         if (renderedFlowCounts.length > 0) {
             const min = Math.min(...renderedFlowCounts);
             const max = Math.max(...renderedFlowCounts);
@@ -1277,9 +1305,9 @@ export class LeftSidebar extends Widget {
             const uniqSamples = Array.from(new Set(samples));
             const svgW = 220;
 
-            // legend始终画在SVG底部区域，且不与背景重叠
-            const minLegendY = svgHeight - legendAreaHeight + 110; // 往下移一点，给flow chart留更多空间
-            const bottomY = minLegendY;
+                    // legend始终画在SVG底部区域，且不与背景重叠
+        const minLegendY = svgHeight - legendAreaHeight + 50; // 调整位置，给flow chart留更多空间
+        const bottomY = minLegendY;
 
             // 统一声明legend相关变量
             const stageCounts = this.stageData.map(d => d.count);
@@ -1412,6 +1440,7 @@ export class LeftSidebar extends Widget {
                     .text(count.toLocaleString());
             });
         }
+        */
         // === END legend SVG 渲染 ===
 
         // 保证 colorMap 有所有 stage 的颜色

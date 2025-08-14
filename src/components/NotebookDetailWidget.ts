@@ -113,9 +113,8 @@ export class NotebookDetailWidget extends Widget {
         const stageSelectionKey = `_galaxyStageSelection_${tabId}`;
         (window as any)[stageSelectionKey] = detail.stage;
         
-        // 使用局部更新而不是全量 render
-        this.updateMinimapHighlight();
-        this.updateNavigationControls();
+        // 需要重新渲染以显示导航控件
+        this.render();
       }
     };
     this.flowSelectedHandler = (e: Event) => {
@@ -144,9 +143,8 @@ export class NotebookDetailWidget extends Widget {
         const flowSelectionKey = `_galaxyFlowSelection_${tabId}`;
         (window as any)[flowSelectionKey] = { from: detail.from, to: detail.to };
         
-        // 使用局部更新而不是全量 render
-        this.updateMinimapHighlight();
-        this.updateNavigationControls();
+        // 需要重新渲染以显示导航控件
+        this.render();
       }
     };
 
