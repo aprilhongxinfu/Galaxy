@@ -435,7 +435,7 @@ export class DetailSidebar extends Widget {
           ${nb.creationDate ? `
           <div style="flex:1;">
             <div style="font-size:13px; color:#888;">Creation Date</div>
-            <div style="font-size:16px; font-weight:600;">${nb.creationDate}</div>
+            <div style="font-size:16px; font-weight:600;">${nb.creationDate.split(' ')[0]}</div>
           </div>
           ` : ''}
           ${nb.totalLines ? `
