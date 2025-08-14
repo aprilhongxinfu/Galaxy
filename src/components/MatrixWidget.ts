@@ -20,6 +20,8 @@ export class MatrixWidget extends Widget {
     private colorScale: (label: string) => string;
     private sortState: number = 0; // 0: 默认, 1: notebook长度降序, 2: notebook长度升序, 3: similarity排序
     private voteEnabled: boolean = false; // 独立的投票排序状态
+    private lengthSortEnabled: boolean = false; // 独立的长度排序状态
+    private clusterSizeSortDirection: 'desc' | 'asc' = 'asc'; // cluster size排序方向，默认升序
     private notebookOrder: number[] = [];
     private sortButton: HTMLButtonElement;
     private similaritySortButton: HTMLButtonElement;
@@ -30,7 +32,7 @@ export class MatrixWidget extends Widget {
     private similarityGroups: any[];
     private voteData: any[] = []; // 投票数据
     private cellHeightMode: 'fixed' | 'dynamic' = 'fixed'; // cell高度模式：固定、动态
-    private showMarkdown: boolean = true; // markdown显示状态
+    private showMarkdown: boolean = false; // markdown显示状态
     private kernelTitleMap: Map<string, { title: string; creationDate: string; totalLines: number; displayname?: string }> = new Map(); // 存储kernelVersionId到Title的映射
 
     constructor(data: Notebook[], colorScale: (label: string) => string, similarityGroups?: any[], kernelTitleMap?: Map<string, { title: string; creationDate: string; totalLines: number; displayname?: string }>, voteData?: any[]) {
@@ -97,46 +99,29 @@ export class MatrixWidget extends Widget {
         // 排序按钮区域
         const sortBar = document.createElement('div');
         sortBar.style.display = 'flex';
-        sortBar.style.justifyContent = 'flex-end';
+        sortBar.style.justifyContent = 'space-between';
         sortBar.style.alignItems = 'center';
         sortBar.style.marginBottom = '4px';
         sortBar.style.height = '24px';
         sortBar.style.width = '100%';
         sortBar.style.position = 'relative';
-        sortBar.style.gap = '8px'; // 统一按钮间距
+        
+        // 左侧排序按钮容器
+        const leftSortButtons = document.createElement('div');
+        leftSortButtons.style.display = 'flex';
+        leftSortButtons.style.alignItems = 'center';
+        leftSortButtons.style.gap = '8px';
+        
+        // 右侧其他按钮容器
+        const rightButtons = document.createElement('div');
+        rightButtons.style.display = 'flex';
+        rightButtons.style.alignItems = 'center';
+        rightButtons.style.gap = '8px';
 
-        // 排序按钮
+        // 初始化notebookOrder
         this.notebookOrder = this.data.map((_, i) => i);
-        this.sortButton = document.createElement('button');
-        this.sortButton.style.background = 'none';
-        this.sortButton.style.border = 'none';
-        this.sortButton.style.cursor = 'pointer';
-        this.sortButton.style.fontSize = '18px';
-        this.sortButton.style.display = 'flex';
-        this.sortButton.style.alignItems = 'center';
-        this.sortButton.style.justifyContent = 'center';
-        this.sortButton.innerHTML = this.getSortIcon();
-        this.addTooltipToButton(this.sortButton, () => this.getSortButtonTooltip());
-        this.sortButton.onclick = () => {
-            // 保存当前的filter状态
-            const currentFilter = this.filter;
 
-            this.sortState = (this.sortState + 1) % 3;
-            this.updateNotebookOrder();
-            this.sortButton.innerHTML = this.getSortIcon();
-            this.updateSortButtonState();
-
-            // 恢复filter状态（在updateNotebookOrder之后）
-            this.filter = currentFilter;
-
-            this.saveFilterState();
-            this.drawMatrix();
-            const filteredNotebooks = this.getFilteredNotebooks();
-            window.dispatchEvent(new CustomEvent('galaxy-matrix-filtered', { detail: { notebooks: filteredNotebooks } }));
-        };
-        sortBar.appendChild(this.sortButton);
-
-        // similarity排序按钮
+        // 1. Cluster按钮 (第一个)
         this.similaritySortButton = document.createElement('button');
         this.similaritySortButton.style.background = 'none';
         this.similaritySortButton.style.border = 'none';
@@ -152,14 +137,34 @@ export class MatrixWidget extends Widget {
             const currentFilter = this.filter;
 
             if (this.sortState === 3) {
+                // 取消cluster时，重置length排序状态
                 this.sortState = 0;
                 this.similaritySortButton.classList.remove('active');
+                if (!this.voteEnabled) {
+                    // vote未激活时，length应该为默认状态的激活状态
+                    this.lengthSortEnabled = true;
+                    this.sortState = 0; // 默认状态但激活
+                } else {
+                    // vote激活时，length未激活
+                    this.lengthSortEnabled = false;
+                    this.sortState = 0;
+                }
             } else {
+                // 激活cluster时，启用length排序（默认升序）
                 this.sortState = 3;
                 this.similaritySortButton.classList.add('active');
+                if (!this.voteEnabled) {
+                    // vote未激活时，length应该激活
+                    this.lengthSortEnabled = true;
+                    this.clusterSizeSortDirection = 'asc'; // 默认升序
+                } else {
+                    // vote激活时，length未激活
+                    this.lengthSortEnabled = false;
+                }
             }
             this.updateNotebookOrder();
             this.similaritySortButton.innerHTML = this.getSimilaritySortIcon();
+            this.sortButton.innerHTML = this.getSortIcon(); // 更新length按钮图标
             this.updateSortButtonState();
 
             // 恢复filter状态（在updateNotebookOrder之后）
@@ -170,9 +175,9 @@ export class MatrixWidget extends Widget {
             const filteredNotebooks = this.getFilteredNotebooks();
             window.dispatchEvent(new CustomEvent('galaxy-matrix-filtered', { detail: { notebooks: filteredNotebooks } }));
         };
-        sortBar.appendChild(this.similaritySortButton);
+        leftSortButtons.appendChild(this.similaritySortButton);
 
-        // 投票排序按钮
+        // 2. Vote按钮 (第二个)
         this.voteSortButton = document.createElement('button');
         this.voteSortButton.style.background = 'none';
         this.voteSortButton.style.border = 'none';
@@ -182,7 +187,7 @@ export class MatrixWidget extends Widget {
         this.voteSortButton.style.alignItems = 'center';
         this.voteSortButton.style.justifyContent = 'center';
         this.voteSortButton.innerHTML = this.getVoteSortIcon();
-        this.addTooltipToButton(this.voteSortButton, () => this.voteEnabled ? 'Sorted by votes (highest to lowest)' : 'Sort by votes');
+        this.addTooltipToButton(this.voteSortButton, () => this.voteEnabled ? 'Sorted by votes' : 'Sort by votes');
         this.voteSortButton.onclick = () => {
             // 保存当前的filter状态
             const currentFilter = this.filter;
@@ -190,12 +195,30 @@ export class MatrixWidget extends Widget {
             this.voteEnabled = !this.voteEnabled;
             if (this.voteEnabled) {
                 this.voteSortButton.classList.add('active');
+                // vote激活时，length排序设置为未激活
+                this.lengthSortEnabled = false;
+                if (this.sortState !== 3) {
+                    this.sortState = 0; // 非cluster模式下重置sortState
+                } else {
+                    // cluster激活时，设置length为从少到多的未激活状态
+                    this.clusterSizeSortDirection = 'asc'; // 从少到多
+                }
             } else {
                 this.voteSortButton.classList.remove('active');
+                // vote未激活时，length排序设置为默认状态的激活状态
+                this.lengthSortEnabled = true;
+                if (this.sortState === 3) {
+                    // cluster激活时，默认升序
+                    this.clusterSizeSortDirection = 'asc';
+                } else {
+                    // cluster未激活时，默认激活状态
+                    this.sortState = 0;
+                }
             }
             this.updateNotebookOrder();
             this.similaritySortButton.innerHTML = this.getSimilaritySortIcon();
             this.voteSortButton.innerHTML = this.getVoteSortIcon();
+            this.sortButton.innerHTML = this.getSortIcon(); // 更新length按钮图标
             this.updateSortButtonState();
 
             // 恢复filter状态（在updateNotebookOrder之后）
@@ -206,7 +229,68 @@ export class MatrixWidget extends Widget {
             const filteredNotebooks = this.getFilteredNotebooks();
             window.dispatchEvent(new CustomEvent('galaxy-matrix-filtered', { detail: { notebooks: filteredNotebooks } }));
         };
-        sortBar.appendChild(this.voteSortButton);
+        leftSortButtons.appendChild(this.voteSortButton);
+
+        // 3. Length按钮 (第三个)
+        this.sortButton = document.createElement('button');
+        this.sortButton.style.background = 'none';
+        this.sortButton.style.border = 'none';
+        this.sortButton.style.cursor = 'pointer';
+        this.sortButton.style.fontSize = '18px';
+        this.sortButton.style.display = 'flex';
+        this.sortButton.style.alignItems = 'center';
+        this.sortButton.style.justifyContent = 'center';
+        this.sortButton.innerHTML = this.getSortIcon();
+        this.addTooltipToButton(this.sortButton, () => this.getSortButtonTooltip());
+        this.sortButton.onclick = () => {
+            // 保存当前的filter状态
+            const currentFilter = this.filter;
+
+            // 切换length排序状态
+            if (this.sortState === 3) {
+                // cluster激活时：只切换升序/降序，不关闭排序
+                if (!this.lengthSortEnabled) {
+                    // 从未激活状态开始：激活升序（默认）
+                    this.lengthSortEnabled = true;
+                    this.clusterSizeSortDirection = 'asc';
+                    // length激活时，vote排序设置为未激活
+                    this.voteEnabled = false;
+                    this.voteSortButton.classList.remove('active');
+                } else {
+                    // 已激活状态：切换升序/降序
+                    this.clusterSizeSortDirection = this.clusterSizeSortDirection === 'asc' ? 'desc' : 'asc';
+                }
+            } else {
+                // cluster未激活时：默认激活 -> 降序 -> 升序 -> 默认激活
+                if (this.sortState === 0) {
+                    // 默认激活状态：切换到降序
+                    this.sortState = 1;
+                } else if (this.sortState === 1) {
+                    // 当前是降序：切换到升序
+                    this.sortState = 2;
+                } else if (this.sortState === 2) {
+                    // 当前是升序：切换回默认激活
+                    this.sortState = 0;
+                }
+                // length激活时，vote排序设置为未激活
+                this.voteEnabled = false;
+                this.voteSortButton.classList.remove('active');
+            }
+            
+            this.updateNotebookOrder();
+            this.sortButton.innerHTML = this.getSortIcon();
+            this.voteSortButton.innerHTML = this.getVoteSortIcon(); // 更新vote按钮图标
+            this.updateSortButtonState();
+
+            // 恢复filter状态（在updateNotebookOrder之后）
+            this.filter = currentFilter;
+
+            this.saveFilterState();
+            this.drawMatrix();
+            const filteredNotebooks = this.getFilteredNotebooks();
+            window.dispatchEvent(new CustomEvent('galaxy-matrix-filtered', { detail: { notebooks: filteredNotebooks } }));
+        };
+        leftSortButtons.appendChild(this.sortButton);
 
         // cell高度模式按钮
         this.cellHeightButton = document.createElement('button');
@@ -218,7 +302,7 @@ export class MatrixWidget extends Widget {
         this.cellHeightButton.style.alignItems = 'center';
         this.cellHeightButton.style.justifyContent = 'center';
         this.cellHeightButton.innerHTML = this.getCellHeightIcon();
-        this.addTooltipToButton(this.cellHeightButton, () => this.cellHeightMode === 'fixed' ? 'Fixed cell height mode' : 'Cell height by line count');
+        this.addTooltipToButton(this.cellHeightButton, () => this.cellHeightMode === 'fixed' ? 'Fixed height' : 'Dynamic height');
         this.cellHeightButton.onclick = () => {
             // 在两种模式之间切换：fixed -> dynamic -> fixed
             if (this.cellHeightMode === 'fixed') {
@@ -231,7 +315,7 @@ export class MatrixWidget extends Widget {
             this.saveFilterState();
             this.drawMatrix();
         };
-        sortBar.appendChild(this.cellHeightButton);
+        rightButtons.appendChild(this.cellHeightButton);
 
         // markdown显示/隐藏按钮
         this.markdownButton = document.createElement('button');
@@ -243,7 +327,7 @@ export class MatrixWidget extends Widget {
         this.markdownButton.style.alignItems = 'center';
         this.markdownButton.style.justifyContent = 'center';
         this.markdownButton.innerHTML = this.getMarkdownIcon();
-        this.addTooltipToButton(this.markdownButton, () => 'Toggle markdown visibility');
+        this.addTooltipToButton(this.markdownButton, () => 'Toggle markdown');
         this.markdownButton.onclick = () => {
             this.showMarkdown = !this.showMarkdown;
             this.markdownButton.innerHTML = this.getMarkdownIcon();
@@ -251,8 +335,11 @@ export class MatrixWidget extends Widget {
             this.saveFilterState();
             this.drawMatrix();
         };
-        sortBar.appendChild(this.markdownButton);
+        rightButtons.appendChild(this.markdownButton);
 
+        // 将左右容器添加到主容器
+        sortBar.appendChild(leftSortButtons);
+        sortBar.appendChild(rightButtons);
         this.node.appendChild(sortBar);
         this.updateSortButtonState();
 
@@ -265,15 +352,39 @@ export class MatrixWidget extends Widget {
 
     private getSortIcon(): string {
         // SVG icons: 默认、降序、升序
-        if (this.sortState === 0) {
+        if (this.sortState === 3) {
+            // cluster激活时
+            if (this.voteEnabled) {
+                // vote激活时，显示从少到多的未激活状态（正常灰色升序图标）
+                return `<svg width="18" height="18" viewBox="0 0 20 20"><path d="M6 17h8M8 12h4M10 7h0" stroke="#555" stroke-width="2" stroke-linecap="round"/><path d="M15 14V4m0 0l-3 3m3-3l3 3" stroke="#555" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+            } else if (this.lengthSortEnabled) {
+                // length激活时，显示排序图标
+                if (this.clusterSizeSortDirection === 'desc') {
+                    // cluster size降序
+                    return `<svg width="18" height="18" viewBox="0 0 20 20"><path d="M6 7h8M8 12h4M10 17h0" stroke="#4caf50" stroke-width="2" stroke-linecap="round"/><path d="M15 4v10m0 0l-3-3m3 3l3-3" stroke="#4caf50" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+                } else {
+                    // cluster size升序
+                    return `<svg width="18" height="18" viewBox="0 0 20 20"><path d="M6 17h8M8 12h4M10 7h0" stroke="#4caf50" stroke-width="2" stroke-linecap="round"/><path d="M15 14V4m0 0l-3 3m3-3l3 3" stroke="#4caf50" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+                }
+            } else {
+                // 默认状态：从少到多的未激活状态（正常灰色升序图标）
+                return `<svg width="18" height="18" viewBox="0 0 20 20"><path d="M6 17h8M8 12h4M10 7h0" stroke="#555" stroke-width="2" stroke-linecap="round"/><path d="M15 14V4m0 0l-3 3m3-3l3 3" stroke="#555" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+            }
+        } else if (!this.lengthSortEnabled) {
+            // length未激活状态（默认状态）
             return `<svg width="18" height="18" viewBox="0 0 20 20"><path d="M4 7h12M4 12h12M4 17h12" stroke="#555" stroke-width="2" stroke-linecap="round"/></svg>`;
         } else if (this.sortState === 1) {
-            return `<svg width="18" height="18" viewBox="0 0 20 20"><path d="M6 7h8M8 12h4M10 17h0" stroke="#555" stroke-width="2" stroke-linecap="round"/><path d="M15 4v10m0 0l-3-3m3 3l3-3" stroke="#555" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+            // cluster未激活时：按notebook长度降序
+            return `<svg width="18" height="18" viewBox="0 0 20 20"><path d="M6 7h8M8 12h4M10 17h0" stroke="#4caf50" stroke-width="2" stroke-linecap="round"/><path d="M15 4v10m0 0l-3-3m3 3l3-3" stroke="#4caf50" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
         } else if (this.sortState === 2) {
-            return `<svg width="18" height="18" viewBox="0 0 20 20"><path d="M6 17h8M8 12h4M10 7h0" stroke="#555" stroke-width="2" stroke-linecap="round"/><path d="M15 14V4m0 0l-3 3m3-3l3 3" stroke="#555" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+            // cluster未激活时：按notebook长度升序
+            return `<svg width="18" height="18" viewBox="0 0 20 20"><path d="M6 17h8M8 12h4M10 7h0" stroke="#4caf50" stroke-width="2" stroke-linecap="round"/><path d="M15 14V4m0 0l-3 3m3-3l3 3" stroke="#4caf50" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+        } else if (this.lengthSortEnabled && this.sortState === 0) {
+            // 默认状态的激活状态：绿色三条横线
+            return `<svg width="18" height="18" viewBox="0 0 20 20"><path d="M4 7h12M4 12h12M4 17h12" stroke="#4caf50" stroke-width="2" stroke-linecap="round"/></svg>`;
         } else {
-            // similarity排序时，依然显示三条横线但灰色
-            return `<svg width="18" height="18" viewBox="0 0 20 20"><path d="M4 7h12M4 12h12M4 17h12" stroke="#bbb" stroke-width="2" stroke-linecap="round"/></svg>`;
+            // 默认状态：三条横线
+            return `<svg width="18" height="18" viewBox="0 0 20 20"><path d="M4 7h12M4 12h12M4 17h12" stroke="#555" stroke-width="2" stroke-linecap="round"/></svg>`;
         }
     }
     private getSimilaritySortIcon(): string {
@@ -342,20 +453,31 @@ export class MatrixWidget extends Widget {
     }
 
     private getSortButtonTooltip(): string {
-        if (this.sortState === 3 || this.voteEnabled) {
-            if (this.sortState === 3) {
-                return 'Sorting disabled (clustering mode active)';
+        if (this.sortState === 3) {
+            // cluster激活时
+            if (this.voteEnabled) {
+                return 'Sorted by cluster votes';
+            } else if (this.lengthSortEnabled) {
+                if (this.clusterSizeSortDirection === 'desc') {
+                    return 'Sorted by cluster size (desc)';
+                } else {
+                    return 'Sorted by cluster size (asc)';
+                }
             } else {
-                return 'Sorting disabled (vote mode active)';
+                return 'Cluster mode active';
+            }
+        } else if (this.lengthSortEnabled) {
+            if (this.sortState === 1) {
+                return 'Sorted by length (desc)';
+            } else if (this.sortState === 2) {
+                return 'Sorted by length (asc)';
+            } else if (this.sortState === 0) {
+                return 'Sorted by length (default)';
+            } else {
+                return 'Sorted by length';
             }
         } else {
-            if (this.sortState === 0) {
-                return 'Default order (no sorting)';
-            } else if (this.sortState === 1) {
-                return 'Sorted by notebook length (descending)';
-            } else {
-                return 'Sorted by notebook length (ascending)';
-            }
+            return 'Sort by length';
         }
     }
 
@@ -407,9 +529,12 @@ export class MatrixWidget extends Widget {
         } else if (this.sortState === 0) {
             this.notebookOrder = this.data.map((_, i) => i);
         } else if (this.sortState === 1 || this.sortState === 2) {
-            // 按 notebook 长度排序
-            const arr = this.data.map((nb, i) => ({ i, len: nb.cells.length }));
-            arr.sort((a, b) => this.sortState === 1 ? b.len - a.len : a.len - b.len);
+            // 按 notebook Total Lines排序（cluster未激活时）
+            const arr = this.data.map((nb, i) => ({ 
+                i, 
+                totalLines: (nb as any).totalLines || nb.cells.length 
+            }));
+            arr.sort((a, b) => this.sortState === 1 ? b.totalLines - a.totalLines : a.totalLines - b.totalLines);
             this.notebookOrder = arr.map(d => d.i);
         } else if (this.sortState === 3 && this.similarityGroups && this.similarityGroups.length > 0) {
             // similarity模式
@@ -458,31 +583,125 @@ export class MatrixWidget extends Widget {
 
             this.notebookOrder = [];
 
+            // 检查是否vote激活
             if (this.voteEnabled) {
-                // 如果vote激活，在每个group内部按vote排序
-                clusterOrder.forEach(groupId => {
-                    const groupNotebooks = groupMap[groupId];
-                    const sortedGroup = groupNotebooks.sort((a, b) => {
-                        const voteA = voteMap.get((this.data[a] as any).kernelVersionId?.toString()) || 0;
-                        const voteB = voteMap.get((this.data[b] as any).kernelVersionId?.toString()) || 0;
-                        return voteB - voteA;
+                // vote激活时，按cluster的平均vote排序，cluster内部也按vote排序
+                const clusterVotes = clusterOrder.map(groupId => {
+                    const notebooks = groupMap[groupId];
+                    let totalVotes = 0;
+                    let validNotebooks = 0;
+                    
+                    // 先对cluster内部的notebook按vote排序
+                    const sortedNotebooks = notebooks.map(notebookIndex => {
+                        const nb = this.data[notebookIndex] as any;
+                        const kernelId = nb.kernelVersionId?.toString();
+                        let votes = 0;
+                        if (kernelId && this.voteData && this.voteData.length > 0) {
+                            const voteRow = this.voteData.find((row: any) => row.kernelVersionId === kernelId);
+                            if (voteRow && voteRow.TotalVotes !== undefined) {
+                                votes = parseFloat(voteRow.TotalVotes) || 0;
+                            }
+                        }
+                        return { notebookIndex, votes };
+                    }).sort((a, b) => b.votes - a.votes); // 按vote降序排序
+                    
+                    // 计算cluster的平均vote
+                    sortedNotebooks.forEach(({ votes }) => {
+                        totalVotes += votes;
+                        if (votes > 0) validNotebooks++;
                     });
-                    this.notebookOrder.push(...sortedGroup);
+                    
+                    const avgVotes = validNotebooks > 0 ? totalVotes / validNotebooks : 0;
+                    return {
+                        groupId,
+                        avgVotes,
+                        sortedNotebooks
+                    };
                 });
-
-                const sortedUngrouped = ungroupedNotebooks.sort((a, b) => {
-                    const voteA = voteMap.get((this.data[a] as any).kernelVersionId?.toString()) || 0;
-                    const voteB = voteMap.get((this.data[b] as any).kernelVersionId?.toString()) || 0;
-                    return voteB - voteA;
+                
+                // 按平均vote降序排序（从多到少）
+                clusterVotes.sort((a, b) => b.avgVotes - a.avgVotes);
+                
+                // 使用排序后的cluster顺序，cluster内部也按vote排序
+                clusterVotes.forEach(({ sortedNotebooks }) => {
+                    sortedNotebooks.forEach(({ notebookIndex }) => {
+                        this.notebookOrder.push(notebookIndex);
+                    });
                 });
-                this.notebookOrder.push(...sortedUngrouped);
+            } else if (this.lengthSortEnabled) {
+                // length排序激活时，按cluster size排序，cluster内部也按notebook length排序
+                // 计算每个cluster的size（notebook数量）和内部排序
+                const clusterSizes = clusterOrder.map(groupId => {
+                    const notebooks = groupMap[groupId];
+                    
+                    // 先对cluster内部的notebook按totalLines排序
+                    const sortedNotebooks = notebooks.map(notebookIndex => {
+                        const nb = this.data[notebookIndex] as any;
+                        const totalLines = nb.totalLines || nb.cells.length; // 优先使用totalLines，如果没有则使用cells.length
+                        return { notebookIndex, totalLines };
+                    }).sort((a, b) => {
+                        // 根据cluster size排序方向决定notebook内部排序方向
+                        if (this.clusterSizeSortDirection === 'desc') {
+                            return b.totalLines - a.totalLines; // 降序：长notebook在前
+                        } else {
+                            return a.totalLines - b.totalLines; // 升序：短notebook在前
+                        }
+                    });
+                    
+                    // 调试信息：打印cluster内部排序结果
+                    console.log(`Cluster ${groupId} internal sorting (direction: ${this.clusterSizeSortDirection}):`, 
+                        sortedNotebooks.map(nb => ({ index: nb.notebookIndex, totalLines: nb.totalLines })));
+                    
+                    return {
+                        groupId,
+                        size: notebooks.length,
+                        sortedNotebooks
+                    };
+                });
+                
+                // 调试信息：打印当前排序方向
+                console.log('Current clusterSizeSortDirection:', this.clusterSizeSortDirection);
+                
+                // 按cluster size排序，如果size相同则按总total length排序（支持升序和降序）
+                clusterSizes.sort((a, b) => {
+                    if (this.clusterSizeSortDirection === 'desc') {
+                        // 降序：先按size，size相同则按总length
+                        if (b.size !== a.size) {
+                            return b.size - a.size; // 大cluster在前
+                        } else {
+                            // size相同，按总total length排序
+                            const aTotalLength = a.sortedNotebooks.reduce((sum, nb) => sum + nb.totalLines, 0);
+                            const bTotalLength = b.sortedNotebooks.reduce((sum, nb) => sum + nb.totalLines, 0);
+                            return bTotalLength - aTotalLength; // 总length大的在前
+                        }
+                    } else {
+                        // 升序：先按size，size相同则按总length
+                        if (a.size !== b.size) {
+                            return a.size - b.size; // 小cluster在前
+                        } else {
+                            // size相同，按总total length排序
+                            const aTotalLength = a.sortedNotebooks.reduce((sum, nb) => sum + nb.totalLines, 0);
+                            const bTotalLength = b.sortedNotebooks.reduce((sum, nb) => sum + nb.totalLines, 0);
+                            return aTotalLength - bTotalLength; // 总length小的在前
+                        }
+                    }
+                });
+                
+                // 使用排序后的cluster顺序，cluster内部也按length排序
+                clusterSizes.forEach(({ sortedNotebooks }) => {
+                    sortedNotebooks.forEach(({ notebookIndex }) => {
+                        this.notebookOrder.push(notebookIndex);
+                    });
+                });
             } else {
-                // 如果vote未激活，按照CSV的原始顺序排列
+                // 使用原始cluster顺序
                 clusterOrder.forEach(groupId => {
                     this.notebookOrder.push(...groupMap[groupId]);
                 });
-                this.notebookOrder.push(...ungroupedNotebooks);
             }
+            
+            // 添加未分组的notebook
+            this.notebookOrder.push(...ungroupedNotebooks);
         } else {
             this.notebookOrder = this.data.map((_, i) => i);
         }
@@ -697,20 +916,27 @@ export class MatrixWidget extends Widget {
         let groupSpacing = 0;
         const groupGap = 20; // White space between groups
         if (this.sortState === 3 && this.similarityGroups && this.similarityGroups.length > 0) {
-            // Count unique groups in the current notebook order
+            // Count unique groups in the current notebook order (including ungrouped notebooks as a separate group)
             const uniqueGroups = new Set();
+            let hasUngrouped = false;
             notebookOrder.forEach(idx => {
                 const nb = notebooks[idx] as any;
                 // 安全检查：确保kernelVersionId存在
                 if (nb && nb.kernelVersionId) {
                     const kernelId = nb.kernelVersionId.toString();
                     const simRow = this.similarityGroups.find((row: any) => row.kernelVersionId === kernelId);
-                    if (simRow) {
+                    if (simRow && simRow.cluster_id) {
                         uniqueGroups.add(simRow.cluster_id);
+                    } else {
+                        hasUngrouped = true;
                     }
+                } else {
+                    hasUngrouped = true;
                 }
             });
-            groupSpacing = Math.max(0, uniqueGroups.size - 1) * groupGap;
+            // 计算组数：cluster组数 + 未分组组（如果有的话）
+            const totalGroups = uniqueGroups.size + (hasUngrouped ? 1 : 0);
+            groupSpacing = Math.max(0, totalGroups - 1) * groupGap;
         }
 
         const svgWidth = Math.max(1000, notebookOrder.length * (cellWidth + rowPadding + notebookSpacing) + groupSpacing + 100);
@@ -802,7 +1028,7 @@ export class MatrixWidget extends Widget {
                 const currentGroupId = simRow ? simRow.cluster_id : null;
 
                 // Add spacing if this is a new group (but not for the first group)
-                if (prevGroupId !== null && currentGroupId !== prevGroupId && currentGroupId !== null) {
+                if (prevGroupId !== null && currentGroupId !== prevGroupId) {
                     currentX += groupGap;
                 }
                 prevGroupId = currentGroupId;
@@ -1070,13 +1296,17 @@ export class MatrixWidget extends Widget {
     // 重置MatrixWidget状态，用于切换competition时
     resetState(): void {
         this.filter = null;
-        this.sortState = 0;
+        // 如果有similarityGroups数据，默认激活cluster，否则使用原始顺序
+        const hasSimilarityData = this.similarityGroups && this.similarityGroups.length > 0;
+        this.sortState = hasSimilarityData ? 3 : 0;
         this.voteEnabled = false;
+        this.lengthSortEnabled = hasSimilarityData; // cluster激活时默认启用length排序
+        this.clusterSizeSortDirection = 'asc'; // 默认升序
         this.notebookOrder = this.data.map((_, i) => i);
         (this as any)._assignmentFilter = '';
         (this as any)._studentFilter = '';
         this.cellHeightMode = 'fixed';
-        this.showMarkdown = true;
+        this.showMarkdown = false; // 默认不显示markdown
 
         // 只有在DOM元素已经创建时才更新按钮状态
         if (this.sortButton) {
@@ -1084,6 +1314,12 @@ export class MatrixWidget extends Widget {
         }
         if (this.similaritySortButton) {
             this.similaritySortButton.innerHTML = this.getSimilaritySortIcon();
+            // 只有在有similarityGroups数据时才激活cluster按钮
+            if (this.similarityGroups && this.similarityGroups.length > 0) {
+                this.similaritySortButton.classList.add('active');
+            } else {
+                this.similaritySortButton.classList.remove('active');
+            }
         }
         if (this.cellHeightButton) {
             this.cellHeightButton.innerHTML = this.getCellHeightIcon();
@@ -1096,6 +1332,9 @@ export class MatrixWidget extends Widget {
             this.voteSortButton.classList.remove('active');
         }
         this.updateSortButtonState();
+        
+        // 应用排序
+        this.updateNotebookOrder();
 
         // 只有在DOM元素已经创建时才重置筛选器
         if (this.node) {
@@ -1130,15 +1369,10 @@ export class MatrixWidget extends Widget {
     // 根据当前排序状态更新按钮样式和可用性
     private updateSortButtonState() {
         if (this.sortButton) {
-            if (this.sortState === 3 || this.voteEnabled) {
-                this.sortButton.style.opacity = '0.4';
-                this.sortButton.style.cursor = 'not-allowed';
-                this.sortButton.disabled = true;
-            } else {
-                this.sortButton.style.opacity = '1';
-                this.sortButton.style.cursor = 'pointer';
-                this.sortButton.disabled = false;
-            }
+            // vote和length现在是互斥的，不需要禁用按钮
+            this.sortButton.style.opacity = '1';
+            this.sortButton.style.cursor = 'pointer';
+            this.sortButton.disabled = false;
         }
     }
 
@@ -1169,6 +1403,8 @@ export class MatrixWidget extends Widget {
             filter: this.filter,
             sortState: this.sortState,
             voteEnabled: this.voteEnabled,
+            lengthSortEnabled: this.lengthSortEnabled,
+            clusterSizeSortDirection: this.clusterSizeSortDirection,
             notebookOrder: this.notebookOrder,
             assignmentFilter: (this as any)._assignmentFilter,
             studentFilter: (this as any)._studentFilter,
@@ -1206,11 +1442,13 @@ export class MatrixWidget extends Widget {
             this.filter = savedState.filter;
             this.sortState = savedState.sortState;
             this.voteEnabled = savedState.voteEnabled || false;
+            this.lengthSortEnabled = savedState.lengthSortEnabled || false;
+            this.clusterSizeSortDirection = savedState.clusterSizeSortDirection || 'asc';
             this.notebookOrder = savedState.notebookOrder || this.data.map((_, i) => i);
             (this as any)._assignmentFilter = savedState.assignmentFilter || '';
             (this as any)._studentFilter = savedState.studentFilter || '';
             this.cellHeightMode = savedState.cellHeightMode || 'fixed';
-            this.showMarkdown = savedState.showMarkdown || true; // 恢复markdown显示状态
+            this.showMarkdown = savedState.showMarkdown !== undefined ? savedState.showMarkdown : false; // 恢复markdown显示状态
 
             // 更新按钮状态
             this.sortButton.innerHTML = this.getSortIcon();
@@ -1251,13 +1489,16 @@ export class MatrixWidget extends Widget {
         } else {
             // 如果没有保存的状态，使用默认状态
             this.filter = null;
-            this.sortState = 0;
+            // 如果有similarityGroups数据，默认激活cluster，否则使用原始顺序
+            this.sortState = (this.similarityGroups && this.similarityGroups.length > 0) ? 3 : 0;
             this.voteEnabled = false;
+            this.lengthSortEnabled = (this.similarityGroups && this.similarityGroups.length > 0); // cluster激活时默认启用length排序
+            this.clusterSizeSortDirection = 'asc'; // 默认升序
             this.notebookOrder = this.data.map((_, i) => i);
             (this as any)._assignmentFilter = '';
             (this as any)._studentFilter = '';
             this.cellHeightMode = 'fixed';
-            this.showMarkdown = true; // 重置markdown显示状态
+            this.showMarkdown = false; // 默认不显示markdown
 
             // 更新按钮状态
             this.sortButton.innerHTML = this.getSortIcon();
@@ -1268,8 +1509,17 @@ export class MatrixWidget extends Widget {
 
             // 重置vote按钮的active状态
             this.voteSortButton.classList.remove('active');
+            // 只有在有similarityGroups数据时才激活cluster按钮
+            if (this.similarityGroups && this.similarityGroups.length > 0) {
+                this.similaritySortButton.classList.add('active');
+            } else {
+                this.similaritySortButton.classList.remove('active');
+            }
 
             this.updateSortButtonState();
+            
+            // 应用默认排序
+            this.updateNotebookOrder();
 
             // 重置筛选器
             const assignmentSelect = this.node.querySelector('select') as HTMLSelectElement;
