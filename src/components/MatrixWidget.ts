@@ -108,7 +108,6 @@ export class MatrixWidget extends Widget {
         // 排序按钮
         this.notebookOrder = this.data.map((_, i) => i);
         this.sortButton = document.createElement('button');
-        this.sortButton.title = 'Default order (no sorting)';
         this.sortButton.style.background = 'none';
         this.sortButton.style.border = 'none';
         this.sortButton.style.cursor = 'pointer';
@@ -117,6 +116,7 @@ export class MatrixWidget extends Widget {
         this.sortButton.style.alignItems = 'center';
         this.sortButton.style.justifyContent = 'center';
         this.sortButton.innerHTML = this.getSortIcon();
+        this.addTooltipToButton(this.sortButton, () => this.getSortButtonTooltip());
         this.sortButton.onclick = () => {
             // 保存当前的filter状态
             const currentFilter = this.filter;
@@ -138,7 +138,6 @@ export class MatrixWidget extends Widget {
 
         // similarity排序按钮
         this.similaritySortButton = document.createElement('button');
-        this.similaritySortButton.title = 'Toggle clustering';
         this.similaritySortButton.style.background = 'none';
         this.similaritySortButton.style.border = 'none';
         this.similaritySortButton.style.cursor = 'pointer';
@@ -147,6 +146,7 @@ export class MatrixWidget extends Widget {
         this.similaritySortButton.style.alignItems = 'center';
         this.similaritySortButton.style.justifyContent = 'center';
         this.similaritySortButton.innerHTML = this.getSimilaritySortIcon();
+        this.addTooltipToButton(this.similaritySortButton, () => 'Toggle clustering');
         this.similaritySortButton.onclick = () => {
             // 保存当前的filter状态
             const currentFilter = this.filter;
@@ -174,7 +174,6 @@ export class MatrixWidget extends Widget {
 
         // 投票排序按钮
         this.voteSortButton = document.createElement('button');
-        this.voteSortButton.title = 'Toggle vote sorting';
         this.voteSortButton.style.background = 'none';
         this.voteSortButton.style.border = 'none';
         this.voteSortButton.style.cursor = 'pointer';
@@ -183,6 +182,7 @@ export class MatrixWidget extends Widget {
         this.voteSortButton.style.alignItems = 'center';
         this.voteSortButton.style.justifyContent = 'center';
         this.voteSortButton.innerHTML = this.getVoteSortIcon();
+        this.addTooltipToButton(this.voteSortButton, () => this.voteEnabled ? 'Sorted by votes (highest to lowest)' : 'Sort by votes');
         this.voteSortButton.onclick = () => {
             // 保存当前的filter状态
             const currentFilter = this.filter;
@@ -210,7 +210,6 @@ export class MatrixWidget extends Widget {
 
         // cell高度模式按钮
         this.cellHeightButton = document.createElement('button');
-        this.cellHeightButton.title = 'Fixed cell height mode';
         this.cellHeightButton.style.background = 'none';
         this.cellHeightButton.style.border = 'none';
         this.cellHeightButton.style.cursor = 'pointer';
@@ -219,6 +218,7 @@ export class MatrixWidget extends Widget {
         this.cellHeightButton.style.alignItems = 'center';
         this.cellHeightButton.style.justifyContent = 'center';
         this.cellHeightButton.innerHTML = this.getCellHeightIcon();
+        this.addTooltipToButton(this.cellHeightButton, () => this.cellHeightMode === 'fixed' ? 'Fixed cell height mode' : 'Cell height by line count');
         this.cellHeightButton.onclick = () => {
             // 在两种模式之间切换：fixed -> dynamic -> fixed
             if (this.cellHeightMode === 'fixed') {
@@ -235,7 +235,6 @@ export class MatrixWidget extends Widget {
 
         // markdown显示/隐藏按钮
         this.markdownButton = document.createElement('button');
-        this.markdownButton.title = 'Toggle markdown visibility';
         this.markdownButton.style.background = 'none';
         this.markdownButton.style.border = 'none';
         this.markdownButton.style.cursor = 'pointer';
@@ -244,6 +243,7 @@ export class MatrixWidget extends Widget {
         this.markdownButton.style.alignItems = 'center';
         this.markdownButton.style.justifyContent = 'center';
         this.markdownButton.innerHTML = this.getMarkdownIcon();
+        this.addTooltipToButton(this.markdownButton, () => 'Toggle markdown visibility');
         this.markdownButton.onclick = () => {
             this.showMarkdown = !this.showMarkdown;
             this.markdownButton.innerHTML = this.getMarkdownIcon();
@@ -339,6 +339,50 @@ export class MatrixWidget extends Widget {
             // 隐藏markdown：灰色"Md"文本
             return `<span style="color: #555; font-weight: 600; font-size: 12px; line-height: 1; display: inline-block; vertical-align: middle;">Md</span>`;
         }
+    }
+
+    private getSortButtonTooltip(): string {
+        if (this.sortState === 3 || this.voteEnabled) {
+            if (this.sortState === 3) {
+                return 'Sorting disabled (clustering mode active)';
+            } else {
+                return 'Sorting disabled (vote mode active)';
+            }
+        } else {
+            if (this.sortState === 0) {
+                return 'Default order (no sorting)';
+            } else if (this.sortState === 1) {
+                return 'Sorted by notebook length (descending)';
+            } else {
+                return 'Sorted by notebook length (ascending)';
+            }
+        }
+    }
+
+    // 通用的tooltip处理函数
+    private addTooltipToButton(button: HTMLButtonElement, getTooltipText: () => string): void {
+        button.onmouseenter = (e) => {
+            const tooltip = document.getElementById('galaxy-tooltip');
+            if (tooltip) {
+                tooltip.innerHTML = getTooltipText();
+                tooltip.style.display = 'block';
+                tooltip.style.left = e.clientX + 12 + 'px';
+                tooltip.style.top = e.clientY + 12 + 'px';
+            }
+        };
+        button.onmousemove = (e) => {
+            const tooltip = document.getElementById('galaxy-tooltip');
+            if (tooltip && tooltip.style.display === 'block') {
+                tooltip.style.left = e.clientX + 12 + 'px';
+                tooltip.style.top = e.clientY + 12 + 'px';
+            }
+        };
+        button.onmouseleave = () => {
+            const tooltip = document.getElementById('galaxy-tooltip');
+            if (tooltip) {
+                tooltip.style.display = 'none';
+            }
+        };
     }
 
     private updateNotebookOrder() {
@@ -1064,47 +1108,11 @@ export class MatrixWidget extends Widget {
                 this.sortButton.style.opacity = '0.4';
                 this.sortButton.style.cursor = 'not-allowed';
                 this.sortButton.disabled = true;
-                if (this.sortState === 3) {
-                    this.sortButton.title = 'Sorting disabled (clustering mode active)';
-                } else {
-                    this.sortButton.title = 'Sorting disabled (vote mode active)';
-                }
             } else {
                 this.sortButton.style.opacity = '1';
                 this.sortButton.style.cursor = 'pointer';
                 this.sortButton.disabled = false;
-                if (this.sortState === 0) {
-                    this.sortButton.title = 'Default order (no sorting)';
-                } else if (this.sortState === 1) {
-                    this.sortButton.title = 'Sorted by notebook length (descending)';
-                } else {
-                    this.sortButton.title = 'Sorted by notebook length (ascending)';
-                }
             }
-        }
-
-        if (this.similaritySortButton) {
-            this.similaritySortButton.title = 'Toggle clustering';
-        }
-
-        if (this.voteSortButton) {
-            if (this.voteEnabled) {
-                this.voteSortButton.title = 'Sorted by votes (highest to lowest)';
-            } else {
-                this.voteSortButton.title = 'Sort by votes';
-            }
-        }
-
-        if (this.cellHeightButton) {
-            if (this.cellHeightMode === 'fixed') {
-                this.cellHeightButton.title = 'Fixed cell height mode';
-            } else {
-                this.cellHeightButton.title = 'Cell height by line count';
-            }
-        }
-
-        if (this.markdownButton) {
-            this.markdownButton.title = 'Toggle markdown visibility';
         }
     }
 
