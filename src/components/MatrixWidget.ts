@@ -857,17 +857,6 @@ export class MatrixWidget extends Widget {
                             .attr('stroke', d.cellType === 'code' ? color(String(d["1st-level label"] ?? "None")) : '#bbb')
                             .attr('filter', 'drop-shadow(0px 0px 6px rgba(0,0,0,0.18))');
                         
-                        // 派发notebook高亮事件
-                        const notebookIndex = (d as any).globalIndex || nb.globalIndex;
-                        if (notebookIndex) {
-                            window.dispatchEvent(new CustomEvent('galaxy-notebook-highlight', {
-                                detail: { 
-                                    notebookIndex: notebookIndex,
-                                    highlight: true 
-                                }
-                            }));
-                        }
-                        
                         let tooltip = document.getElementById('galaxy-tooltip');
                         if (!tooltip) {
                             tooltip = document.createElement('div');
@@ -935,17 +924,6 @@ export class MatrixWidget extends Widget {
                             d3.select(this).attr('stroke', color(String(datum["1st-level label"] ?? "None")));
                         }
                         
-                        // 取消notebook高亮
-                        const notebookIndex = (d as any).globalIndex || nb.globalIndex;
-                        if (notebookIndex) {
-                            window.dispatchEvent(new CustomEvent('galaxy-notebook-highlight', {
-                                detail: { 
-                                    notebookIndex: notebookIndex,
-                                    highlight: false 
-                                }
-                            }));
-                        }
-                        
                         const tooltip = document.getElementById('galaxy-tooltip');
                         tooltip!.style.display = 'none';
                     })
@@ -1000,6 +978,30 @@ export class MatrixWidget extends Widget {
                 .attr('fill', '#555')
                 .style('cursor', 'pointer')
                 .text(nb?.globalIndex ?? (col + 1))
+                .on('mouseover', function() {
+                    // 高亮对应的notebook
+                    const notebookIndex = nb?.globalIndex;
+                    if (notebookIndex) {
+                        window.dispatchEvent(new CustomEvent('galaxy-notebook-highlight', {
+                            detail: { 
+                                notebookIndex: notebookIndex,
+                                highlight: true 
+                            }
+                        }));
+                    }
+                })
+                .on('mouseout', function() {
+                    // 取消notebook高亮
+                    const notebookIndex = nb?.globalIndex;
+                    if (notebookIndex) {
+                        window.dispatchEvent(new CustomEvent('galaxy-notebook-highlight', {
+                            detail: { 
+                                notebookIndex: notebookIndex,
+                                highlight: false 
+                            }
+                        }));
+                    }
+                })
                 .on('click', () => {
                     window.dispatchEvent(new CustomEvent('galaxy-notebook-selected', { detail: { notebook: { ...nb, index: nb?.globalIndex ?? 0 } } }));
                 });
