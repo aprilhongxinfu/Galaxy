@@ -1044,7 +1044,7 @@ export class LeftSidebar extends Widget {
             // 组标题 - 只有 Data-oriented 和 Model-oriented 显示标题
             if (shouldHaveBox) {
                 const groupTitle = document.createElement('div');
-                groupTitle.style.fontSize = '11px';
+                groupTitle.style.fontSize = '12px';
                 groupTitle.style.fontWeight = '600';
                 groupTitle.style.color = '#555';
                 groupTitle.style.marginBottom = '4px';
@@ -1089,7 +1089,7 @@ export class LeftSidebar extends Widget {
                     }
 
                     const label = document.createElement('span');
-                    label.style.fontSize = '9px';
+                    label.style.fontSize = '12px';
                     label.textContent = LABEL_MAP[d.stage] ?? d.stage;
                     label.style.opacity = isStageHidden ? '0.3' : '1';
 
@@ -1147,7 +1147,7 @@ export class LeftSidebar extends Widget {
                     }
 
                     const label = document.createElement('span');
-                    label.style.fontSize = '9px';
+                    label.style.fontSize = '12px';
                     label.textContent = LABEL_MAP[d.stage] ?? d.stage;
                     label.style.opacity = isStageHidden ? '0.3' : '1';
 
@@ -1205,7 +1205,7 @@ export class LeftSidebar extends Widget {
                     }
 
                     const label = document.createElement('span');
-                    label.style.fontSize = '9px';
+                    label.style.fontSize = '12px';
                     label.textContent = LABEL_MAP[d.stage] ?? d.stage;
                     label.style.opacity = isStageHidden ? '0.3' : '1';
 
