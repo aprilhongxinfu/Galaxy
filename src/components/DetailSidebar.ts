@@ -1,5 +1,6 @@
 import { Widget } from '@lumino/widgets';
 import { LABEL_MAP } from './labelMap';
+import { STAGE_GROUP_MAP } from './stage_hierarchy';
 
 // 工具函数：根据英文名或 id 找到 stage id（字符串）
 function getStageIdByName(name: string): string | undefined {
@@ -232,7 +233,7 @@ export class DetailSidebar extends Widget {
         !hiddenStages.has(String(toId))
       );
     });
-    // 渲染函数，显示为纯文本
+    // 渲染函数，显示为block图标和黑色文本
     const renderStageText = () => {
       // 检查是否所有stage都只出现一次
       const allStageFreqs = Object.values(stageFreq);
@@ -242,9 +243,28 @@ export class DetailSidebar extends Widget {
         return `<span style="color:#6c757d; font-size:13px; font-style:italic;">All stages appear only once (${mostFreqStagesFiltered.length} unique stages)</span>`;
       }
 
-      return mostFreqStagesFiltered.map(stage =>
-        `<span style="color:${this.colorMap.get(stage) || '#0066cc'}; font-weight:600; font-size:13px; margin-right:6px;">${LABEL_MAP[stage] ?? stage}</span>`
-      ).join('');
+      return mostFreqStagesFiltered.map(stage => {
+        const stageColor = this.colorMap.get(stage) || '#0066cc';
+        const group = STAGE_GROUP_MAP[stage];
+        let borderStyle = 'none';
+        let borderWidth = '0px';
+        let borderColor = 'transparent';
+        
+        if (group === 'Data-oriented') {
+          borderStyle = 'solid';
+          borderWidth = '1px';
+          borderColor = '#666666';
+        } else if (group === 'Model-oriented') {
+          borderStyle = 'dashed';
+          borderWidth = '1px';
+          borderColor = '#666666';
+        }
+        
+        return `<div style="display:inline-flex; align-items:center; margin-right:8px; margin-bottom:4px;">
+          <div style="width:10px; height:12px; background-color:${stageColor}; border-radius:2px; margin-right:6px; flex-shrink:0; border:${borderWidth} ${borderStyle} ${borderColor}; align-self:center;"></div>
+          <span style="color:#222; font-weight:600; font-size:13px; line-height:12px; display:flex; align-items:center;">${LABEL_MAP[stage] ?? stage}</span>
+        </div>`;
+      }).join('');
     };
     const renderFlowText = () => {
       // 检查是否所有transition都只出现一次
@@ -484,14 +504,14 @@ export class DetailSidebar extends Widget {
           <div style="background:#fff; border-radius:6px; padding:12px; border:1px solid #e9ecef; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
             <div style="margin-bottom:12px;">
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; color:#495057;">
-                <span style="font-weight:500; font-size:13px;">Most Common Stage(s)</span>
+                <span style="font-weight:500; font-size:13px;">Top Stage</span>
                 <span style="color:#1976d2; font-size:12px; font-weight:600;">${stageCountText}</span>
               </div>
               <div style="display:flex; flex-wrap:wrap; gap:6px;" id="dsb-stage-links">${renderStageText()}</div>
             </div>
             <div style="margin-bottom:12px;">
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; color:#495057;">
-                <span style="font-weight:500; font-size:13px;">Most Common Transition(s)</span>
+                <span style="font-weight:500; font-size:13px;">Top Transition</span>
                 <span style="color:#1976d2; font-size:12px; font-weight:600;">${flowCountText}</span>
               </div>
               <div style="display:flex; flex-direction:column; gap:3px;" id="dsb-flow-links">${renderFlowText()}</div>
@@ -1488,7 +1508,7 @@ export class DetailSidebar extends Widget {
       .map(([flow, _]) => flow);
     const stageCountText = maxStageFreq > 0 ? `${maxStageFreq} count(s)` : 'None';
     const flowCountText = maxFlowFreq > 0 ? `${maxFlowFreq} count(s)` : 'None';
-    // 渲染函数，显示为纯文本
+    // 渲染函数，显示为block图标和黑色文本
     const renderStageText = () => {
       // 检查是否所有stage都只出现一次
       const allStageFreqs = Object.values(stageFreq);
@@ -1498,9 +1518,28 @@ export class DetailSidebar extends Widget {
         return `<span style="color:#6c757d; font-size:13px; font-style:italic;">All stages appear only once (${mostFreqStages.length} unique stages)</span>`;
       }
 
-      return mostFreqStages.map(stage =>
-        `<span style="color:${this.colorMap.get(stage) || '#0066cc'}; font-weight:600; font-size:13px; margin-right:6px;">${LABEL_MAP[stage] ?? stage}</span>`
-      ).join('');
+      return mostFreqStages.map(stage => {
+        const stageColor = this.colorMap.get(stage) || '#0066cc';
+        const group = STAGE_GROUP_MAP[stage];
+        let borderStyle = 'none';
+        let borderWidth = '0px';
+        let borderColor = 'transparent';
+        
+        if (group === 'Data-oriented') {
+          borderStyle = 'solid';
+          borderWidth = '1px';
+          borderColor = '#666666';
+        } else if (group === 'Model-oriented') {
+          borderStyle = 'dashed';
+          borderWidth = '1px';
+          borderColor = '#666666';
+        }
+        
+        return `<div style="display:inline-flex; align-items:center; margin-right:8px; margin-bottom:4px;">
+          <div style="width:10px; height:12px; background-color:${stageColor}; border-radius:2px; margin-right:6px; flex-shrink:0; border:${borderWidth} ${borderStyle} ${borderColor}; align-self:center;"></div>
+          <span style="color:#222; font-weight:600; font-size:13px; line-height:12px; display:flex; align-items:center;">${LABEL_MAP[stage] ?? stage}</span>
+        </div>`;
+      }).join('');
     };
     const renderFlowText = () => {
       if (mostFreqFlows.length === 0) {
@@ -1654,14 +1693,14 @@ export class DetailSidebar extends Widget {
           <div style="background:#fff; border-radius:6px; padding:12px; border:1px solid #e9ecef; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
             <div style="margin-bottom:12px;">
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; color:#495057;">
-                <span style="font-weight:500; font-size:13px;">Most Common Stage(s)</span>
+                <span style="font-weight:500; font-size:13px;">Top Stage</span>
                 <span style="color:#1976d2; font-size:12px; font-weight:600;">${stageCountText}</span>
               </div>
               <div style="display:flex; flex-wrap:wrap; gap:6px;" id="dsb-stage-links">${renderStageText()}</div>
             </div>
             <div style="margin-bottom:0px;">
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; color:#495057;">
-                <span style="font-weight:500; font-size:13px;">Most Common Transition(s)</span>
+                <span style="font-weight:500; font-size:13px;">Top Transition</span>
                 <span style="color:#1976d2; font-size:12px; font-weight:600;">${flowCountText}</span>
               </div>
               <div style="display:flex; flex-direction:column; gap:3px;" id="dsb-flow-links">${renderFlowText()}</div>
