@@ -63,8 +63,9 @@ export class DetailSidebar extends Widget {
     this.title.closable = true;
     this.addClass('galaxy-detail-sidebar');
     this.setDefault();
-    this.node.style.overflowY = 'auto';
+    this.node.style.overflowY = 'hidden'; // 禁用整体滚动
     this.node.style.minWidth = '305px'; // 设置最小宽度
+    this.node.style.height = '100vh'; // 设置为屏幕高度
     this._hiddenStages = hiddenStages ?? new Set(['10', '12']);
     // 监听左侧 legend 显隐变化，自动刷新统计
     window.addEventListener('galaxy-hidden-stages-changed', (e: any) => {
@@ -281,11 +282,11 @@ export class DetailSidebar extends Widget {
         const [from, to] = flow.split(/->|→/);
         const fromColor = this.colorMap.get(from) || '#1976d2';
         const toColor = this.colorMap.get(to) || '#42a5f5';
-        
+
         // 获取stage的group信息用于边框样式
         const fromGroup = STAGE_GROUP_MAP[from];
         const toGroup = STAGE_GROUP_MAP[to];
-        
+
         let fromBorderStyle = 'none';
         let fromBorderWidth = '0px';
         let fromBorderColor = 'transparent';
@@ -480,8 +481,8 @@ export class DetailSidebar extends Widget {
 
     // 插入内容
     this.node.innerHTML = `
-      <div style="padding:16px 12px 12px 12px; font-size:14px; color:#222; max-width:420px; margin:0 auto;">
-        <div style="font-size:16px; font-weight:700; margin-bottom:12px; line-height:1.3; word-break:break-all; padding-bottom:8px; border-bottom:1px solid #e9ecef;" id="detail-sidebar-title">
+      <div style="padding:16px 12px 12px 12px; font-size:14px; color:#222; max-width:420px; margin:0 auto; height:100%; display:flex; flex-direction:column; box-sizing:border-box;">
+        <div style="font-size:16px; font-weight:700; margin-bottom:12px; line-height:1.3; word-break:break-all; padding-bottom:8px; border-bottom:1px solid #e9ecef; flex-shrink:0;" id="detail-sidebar-title">
           <span style="${this._getTitleStyle()}">Notebook ${nb.globalIndex !== undefined ? nb.globalIndex : ''}: ${nb.notebook_name ?? nb.kernelVersionId}</span>
           ${nb.url ? `
           <a href="${nb.url}" target="_blank" class="kaggle-link" style="display:inline-flex; align-items:center; text-decoration:none; margin-left:8px; vertical-align:baseline; height:23.4px; line-height:23.4px;" title="View on Kaggle">
@@ -496,7 +497,7 @@ export class DetailSidebar extends Widget {
         </div>
         
         ${nb.displayname ? `
-        <div style="margin-bottom:12px;">
+        <div style="margin-bottom:12px; flex-shrink:0;">
           <div style="display:flex; align-items:center; gap:6px; justify-content:flex-end;">
             <span style="font-size:12px; color:#6c757d; font-weight:500;">by</span>
             <span style="font-size:13px; color:#495057; font-weight:600;">${nb.displayname}</span>
@@ -505,7 +506,7 @@ export class DetailSidebar extends Widget {
         ` : ''}
         
         ${nb.creationDate || nb.totalLines || this.getVoteCount(nb) ? `
-        <div style="background:#f8f9fa; border-radius:6px; padding:12px; margin-bottom:12px; border:1px solid #e9ecef;">
+        <div style="background:#f8f9fa; border-radius:6px; padding:12px; margin-bottom:12px; border:1px solid #e9ecef; flex-shrink:0;">
           <div style="display:flex; flex-direction:row; gap:12px;">
             ${nb.creationDate ? `
             <div style="flex:1; display:flex; flex-direction:column; justify-content:flex-end;">
@@ -529,7 +530,7 @@ export class DetailSidebar extends Widget {
         </div>
         ` : ''}
         
-        <div style="background:#f8f9fa; border-radius:6px; padding:12px; margin-bottom:12px; border:1px solid #e9ecef;">
+        <div style="background:#f8f9fa; border-radius:6px; padding:12px; margin-bottom:12px; border:1px solid #e9ecef; flex-shrink:0;">
           <div style="display:flex; flex-direction:row; gap:12px;">
             <div style="flex:1; display:flex; flex-direction:column; justify-content:flex-end;">
               <div style="font-size:11px; color:#6c757d; margin-bottom:2px;">Total Cells</div>
@@ -546,7 +547,7 @@ export class DetailSidebar extends Widget {
           </div>
         </div>
         
-        <div style="margin-bottom:16px;">
+        <div style="margin-bottom:16px; flex-shrink:0;">
           <div style="font-size:14px; font-weight:600; margin-bottom:8px; color:#222; display:flex; align-items:center; gap:6px;">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M9 11H15M9 15H15M9 7H15M5 3H19C20.1046 3 21 3.89543 21 5V19C21 20.1046 20.1046 21 19 21H5C3.89543 21 3 20.1046 3 19V5C3 3.89543 3.89543 3 5 3Z" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -571,7 +572,7 @@ export class DetailSidebar extends Widget {
           </div>
         </div>
         
-        <div style="margin-bottom:16px;">
+        <div style="margin-bottom:16px; flex-shrink:0;">
           <div style="font-size:14px; font-weight:600; margin-bottom:8px; color:#222; display:flex; align-items:center; gap:6px;">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M3 3v18h18" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -589,50 +590,52 @@ export class DetailSidebar extends Widget {
         ${selectedStageInfo}
         ${selectedTransitionInfo}
         
-        ${nb.toc && nb.toc.length > 0 ? `
-        <div style="margin-bottom:12px;">
-          <div style="font-size:14px; font-weight:600; margin-bottom:8px; color:#222; display:flex; align-items:center; gap:6px;">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M4 6H20M4 10H20M4 14H20M4 18H20" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-            Table of Contents
-          </div>
-          <div class="toc-scroll" style="background:#fff; border-radius:6px; padding:12px; max-height:240px; overflow-y:auto; overflow-x:hidden; border:1px solid #e9ecef; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
-            ${nb.toc.map((item: any) => {
-      // 统计#数量，决定层级
-      const match = item.heading.match(/^(#+)\s+/);
-      const level = match ? match[1].length : 1;
-      const marginLeft = 10 * (level - 1);
-      const fontSize = level === 1 ? 13 : (level === 2 ? 12 : 11);
-      const fontWeight = level === 1 ? 600 : (level === 2 ? 500 : 400);
-      const color = level === 1 ? '#1976d2' : (level === 2 ? '#1565c0' : '#6c757d');
-      const padding = level === 1 ? '4px 0' : (level === 2 ? '3px 0' : '2px 0');
-      return `
-              <div style="margin-bottom:1px; margin-left:${marginLeft}px;">
-                <div class="toc-item" data-cell-id="${item.cellId}" 
-                     style="color:${color}; font-size:${fontSize}px; font-weight:${fontWeight}; cursor:pointer; line-height:1.3; padding:${padding}; border-radius:3px; transition:all 0.2s ease;"
-                     onmouseover="this.style.background='#e3f2fd'; this.style.color='#1565c0';"
-                     onmouseout="this.style.background='transparent'; this.style.color='${color}';">
-                  ${item.heading.replace(/^#+\s*/, '')}
+        <div style="flex:1; min-height:0; display:flex; flex-direction:column;">
+          ${nb.toc && nb.toc.length > 0 ? `
+          <div style="flex:1; min-height:0; display:flex; flex-direction:column;">
+            <div style="font-size:14px; font-weight:600; margin-bottom:8px; color:#222; display:flex; align-items:center; gap:6px; flex-shrink:0;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M4 6H20M4 10H20M4 14H20M4 18H20" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              Table of Contents
+            </div>
+            <div class="toc-scroll" style="background:#fff; border-radius:6px; padding:12px; flex:1; min-height:0; overflow-y:auto; overflow-x:hidden; border:1px solid #e9ecef; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+              ${nb.toc.map((item: any) => {
+        // 统计#数量，决定层级
+        const match = item.heading.match(/^(#+)\s+/);
+        const level = match ? match[1].length : 1;
+        const marginLeft = 10 * (level - 1);
+        const fontSize = level === 1 ? 13 : (level === 2 ? 12 : 11);
+        const fontWeight = level === 1 ? 600 : (level === 2 ? 500 : 400);
+        const color = level === 1 ? '#1976d2' : (level === 2 ? '#1565c0' : '#6c757d');
+        const padding = level === 1 ? '4px 0' : (level === 2 ? '3px 0' : '2px 0');
+        return `
+                <div style="margin-bottom:1px; margin-left:${marginLeft}px;">
+                  <div class="toc-item" data-cell-id="${item.cellId}" 
+                       style="color:${color}; font-size:${fontSize}px; font-weight:${fontWeight}; cursor:pointer; line-height:1.3; padding:${padding}; border-radius:3px; transition:all 0.2s ease;"
+                       onmouseover="this.style.background='#e3f2fd'; this.style.color='#1565c0';"
+                       onmouseout="this.style.background='transparent'; this.style.color='${color}';">
+                    ${item.heading.replace(/^#+\s*/, '')}
+                  </div>
                 </div>
-              </div>
-            `;
-    }).join('')}
+              `;
+      }).join('')}
+            </div>
           </div>
+          ` : `
+          <div style="flex:1; min-height:0; display:flex; flex-direction:column;">
+            <div style="font-size:14px; font-weight:600; margin-bottom:8px; color:#222; display:flex; align-items:center; gap:6px; flex-shrink:0;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M4 6H20M4 10H20M4 14H20M4 18H20" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              Table of Contents
+            </div>
+            <div style="background:#fff; border-radius:6px; padding:12px; color:#6c757d; font-size:12px; text-align:center; border:1px solid #e9ecef; box-shadow:0 1px 3px rgba(0,0,0,0.05); flex:1; min-height:0; display:flex; align-items:center; justify-content:center;">
+              No table of contents available for this notebook.
+            </div>
+          </div>
+          `}
         </div>
-        ` : `
-        <div style="margin-bottom:12px;">
-          <div style="font-size:14px; font-weight:600; margin-bottom:8px; color:#222; display:flex; align-items:center; gap:6px;">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M4 6H20M4 10H20M4 14H20M4 18H20" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-            Table of Contents
-          </div>
-          <div style="background:#fff; border-radius:6px; padding:12px; color:#6c757d; font-size:12px; text-align:center; border:1px solid #e9ecef; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
-            No table of contents available for this notebook.
-          </div>
-        </div>
-        `}
       </div>
       <style>
         /* TOC滚动条样式 */
@@ -1300,40 +1303,40 @@ export class DetailSidebar extends Widget {
       }).join('');
 
       this.node.innerHTML = `
-        <div style="padding:20px 16px 16px 16px; font-size:14px; line-height:1.7; color:#222;">
-          <div style="font-size:18px; font-weight:600; margin-bottom:16px; padding-bottom:12px; border-bottom:1px solid #e9ecef;" id="detail-sidebar-title">
-            <span style="color: #222;">${this.competitionInfo ? this.competitionInfo.name : 'Notebook Overview'}</span>
-          </div>
-          
-          ${selectedItemInfo}
-          
-          <div style="background:#f8f9fa; border-radius:8px; padding:16px; margin-bottom:16px; border:1px solid #e9ecef;">
-            <div style="display:flex; flex-direction:row; gap:16px;">
-              <div style="flex:1; display:flex; flex-direction:column; justify-content:flex-end;">
-                <div style="font-size:12px; color:#6c757d; margin-bottom:4px;">Total Occurrences</div>
-                <div style="font-size:15px; font-weight:600; color:#495057;">${totalOccurrences}</div>
-              </div>
-              <div style="flex:1; display:flex; flex-direction:column; justify-content:flex-end;">
-                <div style="font-size:12px; color:#6c757d; margin-bottom:4px;">Containing Notebooks</div>
-                <div style="font-size:15px; font-weight:600; color:#495057;">${containingNotebooks}</div>
-              </div>
-              <div style="flex:1; display:flex; flex-direction:column; justify-content:flex-end;">
-                <div style="font-size:12px; color:#6c757d; margin-bottom:4px;">Avg per Notebook</div>
-                <div style="font-size:15px; font-weight:600; color:#495057;">${avgPerNotebook.toFixed(1)}</div>
-              </div>
+      <div style="padding:20px 16px 16px 16px; font-size:14px; line-height:1.7; color:#222; height:100%; display:flex; flex-direction:column; box-sizing:border-box;">
+        <div style="font-size:18px; font-weight:600; margin-bottom:16px; padding-bottom:12px; border-bottom:1px solid #e9ecef; flex-shrink:0;" id="detail-sidebar-title">
+          <span style="color: #222;">${this.competitionInfo ? this.competitionInfo.name : 'Notebook Overview'}</span>
+        </div>
+        
+        ${selectedItemInfo}
+        
+        <div style="background:#f8f9fa; border-radius:8px; padding:16px; margin-bottom:16px; border:1px solid #e9ecef; flex-shrink:0;">
+          <div style="display:flex; flex-direction:row; gap:16px;">
+            <div style="flex:1; display:flex; flex-direction:column; justify-content:flex-end;">
+              <div style="font-size:12px; color:#6c757d; margin-bottom:4px;">Total Occurrences</div>
+              <div style="font-size:15px; font-weight:600; color:#495057;">${totalOccurrences}</div>
+            </div>
+            <div style="flex:1; display:flex; flex-direction:column; justify-content:flex-end;">
+              <div style="font-size:12px; color:#6c757d; margin-bottom:4px;">Containing Notebooks</div>
+              <div style="font-size:15px; font-weight:600; color:#495057;">${containingNotebooks}</div>
+            </div>
+            <div style="flex:1; display:flex; flex-direction:column; justify-content:flex-end;">
+              <div style="font-size:12px; color:#6c757d; margin-bottom:4px;">Avg per Notebook</div>
+              <div style="font-size:15px; font-weight:600; color:#495057;">${avgPerNotebook.toFixed(1)}</div>
             </div>
           </div>
-          
-          <div style="margin-bottom:12px;">
-            <div style="font-size:14px; font-weight:600; margin-bottom:8px; color:#222; display:flex; align-items:center; gap:6px;">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M9 12H15M9 16H15M9 8H15M5 3H19C20.1046 3 21 3.89543 21 5V19C21 20.1046 20.1046 21 19 21H5C3.89543 21 3 20.1046 3 19V5C3 3.89543 3.89543 3 5 3Z" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-              Notebook List
-            </div>
-            ${this.generateNotebookListHTML(notebookListHtml, false, '480px', '430px')}
+        </div>
+        
+        <div style="flex:1; min-height:0; display:flex; flex-direction:column;">
+          <div style="font-size:14px; font-weight:600; margin-bottom:8px; color:#222; display:flex; align-items:center; gap:6px; flex-shrink:0;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M9 12H15M9 16H15M9 8H15M5 3H19C20.1046 3 21 3.89543 21 5V19C21 20.1046 20.1046 21 19 21H5C3.89543 21 3 20.1046 3 19V5C3 3.89543 3.89543 3 5 3Z" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Notebook List
           </div>
-        </div>`;
+          ${this.generateNotebookListHTML(notebookListHtml, false)}
+        </div>
+      </div>`;
       return;
     }
 
@@ -1439,11 +1442,11 @@ export class DetailSidebar extends Widget {
         const [from, to] = flow.split(/->|→/);
         const fromColor = this.colorMap.get(from) || '#1976d2';
         const toColor = this.colorMap.get(to) || '#42a5f5';
-        
+
         // 获取stage的group信息用于边框样式
         const fromGroup = STAGE_GROUP_MAP[from];
         const toGroup = STAGE_GROUP_MAP[to];
-        
+
         let fromBorderStyle = 'none';
         let fromBorderWidth = '0px';
         let fromBorderColor = 'transparent';
@@ -1546,8 +1549,8 @@ export class DetailSidebar extends Widget {
 
     // 渲染
     this.node.innerHTML = `
-      <div style="padding:16px 12px 12px 12px; font-size:13px; line-height:1.4; color:#222;">
-        <div style="margin-bottom:12px;" id="detail-sidebar-title">
+      <div style="padding:16px 12px 12px 12px; font-size:13px; line-height:1.4; color:#222; height:100%; display:flex; flex-direction:column; box-sizing:border-box;">
+        <div style="margin-bottom:12px; flex-shrink:0;" id="detail-sidebar-title">
           <div style="font-size:18px; font-weight:700; margin-bottom:6px; line-height:1.3; color:#222; padding-bottom:8px; border-bottom:1px solid #e9ecef;">
             <span style="color: #222;">${this.competitionInfo ? this.competitionInfo.name : 'Notebook Overview'}</span>${this.competitionInfo ? `
             <a href="${this.competitionInfo.url}" target="_blank" class="kaggle-link" style="display:inline-flex; align-items:center; text-decoration:none; margin-left:8px; vertical-align:baseline; height:23.4px; line-height:23.4px;" title="View on Kaggle">
@@ -1562,7 +1565,7 @@ export class DetailSidebar extends Widget {
           </div>
         </div>
         
-        <div style="background:#f8f9fa; border-radius:6px; padding:12px; margin-bottom:12px; border:1px solid #e9ecef;">
+        <div style="background:#f8f9fa; border-radius:6px; padding:12px; margin-bottom:12px; border:1px solid #e9ecef; flex-shrink:0;">
           <div style="display:flex; flex-direction:row; gap:12px;">
             <div style="flex:1; display:flex; flex-direction:column; justify-content:flex-end;">
               <div style="font-size:11px; color:#6c757d; margin-bottom:2px;">Total Notebooks</div>
@@ -1579,7 +1582,7 @@ export class DetailSidebar extends Widget {
           </div>
         </div>
         
-        <div style="margin-bottom:16px;">
+        <div style="margin-bottom:16px; flex-shrink:0;">
           <div style="font-size:14px; font-weight:600; margin-bottom:8px; color:#222; display:flex; align-items:center; gap:6px;">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M9 11H15M9 15H15M9 7H15M5 3H19C20.1046 3 21 3.89543 21 5V19C21 20.1046 20.1046 21 19 21H5C3.89543 21 3 20.1046 3 19V5C3 3.89543 3.89543 3 5 3Z" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -1604,7 +1607,7 @@ export class DetailSidebar extends Widget {
           </div>
         </div>
         
-        <div style="margin-bottom:16px;">
+        <div style="margin-bottom:16px; flex-shrink:0;">
           <div style="font-size:14px; font-weight:600; margin-bottom:8px; color:#222; display:flex; align-items:center; gap:6px;">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M3 3v18h18" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -1619,14 +1622,14 @@ export class DetailSidebar extends Widget {
           </div>
         </div>
         
-        <div style="margin-bottom:12px;">
-          <div style="font-size:14px; font-weight:600; margin-bottom:8px; color:#222; display:flex; align-items:center; gap:6px;">
+        <div style="flex:1; min-height:0; display:flex; flex-direction:column;">
+          <div style="font-size:14px; font-weight:600; margin-bottom:8px; color:#222; display:flex; align-items:center; gap:6px; flex-shrink:0;">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M9 12H15M9 16H15M9 8H15M5 3H19C20.1046 3 21 3.89543 21 5V19C21 20.1046 20.1046 21 19 21H5C3.89543 21 3 20.1046 3 19V5C3 3.89543 3.89543 3 5 3Z" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
             Notebook List
           </div>
-          ${this.generateNotebookListHTML(notebookListHtml, false, '240px', '200px')}
+          ${this.generateNotebookListHTML(notebookListHtml, false)}
         </div>
       </div>
       <style>
@@ -2078,8 +2081,8 @@ export class DetailSidebar extends Widget {
   private generateNotebookListHTML(
     notebookListHtml: string,
     isFiltered: boolean = false,
-    maxHeight: string = '240px',
-    containerMaxHeight: string = '200px'
+    maxHeight: string = 'auto',
+    containerMaxHeight: string = 'auto'
   ): string {
     const fontSize = isFiltered ? '13px' : '12px';
     const padding = isFiltered ? '8px 12px' : '6px 8px';
@@ -2099,8 +2102,8 @@ export class DetailSidebar extends Widget {
       `;
 
     return `
-      <div class="notebook-list-wrapper${isFiltered ? ' filtered-mode' : ''}" style="background:#fff; border-radius:${borderRadius}; border:1px solid #e9ecef; box-shadow:0 1px 3px rgba(0,0,0,0.05); max-height:${maxHeight};">
-        <div class="notebook-list-container" style="overflow:auto; max-height:${containerMaxHeight};">
+      <div class="notebook-list-wrapper${isFiltered ? ' filtered-mode' : ''}" style="background:#fff; border-radius:${borderRadius}; border:1px solid #e9ecef; box-shadow:0 1px 3px rgba(0,0,0,0.05); flex:1; min-height:0; display:flex; flex-direction:column;">
+        <div class="notebook-list-container" style="overflow:auto; flex:1; min-height:0;">
           <table style="width:100%; border-collapse:collapse; font-size:${fontSize}; min-width:400px;">
             <thead style="position:sticky; top:0; background:#f8f9fa; border-bottom:1px solid #e9ecef; z-index:10;">
               <tr>

@@ -887,10 +887,14 @@ export class MatrixWidget extends Widget {
         window.removeEventListener('galaxy-flow-selected', this.handleFlowSelected);
         window.removeEventListener('galaxy-selection-cleared', this.handleSelectionCleared);
         
-        // 清理clear selection按钮的事件监听器
+        // 清理按钮的事件监听器
         const clearBtn = this.clusterInfoContainer?.querySelector('#clear-cluster-selection-btn') as HTMLButtonElement;
+        const scrollBtn = this.clusterInfoContainer?.querySelector('#scroll-to-cluster-btn') as HTMLButtonElement;
         if (clearBtn) {
             clearBtn.removeEventListener('click', this.clearClusterSelection);
+        }
+        if (scrollBtn) {
+            scrollBtn.removeEventListener('click', this.scrollToCluster);
         }
     }
 
@@ -2041,10 +2045,16 @@ export class MatrixWidget extends Widget {
                         ${totalNotebooks} notebooks
                     </span>
                 </div>
-                <button id="clear-cluster-selection-btn" 
-                        style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 12px; color: #6c757d; transition: background-color 0.2s; font-weight: 500;">
-                    ✕ Clear Selection
-                </button>
+                <div style="display:flex; gap:8px;">
+                    <button id="scroll-to-cluster-btn" 
+                            style="background: #4caf50; border: 1px solid #4caf50; border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 12px; color: white; transition: background-color 0.2s; font-weight: 500;">
+                        Back to selection
+                    </button>
+                    <button id="clear-cluster-selection-btn" 
+                            style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 12px; color: #6c757d; transition: background-color 0.2s; font-weight: 500;">
+                        ✕ Clear Selection
+                    </button>
+                </div>
             </div>
             
             <div style="background:#f8f9fa; border-radius:6px; padding:8px; margin-bottom:8px; border:1px solid #e9ecef;">
@@ -2127,14 +2137,23 @@ export class MatrixWidget extends Widget {
             ` : ''}
         `;
 
-        // 添加事件监听器到clear selection按钮
+        // 添加事件监听器到按钮
         setTimeout(() => {
             const clearBtn = this.clusterInfoContainer?.querySelector('#clear-cluster-selection-btn') as HTMLButtonElement;
+            const scrollBtn = this.clusterInfoContainer?.querySelector('#scroll-to-cluster-btn') as HTMLButtonElement;
+            
             if (clearBtn) {
                 // 移除之前的事件监听器（如果有的话）
                 clearBtn.removeEventListener('click', this.clearClusterSelection);
                 // 添加新的事件监听器
                 clearBtn.addEventListener('click', () => this.clearClusterSelection());
+            }
+            
+            if (scrollBtn) {
+                // 移除之前的事件监听器（如果有的话）
+                scrollBtn.removeEventListener('click', this.scrollToCluster);
+                // 添加新的事件监听器
+                scrollBtn.addEventListener('click', () => this.scrollToCluster());
             }
         }, 0);
     }
@@ -2209,6 +2228,84 @@ export class MatrixWidget extends Widget {
                 notebooks: clusterFilteredNotebooks 
             } 
         }));
+    }
+
+    // 滚动到选中的cluster位置
+    private scrollToCluster() {
+        if (!this.selectedClusterId) return;
+
+        const matrixContainer = this.node.querySelector('.matrix-container') as HTMLElement;
+        if (!matrixContainer) return;
+
+        // 获取当前排序后的notebook顺序
+        const notebooks = this.data;
+        const notebookOrder = this.notebookOrder.length ? this.notebookOrder : notebooks.map((_, i) => i);
+        
+        // 应用筛选
+        const assignmentFilter = (this as any)._assignmentFilter || '';
+        const studentFilter = (this as any)._studentFilter || '';
+        const filteredNotebookOrder = notebookOrder.filter(idx => {
+            const nb = notebooks[idx] as any;
+            const matchAssignment = !assignmentFilter || nb.assignment === assignmentFilter;
+            const matchStudent = !studentFilter || nb.student_id === studentFilter;
+            return matchAssignment && matchStudent;
+        });
+
+        // 找到选中cluster的第一个notebook的位置
+        let clusterStartIndex = -1;
+        for (let i = 0; i < filteredNotebookOrder.length; i++) {
+            const nb = notebooks[filteredNotebookOrder[i]] as any;
+            const kernelId = nb && nb.kernelVersionId ? nb.kernelVersionId.toString() : null;
+            const simRow = kernelId ? this.similarityGroups.find((row: any) => row.kernelVersionId === kernelId) : null;
+            if (simRow && simRow.cluster_id === this.selectedClusterId) {
+                clusterStartIndex = i;
+                break;
+            }
+        }
+
+        if (clusterStartIndex === -1) return;
+
+        // 计算cluster的位置
+        const cellWidth = 20;
+        const rowPadding = 1;
+        const notebookSpacing = 2;
+        const groupGap = 20;
+
+        // 计算到cluster开始位置的X坐标
+        let targetX = 0;
+        let currentGroupId: string | null = null;
+
+        for (let i = 0; i < clusterStartIndex; i++) {
+            const nb = notebooks[filteredNotebookOrder[i]] as any;
+            
+            // 检查是否需要添加组间距
+            if (this.sortState === 3 && this.similarityGroups && this.similarityGroups.length > 0) {
+                const kernelId = nb && nb.kernelVersionId ? nb.kernelVersionId.toString() : null;
+                const simRow = kernelId ? this.similarityGroups.find((row: any) => row.kernelVersionId === kernelId) : null;
+                const groupId = simRow ? simRow.cluster_id : null;
+
+                // 如果这是新组，添加间距
+                if (currentGroupId !== null && groupId !== currentGroupId) {
+                    targetX += groupGap;
+                }
+                currentGroupId = groupId;
+            }
+
+            targetX += cellWidth + rowPadding + notebookSpacing;
+        }
+
+        // 添加一些偏移量，让cluster在视窗中居中显示
+        const containerWidth = matrixContainer.clientWidth;
+        const offsetX = Math.max(0, targetX - containerWidth / 2 + 100); // 100px的额外偏移
+
+        // 平滑滚动到目标位置
+        matrixContainer.scrollTo({
+            left: offsetX,
+            behavior: 'smooth'
+        });
+
+        // 保存滚动位置
+        this.saveFilterState();
     }
 
     dispose(): void {
