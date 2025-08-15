@@ -65,7 +65,7 @@ export class LeftSidebar extends Widget {
         });
         this.stageData = Array.from(stageStats.keys()).map(stage => ({ stage: String(stage), count: 0 }));
         this.initialStageOrder = this.stageData.map(d => d.stage);
-        
+
         this.render();
 
         // 清空 this.node
@@ -84,8 +84,8 @@ export class LeftSidebar extends Widget {
         resetDiv.style.zIndex = '10';
         resetDiv.style.cursor = 'pointer';
         resetDiv.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" fill="currentColor"/></svg>`;
-        resetDiv.onmouseenter = (e) => { 
-            resetDiv.style.background = '#f0f0f0'; 
+        resetDiv.onmouseenter = (e) => {
+            resetDiv.style.background = '#f0f0f0';
             // 显示自定义tooltip
             const tooltip = document.getElementById('galaxy-tooltip');
             if (tooltip) {
@@ -103,8 +103,8 @@ export class LeftSidebar extends Widget {
                 tooltip.style.top = e.clientY + 12 + 'px';
             }
         };
-        resetDiv.onmouseleave = () => { 
-            resetDiv.style.background = 'none'; 
+        resetDiv.onmouseleave = () => {
+            resetDiv.style.background = 'none';
             // 隐藏tooltip
             const tooltip = document.getElementById('galaxy-tooltip');
             if (tooltip) {
@@ -208,7 +208,7 @@ export class LeftSidebar extends Widget {
             }
         };
         window.addEventListener('galaxy-selection-cleared', this._eventHandlers['galaxy-selection-cleared']);
-        
+
         // 监听 stage 选中事件（按tab隔离）
         this._eventHandlers['galaxy-stage-selected'] = (e: any) => {
             const { stage, tabId } = e.detail;
@@ -221,7 +221,7 @@ export class LeftSidebar extends Widget {
             }
         };
         window.addEventListener('galaxy-stage-selected', this._eventHandlers['galaxy-stage-selected']);
-        
+
         // 监听 flow 选中事件（按tab隔离）
         this._eventHandlers['galaxy-flow-selected'] = (e: any) => {
             const { from, to, tabId } = e.detail;
@@ -245,6 +245,18 @@ export class LeftSidebar extends Widget {
         this._eventHandlers['galaxy-cluster-selected'] = (e: any) => {
             const clusterData = e.detail?.notebooks ?? [];
             this.setData(clusterData, this.colorMap);
+            
+            // 清除stage和flow选中状态
+            this.selection = null;
+            const tabId = this.getTabId();
+            const stageSelectionKey = `_galaxyStageSelection_${tabId}`;
+            const flowSelectionKey = `_galaxyFlowSelection_${tabId}`;
+            (window as any)[stageSelectionKey] = null;
+            (window as any)[flowSelectionKey] = null;
+            // 清除hover状态
+            (window as any)._galaxyFlowHoverStage = null;
+            (window as any)._galaxyFlowHoverInfo = null;
+            this.saveFilterState();
         };
         window.addEventListener('galaxy-cluster-selected', this._eventHandlers['galaxy-cluster-selected']);
 
@@ -256,7 +268,7 @@ export class LeftSidebar extends Widget {
         if (this._renderTimeout) {
             clearTimeout(this._renderTimeout);
         }
-        
+
         this._renderTimeout = setTimeout(() => {
             this._renderInternal();
         }, 16); // 约60fps的刷新率
@@ -548,14 +560,14 @@ export class LeftSidebar extends Widget {
         let dragStartY = 0;
         let draggedElement: d3.Selection<SVGRectElement, StageDatum, any, any> | null = null;
         let animationFrameId: number | null = null;
-        
+
         const drag = d3.drag<SVGRectElement, StageDatum>()
             .on('start', function (event, d) {
                 dragStartY = event.y;
                 isDragging = false;
                 draggedElement = d3.select(this);
                 draggedElement.raise();
-                
+
                 // 添加拖拽时的视觉反馈 - 使用CSS类而不是内联样式
                 draggedElement.classed('dragging', true);
             })
@@ -564,13 +576,13 @@ export class LeftSidebar extends Widget {
                 if (Math.abs(event.y - dragStartY) > 2) {
                     isDragging = true;
                 }
-                
+
                 if (isDragging && draggedElement) {
                     // 使用requestAnimationFrame优化拖拽性能
                     if (animationFrameId) {
                         cancelAnimationFrame(animationFrameId);
                     }
-                    
+
                     animationFrameId = requestAnimationFrame(() => {
                         const stageInfo = stageMap.get(d.stage);
                         if (stageInfo && draggedElement) {
@@ -589,7 +601,7 @@ export class LeftSidebar extends Widget {
                     cancelAnimationFrame(animationFrameId);
                     animationFrameId = null;
                 }
-                
+
                 if (draggedElement) {
                     // 恢复视觉样式
                     draggedElement.classed('dragging', false);
@@ -604,7 +616,7 @@ export class LeftSidebar extends Widget {
                         }
                     }, 150);
                 }
-                
+
                 if (isDragging) {
                     // 拖动才重排
                     let closest = this.stageData[0];
@@ -632,7 +644,7 @@ export class LeftSidebar extends Widget {
                         }
                     }
                 }
-                
+
                 draggedElement = null;
                 // 关键：短暂延迟后重置 isDragging，保证 pointerup 能正确识别
                 setTimeout(() => { isDragging = false; }, 0);
@@ -681,7 +693,7 @@ export class LeftSidebar extends Widget {
                 .on("mouseover", (event) => {
                     // 在拖拽过程中忽略hover效果
                     if (isDragging) return;
-                    
+
                     // 只有在没有选中状态时才应用hover效果
                     if (!this.selection) {
                         d3.selectAll(".flow-link").attr("opacity", 0.05);
@@ -706,7 +718,7 @@ export class LeftSidebar extends Widget {
                 .on("mousemove", (event) => {
                     // 在拖拽过程中忽略tooltip移动
                     if (isDragging) return;
-                    
+
                     const tooltip = document.getElementById('galaxy-tooltip');
                     tooltip!.style.left = event.clientX + 12 + 'px';
                     tooltip!.style.top = event.clientY + 12 + 'px';
@@ -847,7 +859,7 @@ export class LeftSidebar extends Widget {
                 const stage = d.stage;
                 // 在拖拽过程中忽略hover效果
                 if (isDragging) return;
-                
+
                 // 只有在没有选中状态时才应用hover效果
                 if (!this.selection) {
                     d3.selectAll(".flow-link").attr("opacity", 0.05);
@@ -877,7 +889,7 @@ export class LeftSidebar extends Widget {
             .on("mousemove", (event) => {
                 // 在拖拽过程中忽略tooltip移动
                 if (isDragging) return;
-                
+
                 const tooltip = document.getElementById('galaxy-tooltip');
                 tooltip!.style.left = event.clientX + 12 + 'px';
                 tooltip!.style.top = event.clientY + 12 + 'px';
@@ -953,7 +965,7 @@ export class LeftSidebar extends Widget {
             })
             .on("pointerup", (event, d) => {
                 if (isDragging) return;
-                
+
                 // 如果当前已经选中了这个stage，则取消选中
                 if (this.selection && this.selection.type === 'stage' && this.selection.stage === d.stage) {
                     this.selection = null;
@@ -1259,11 +1271,11 @@ export class LeftSidebar extends Widget {
         // 创建Data-oriented和Model-oriented的容器，让它们左右并排
         const dataGroup = createGroupBox('Data-oriented', processedGroups['Data-oriented'] || []);
         const modelGroup = createGroupBox('Model-oriented', processedGroups['Model-oriented'] || []);
-        
+
         // 检查Data-oriented和Model-oriented是否存在
         const hasDataGroup = dataGroup !== null;
         const hasModelGroup = modelGroup !== null;
-        
+
         if (hasDataGroup && hasModelGroup) {
             // 两个都存在，创建左右并排的容器
             const dataModelContainer = document.createElement('div');
@@ -1273,15 +1285,15 @@ export class LeftSidebar extends Widget {
             dataModelContainer.style.width = '100%';
             dataModelContainer.style.minWidth = '0';
             dataModelContainer.style.alignItems = 'flex-start';
-            
+
             dataGroup!.style.flex = '1';
             dataGroup!.style.height = 'auto';
             dataModelContainer.appendChild(dataGroup!);
-            
+
             modelGroup!.style.flex = '1';
             modelGroup!.style.height = 'auto';
             dataModelContainer.appendChild(modelGroup!);
-            
+
             legendContainer.appendChild(dataModelContainer);
         } else if (hasDataGroup || hasModelGroup) {
             // 只有一个存在，创建左右布局的容器
@@ -1291,12 +1303,12 @@ export class LeftSidebar extends Widget {
             singleContainer.style.marginBottom = '1px';
             singleContainer.style.width = '100%';
             singleContainer.style.alignItems = 'flex-start';
-            
+
             const singleGroup = hasDataGroup ? dataGroup! : modelGroup!;
             singleGroup.style.width = 'fit-content';
             singleGroup.style.height = 'auto';
             singleContainer.appendChild(singleGroup);
-            
+
             legendContainer.appendChild(singleContainer);
         }
         // 如果两个都不存在，不添加任何容器
@@ -1305,7 +1317,7 @@ export class LeftSidebar extends Widget {
         const envStages = processedGroups['Environment'] || [];
         const exportStages = processedGroups['Data export'] || [];
         const combinedStages = [...envStages, ...exportStages];
-        
+
         if (combinedStages.length > 0) {
             // 创建组合组
             const combinedGroup = document.createElement('div');
@@ -1313,14 +1325,14 @@ export class LeftSidebar extends Widget {
             combinedGroup.style.flexDirection = 'column';
             combinedGroup.style.gap = '2px';
             combinedGroup.style.marginBottom = '1px';
-            
+
             // 添加Environment部分
             if (envStages.length > 0) {
                 const envSection = document.createElement('div');
                 envSection.style.display = 'flex';
                 envSection.style.flexDirection = 'column';
                 envSection.style.gap = '2px';
-                
+
                 envStages.forEach((d) => {
                     const item = document.createElement('div');
                     item.style.display = 'flex';
@@ -1347,17 +1359,17 @@ export class LeftSidebar extends Widget {
                     item.appendChild(label);
                     envSection.appendChild(item);
                 });
-                
+
                 combinedGroup.appendChild(envSection);
             }
-            
+
             // 添加Data export部分
             if (exportStages.length > 0) {
                 const exportSection = document.createElement('div');
                 exportSection.style.display = 'flex';
                 exportSection.style.flexDirection = 'column';
                 exportSection.style.gap = '2px';
-                
+
                 exportStages.forEach((d) => {
                     const item = document.createElement('div');
                     item.style.display = 'flex';
@@ -1384,16 +1396,16 @@ export class LeftSidebar extends Widget {
                     item.appendChild(label);
                     exportSection.appendChild(item);
                 });
-                
+
                 combinedGroup.appendChild(exportSection);
             }
-            
+
             // 根据Data-oriented和Model-oriented的存在情况决定放置位置
             if (hasDataGroup && hasModelGroup) {
                 // 两个都存在，使用原有的逻辑
                 const dataStageCount = processedGroups['Data-oriented'] ? processedGroups['Data-oriented'].length : 0;
                 const modelStageCount = processedGroups['Model-oriented'] ? processedGroups['Model-oriented'].length : 0;
-                
+
                 if (dataStageCount < modelStageCount) {
                     // Data-oriented的stage数量较少，将组合组放在Data-oriented框外面
                     dataGroup!.style.position = 'relative';
@@ -1419,7 +1431,7 @@ export class LeftSidebar extends Widget {
                         envGroup.style.flexDirection = 'column';
                         envGroup.style.gap = '2px';
                         envGroup.style.marginBottom = '1px';
-                        
+
                         envStages.forEach((d) => {
                             const item = document.createElement('div');
                             item.style.display = 'flex';
@@ -1446,7 +1458,7 @@ export class LeftSidebar extends Widget {
                             item.appendChild(label);
                             envGroup.appendChild(item);
                         });
-                        
+
                         // 将Environment组放在Data-oriented框外面
                         dataGroup!.style.position = 'relative';
                         envGroup.style.position = 'absolute';
@@ -1455,7 +1467,7 @@ export class LeftSidebar extends Widget {
                         envGroup.style.marginTop = '4px';
                         dataGroup!.appendChild(envGroup);
                     }
-                    
+
                     // 创建Data export组
                     if (exportStages.length > 0) {
                         const exportGroup = document.createElement('div');
@@ -1463,7 +1475,7 @@ export class LeftSidebar extends Widget {
                         exportGroup.style.flexDirection = 'column';
                         exportGroup.style.gap = '2px';
                         exportGroup.style.marginBottom = '1px';
-                        
+
                         exportStages.forEach((d) => {
                             const item = document.createElement('div');
                             item.style.display = 'flex';
@@ -1490,7 +1502,7 @@ export class LeftSidebar extends Widget {
                             item.appendChild(label);
                             exportGroup.appendChild(item);
                         });
-                        
+
                         // 将Data export组放在Model-oriented框外面
                         modelGroup!.style.position = 'relative';
                         exportGroup.style.position = 'absolute';
@@ -1766,20 +1778,20 @@ export class LeftSidebar extends Widget {
         const stageEntries = Array.from(stageStats.entries())
             .filter(([stage]) => !this.hiddenStages.has(stage) && stage !== "None")
             .sort((a, b) => b[1].count - a[1].count);
-        
+
         // 获取数量最多的stage（可能有多个数量相同的）
         const maxStageCount = stageEntries.length > 0 ? stageEntries[0][1].count : 0;
         const topStages = stageEntries
             .filter(([stage, stats]) => stats.count === maxStageCount)
             .map(([stage, stats]) => [stage, stats.count] as [string, number]);
-        
+
         const transitionEntries = Array.from(transitions.entries())
             .filter(([transition]) => {
                 const [from, to] = transition.split("->");
                 return !this.hiddenStages.has(from) && !this.hiddenStages.has(to);
             })
             .sort((a, b) => b[1] - a[1]);
-        
+
         // 获取数量最多的transition（可能有多个数量相同的）
         const maxTransitionCount = transitionEntries.length > 0 ? transitionEntries[0][1] : 0;
         const topTransitions = transitionEntries
@@ -1788,7 +1800,7 @@ export class LeftSidebar extends Widget {
 
         // 派发top stages和top transitions给MatrixWidget
         window.dispatchEvent(new CustomEvent('galaxy-top-stats-updated', {
-            detail: { 
+            detail: {
                 topStages: topStages.length > 0 ? topStages : undefined,
                 topTransitions: topTransitions.length > 0 ? topTransitions : undefined
             }
@@ -1806,13 +1818,13 @@ export class LeftSidebar extends Widget {
             clearTimeout(this._renderTimeout);
             this._renderTimeout = null;
         }
-        
+
         // 移除事件监听器
         Object.keys(this._eventHandlers).forEach(eventName => {
             window.removeEventListener(eventName, this._eventHandlers[eventName]);
         });
         this._eventHandlers = {};
-        
+
         super.dispose();
     }
 
@@ -1866,9 +1878,9 @@ export class LeftSidebar extends Widget {
     setData(data: Notebook[], colorMap: Map<string, string>) {
         this.data = data;
         this.colorMap = colorMap;
-        
 
-        
+
+
         // 保持当前的selection状态，不清除
         // this.selection = null;
         // 重新初始化 stageData 和 initialStageOrder
@@ -1889,9 +1901,9 @@ export class LeftSidebar extends Widget {
         });
         this.stageData = Array.from(stageStats.keys()).map(stage => ({ stage: String(stage), count: 0 }));
         this.initialStageOrder = this.stageData.map(d => d.stage);
-        
 
-        
+
+
         this.render();
     }
 
@@ -1941,9 +1953,9 @@ export class LeftSidebar extends Widget {
 
     // 获取最频繁的stage和flow
     getMostFrequentStageAndFlow() {
-        const mostFreqStage = this.stageData.reduce((max, current) => 
+        const mostFreqStage = this.stageData.reduce((max, current) =>
             current.count > max.count ? current : max, this.stageData[0]);
-        
+
         // 计算最频繁的flow
         const transitions: Map<string, number> = new Map();
         this.data.forEach((nb) => {
@@ -1957,7 +1969,7 @@ export class LeftSidebar extends Widget {
                     stageSeq.push(stage);
                 }
             });
-            
+
             for (let i = 0; i < stageSeq.length - 1; i++) {
                 const from = stageSeq[i];
                 const to = stageSeq[i + 1];
@@ -1967,7 +1979,7 @@ export class LeftSidebar extends Widget {
                 }
             }
         });
-        
+
         let mostFreqFlow = { from: '', to: '', count: 0 };
         transitions.forEach((count, key) => {
             const [from, to] = key.split("->");
@@ -1975,7 +1987,7 @@ export class LeftSidebar extends Widget {
                 mostFreqFlow = { from, to, count };
             }
         });
-        
+
         return {
             mostFreqStage: mostFreqStage?.stage || '',
             mostFreqFlow: mostFreqFlow.from && mostFreqFlow.to ? `${mostFreqFlow.from}->${mostFreqFlow.to}` : ''

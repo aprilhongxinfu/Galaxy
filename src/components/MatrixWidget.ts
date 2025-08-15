@@ -1963,6 +1963,10 @@ export class MatrixWidget extends Widget {
             this.selectedClusterId = clusterId;
         }
         
+        // 清除之前的stage或transition选中状态
+        (window as any)._galaxyStageSelection = null;
+        (window as any)._galaxyFlowSelection = null;
+        
         // 重新绘制矩阵以更新高亮状态
         this.drawMatrix();
         
@@ -2218,6 +2222,11 @@ export class MatrixWidget extends Widget {
     // 清除cluster选择
     private clearClusterSelection() {
         this.selectedClusterId = null;
+        
+        // 清除之前的stage或transition选中状态
+        (window as any)._galaxyStageSelection = null;
+        (window as any)._galaxyFlowSelection = null;
+        
         this.drawMatrix();
         
         // 派发cluster选择事件，通知LeftSidebar更新数据
