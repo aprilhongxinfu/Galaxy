@@ -1194,7 +1194,7 @@ export class MatrixWidget extends Widget {
             .attr('id', 'matrix');
 
         // 在cluster模式下调整transform，为cluster标签和cluster信息区域留出空间
-        const translateY = (this.sortState === 3 && this.similarityGroups && this.similarityGroups.length > 0) ? 70 : 8;
+        const translateY = (this.sortState === 3 && this.similarityGroups && this.similarityGroups.length > 0) ? 90 : 8;
         const g = svg.append('g').attr('transform', `translate(20, ${translateY})`);
 
         const self = this;
@@ -1552,9 +1552,9 @@ export class MatrixWidget extends Widget {
                 // 绘制横线
                 clusterLabelsG.append('line')
                     .attr('x1', range.startX)
-                    .attr('y1', -25)
+                    .attr('y1', -15)
                     .attr('x2', range.endX)
-                    .attr('y2', -25)
+                    .attr('y2', -15)
                     .attr('stroke', isSelected ? '#4caf50' : '#666')
                     .attr('stroke-width', isSelected ? 3 : 2)
                     .attr('stroke-linecap', 'round')
@@ -1566,13 +1566,28 @@ export class MatrixWidget extends Widget {
                 // 绘制cluster标签文本
                 clusterLabelsG.append('text')
                     .attr('x', centerX)
-                    .attr('y', -35)
+                    .attr('y', -25)
                     .attr('text-anchor', 'middle')
                     .attr('font-size', '11px')
                     .attr('font-weight', '600')
                     .attr('fill', isSelected ? '#4caf50' : '#333')
                     .style('cursor', 'pointer')
                     .text(`Cluster ${range.clusterId}`)
+                    .on('click', () => {
+                        this.selectCluster(range.clusterId);
+                    });
+
+                // 添加数量信息
+                const notebookCount = range.endCol - range.startCol + 1;
+                clusterLabelsG.append('text')
+                    .attr('x', centerX)
+                    .attr('y', -8)
+                    .attr('text-anchor', 'middle')
+                    .attr('font-size', '9px')
+                    .attr('font-weight', '400')
+                    .attr('fill', isSelected ? '#4caf50' : '#666')
+                    .style('cursor', 'pointer')
+                    .text(`${notebookCount} notebook${notebookCount !== 1 ? 's' : ''}`)
                     .on('click', () => {
                         this.selectCluster(range.clusterId);
                     });
@@ -2059,7 +2074,7 @@ export class MatrixWidget extends Widget {
                     <div style="display:flex; flex-direction:row; gap:12px; align-items:flex-start;">
                         ${topStages && topStages.length > 0 ? `
                             <div style="display:flex; flex-direction:column; gap:3px; flex:1;">
-                                <span style="font-size:10px; color:#6c757d; font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">Top Stages</span>
+                                <span style="font-size:10px; color:#6c757d; font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">Top Stage(s)</span>
                                 <div style="display:flex; flex-direction:row; gap:4px; align-items:center; flex-wrap:wrap;">
                                     ${topStages.map(([stage, count]) => `
                                         <div style="display:inline-flex; align-items:center; background:#f8f9fa; border-radius:3px; padding:2px 6px; border:1px solid #e9ecef; font-size:11px;">
@@ -2075,7 +2090,7 @@ export class MatrixWidget extends Widget {
                         ` : ''}
                         ${topTransitions && topTransitions.length > 0 ? `
                             <div style="display:flex; flex-direction:column; gap:3px; flex:1;">
-                                <span style="font-size:10px; color:#6c757d; font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">Top Transitions</span>
+                                <span style="font-size:10px; color:#6c757d; font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">Top Transition(s)</span>
                                 <div style="display:flex; flex-direction:row; gap:4px; align-items:center; flex-wrap:wrap;">
                                     ${topTransitions.map(([transition, count]) => {
                                         const [fromStage, toStage] = transition.split(' → ');

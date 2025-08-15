@@ -556,14 +556,14 @@ export class DetailSidebar extends Widget {
           <div style="background:#fff; border-radius:6px; padding:12px; border:1px solid #e9ecef; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
             <div style="margin-bottom:12px;">
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; color:#495057;">
-                <span style="font-weight:500; font-size:13px;">Top Stage</span>
+                <span style="font-weight:500; font-size:13px;">Top Stage(s)</span>
                 <span style="color:#1976d2; font-size:12px; font-weight:600;">${stageCountText}</span>
               </div>
               <div style="display:flex; flex-wrap:wrap; gap:6px;" id="dsb-stage-links">${renderStageText()}</div>
             </div>
             <div style="margin-bottom:12px;">
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; color:#495057;">
-                <span style="font-weight:500; font-size:13px;">Top Transition</span>
+                <span style="font-weight:500; font-size:13px;">Top Transition(s)</span>
                 <span style="color:#1976d2; font-size:12px; font-weight:600;">${flowCountText}</span>
               </div>
               <div style="display:flex; flex-direction:column; gap:3px;" id="dsb-flow-links">${renderFlowText()}</div>
@@ -1589,14 +1589,14 @@ export class DetailSidebar extends Widget {
           <div style="background:#fff; border-radius:6px; padding:12px; border:1px solid #e9ecef; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
             <div style="margin-bottom:12px;">
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; color:#495057;">
-                <span style="font-weight:500; font-size:13px;">Top Stage</span>
+                <span style="font-weight:500; font-size:13px;">Top Stage(s)</span>
                 <span style="color:#1976d2; font-size:12px; font-weight:600;">${stageCountText}</span>
               </div>
               <div style="display:flex; flex-wrap:wrap; gap:6px;" id="dsb-stage-links">${renderStageText()}</div>
             </div>
             <div style="margin-bottom:0px;">
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; color:#495057;">
-                <span style="font-weight:500; font-size:13px;">Top Transition</span>
+                <span style="font-weight:500; font-size:13px;">Top Transition(s)</span>
                 <span style="color:#1976d2; font-size:12px; font-weight:600;">${flowCountText}</span>
               </div>
               <div style="display:flex; flex-direction:column; gap:3px;" id="dsb-flow-links">${renderFlowText()}</div>
