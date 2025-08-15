@@ -687,7 +687,7 @@ export class LeftSidebar extends Widget {
                     }
                     // tooltip
                     const tooltip = document.getElementById('galaxy-tooltip');
-                    tooltip!.innerHTML = `${LABEL_MAP[from] ?? from} → ${LABEL_MAP[to] ?? to}<br>Count: ${count}`;
+                    tooltip!.innerHTML = `<strong>${LABEL_MAP[from] ?? from} → ${LABEL_MAP[to] ?? to}</strong><br>Count: ${count}`;
                     tooltip!.style.display = 'block';
                 })
                 .on("mousemove", (event) => {
@@ -857,8 +857,8 @@ export class LeftSidebar extends Widget {
                 const tooltip = document.getElementById('galaxy-tooltip');
                 const group = STAGE_GROUP_MAP[stage];
                 // 只有 Data-oriented 和 Model-oriented 需要标注
-                const groupLabel = (group === 'Data-oriented' || group === 'Model-oriented') ? `<strong>${group}</strong><br>` : '';
-                tooltip!.innerHTML = `${groupLabel}${LABEL_MAP[stage] ?? stage}<br>Count: ${d.count}`;
+                const groupLabel = (group === 'Data-oriented' || group === 'Model-oriented') ? `${group}<br>` : '';
+                tooltip!.innerHTML = `<strong>${LABEL_MAP[stage] ?? stage}</strong><br>${groupLabel}Count: ${d.count}`;
                 tooltip!.style.display = 'block';
             })
             .on("mousemove", (event) => {
