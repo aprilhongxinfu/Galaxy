@@ -28,7 +28,7 @@ export class MatrixWidget extends Widget {
     private voteSortButton!: HTMLButtonElement; // 投票排序按钮
     private cellHeightButton: HTMLButtonElement; // cell高度模式按钮
     private markdownButton: HTMLButtonElement; // markdown显示/隐藏按钮
-    private filter: any = null;
+
     private similarityGroups: any[];
     private voteData: any[] = []; // 投票数据
     private cellHeightMode: 'fixed' | 'dynamic' = 'fixed'; // cell高度模式：固定、动态
@@ -82,16 +82,54 @@ export class MatrixWidget extends Widget {
 
         // Listen for changes
         assignmentSelect.onchange = () => {
+            // 保存当前的高亮状态
+            const currentStageSelection = (window as any)._galaxyStageSelection;
+            const currentFlowSelection = (window as any)._galaxyFlowSelection;
+
             (this as any)._assignmentFilter = assignmentSelect.value;
             this.saveFilterState();
             this.drawMatrix();
+            
+            // 恢复高亮状态
+            setTimeout(() => {
+                if (currentStageSelection) {
+                    d3.selectAll('.matrix-cell')
+                        .classed('matrix-highlight', false)
+                        .classed('matrix-dim', true);
+                    d3.selectAll(`.matrix-cell-${currentStageSelection}`)
+                        .classed('matrix-highlight', true)
+                        .classed('matrix-dim', false);
+                } else if (currentFlowSelection) {
+                    this.applyFlowHighlight(currentFlowSelection.from, currentFlowSelection.to);
+                }
+            }, 100);
+
             const filteredNotebooks = this.getFilteredNotebooks();
             window.dispatchEvent(new CustomEvent('galaxy-matrix-filtered', { detail: { notebooks: filteredNotebooks } }));
         };
         studentSelect.onchange = () => {
+            // 保存当前的高亮状态
+            const currentStageSelection = (window as any)._galaxyStageSelection;
+            const currentFlowSelection = (window as any)._galaxyFlowSelection;
+
             (this as any)._studentFilter = studentSelect.value;
             this.saveFilterState();
             this.drawMatrix();
+            
+            // 恢复高亮状态
+            setTimeout(() => {
+                if (currentStageSelection) {
+                    d3.selectAll('.matrix-cell')
+                        .classed('matrix-highlight', false)
+                        .classed('matrix-dim', true);
+                    d3.selectAll(`.matrix-cell-${currentStageSelection}`)
+                        .classed('matrix-highlight', true)
+                        .classed('matrix-dim', false);
+                } else if (currentFlowSelection) {
+                    this.applyFlowHighlight(currentFlowSelection.from, currentFlowSelection.to);
+                }
+            }, 100);
+
             const filteredNotebooks = this.getFilteredNotebooks();
             window.dispatchEvent(new CustomEvent('galaxy-matrix-filtered', { detail: { notebooks: filteredNotebooks } }));
         };
@@ -133,8 +171,9 @@ export class MatrixWidget extends Widget {
         this.similaritySortButton.innerHTML = this.getSimilaritySortIcon();
         this.addTooltipToButton(this.similaritySortButton, () => 'Toggle clustering');
         this.similaritySortButton.onclick = () => {
-            // 保存当前的filter状态
-            const currentFilter = this.filter;
+            // 保存当前的高亮状态
+            const currentStageSelection = (window as any)._galaxyStageSelection;
+            const currentFlowSelection = (window as any)._galaxyFlowSelection;
 
             if (this.sortState === 3) {
                 // 取消cluster时，重置length排序状态
@@ -167,11 +206,23 @@ export class MatrixWidget extends Widget {
             this.sortButton.innerHTML = this.getSortIcon(); // 更新length按钮图标
             this.updateSortButtonState();
 
-            // 恢复filter状态（在updateNotebookOrder之后）
-            this.filter = currentFilter;
-
             this.saveFilterState();
             this.drawMatrix();
+            
+            // 恢复高亮状态
+            setTimeout(() => {
+                if (currentStageSelection) {
+                    d3.selectAll('.matrix-cell')
+                        .classed('matrix-highlight', false)
+                        .classed('matrix-dim', true);
+                    d3.selectAll(`.matrix-cell-${currentStageSelection}`)
+                        .classed('matrix-highlight', true)
+                        .classed('matrix-dim', false);
+                } else if (currentFlowSelection) {
+                    this.applyFlowHighlight(currentFlowSelection.from, currentFlowSelection.to);
+                }
+            }, 100);
+
             const filteredNotebooks = this.getFilteredNotebooks();
             window.dispatchEvent(new CustomEvent('galaxy-matrix-filtered', { detail: { notebooks: filteredNotebooks } }));
         };
@@ -189,8 +240,9 @@ export class MatrixWidget extends Widget {
         this.voteSortButton.innerHTML = this.getVoteSortIcon();
         this.addTooltipToButton(this.voteSortButton, () => this.voteEnabled ? 'Sorted by votes' : 'Sort by votes');
         this.voteSortButton.onclick = () => {
-            // 保存当前的filter状态
-            const currentFilter = this.filter;
+            // 保存当前的高亮状态
+            const currentStageSelection = (window as any)._galaxyStageSelection;
+            const currentFlowSelection = (window as any)._galaxyFlowSelection;
 
             this.voteEnabled = !this.voteEnabled;
             if (this.voteEnabled) {
@@ -221,11 +273,23 @@ export class MatrixWidget extends Widget {
             this.sortButton.innerHTML = this.getSortIcon(); // 更新length按钮图标
             this.updateSortButtonState();
 
-            // 恢复filter状态（在updateNotebookOrder之后）
-            this.filter = currentFilter;
-
             this.saveFilterState();
             this.drawMatrix();
+            
+            // 恢复高亮状态
+            setTimeout(() => {
+                if (currentStageSelection) {
+                    d3.selectAll('.matrix-cell')
+                        .classed('matrix-highlight', false)
+                        .classed('matrix-dim', true);
+                    d3.selectAll(`.matrix-cell-${currentStageSelection}`)
+                        .classed('matrix-highlight', true)
+                        .classed('matrix-dim', false);
+                } else if (currentFlowSelection) {
+                    this.applyFlowHighlight(currentFlowSelection.from, currentFlowSelection.to);
+                }
+            }, 100);
+
             const filteredNotebooks = this.getFilteredNotebooks();
             window.dispatchEvent(new CustomEvent('galaxy-matrix-filtered', { detail: { notebooks: filteredNotebooks } }));
         };
@@ -243,8 +307,9 @@ export class MatrixWidget extends Widget {
         this.sortButton.innerHTML = this.getSortIcon();
         this.addTooltipToButton(this.sortButton, () => this.getSortButtonTooltip());
         this.sortButton.onclick = () => {
-            // 保存当前的filter状态
-            const currentFilter = this.filter;
+            // 保存当前的高亮状态
+            const currentStageSelection = (window as any)._galaxyStageSelection;
+            const currentFlowSelection = (window as any)._galaxyFlowSelection;
 
             // 切换length排序状态
             if (this.sortState === 3) {
@@ -282,11 +347,23 @@ export class MatrixWidget extends Widget {
             this.voteSortButton.innerHTML = this.getVoteSortIcon(); // 更新vote按钮图标
             this.updateSortButtonState();
 
-            // 恢复filter状态（在updateNotebookOrder之后）
-            this.filter = currentFilter;
-
             this.saveFilterState();
             this.drawMatrix();
+            
+            // 恢复高亮状态
+            setTimeout(() => {
+                if (currentStageSelection) {
+                    d3.selectAll('.matrix-cell')
+                        .classed('matrix-highlight', false)
+                        .classed('matrix-dim', true);
+                    d3.selectAll(`.matrix-cell-${currentStageSelection}`)
+                        .classed('matrix-highlight', true)
+                        .classed('matrix-dim', false);
+                } else if (currentFlowSelection) {
+                    this.applyFlowHighlight(currentFlowSelection.from, currentFlowSelection.to);
+                }
+            }, 100);
+
             const filteredNotebooks = this.getFilteredNotebooks();
             window.dispatchEvent(new CustomEvent('galaxy-matrix-filtered', { detail: { notebooks: filteredNotebooks } }));
         };
@@ -304,6 +381,10 @@ export class MatrixWidget extends Widget {
         this.cellHeightButton.innerHTML = this.getCellHeightIcon();
         this.addTooltipToButton(this.cellHeightButton, () => this.cellHeightMode === 'fixed' ? 'Fixed height' : 'Dynamic height');
         this.cellHeightButton.onclick = () => {
+            // 保存当前的高亮状态
+            const currentStageSelection = (window as any)._galaxyStageSelection;
+            const currentFlowSelection = (window as any)._galaxyFlowSelection;
+
             // 在两种模式之间切换：fixed -> dynamic -> fixed
             if (this.cellHeightMode === 'fixed') {
                 this.cellHeightMode = 'dynamic';
@@ -314,6 +395,20 @@ export class MatrixWidget extends Widget {
             this.updateSortButtonState();
             this.saveFilterState();
             this.drawMatrix();
+            
+            // 恢复高亮状态
+            setTimeout(() => {
+                if (currentStageSelection) {
+                    d3.selectAll('.matrix-cell')
+                        .classed('matrix-highlight', false)
+                        .classed('matrix-dim', true);
+                    d3.selectAll(`.matrix-cell-${currentStageSelection}`)
+                        .classed('matrix-highlight', true)
+                        .classed('matrix-dim', false);
+                } else if (currentFlowSelection) {
+                    this.applyFlowHighlight(currentFlowSelection.from, currentFlowSelection.to);
+                }
+            }, 100);
         };
         rightButtons.appendChild(this.cellHeightButton);
 
@@ -329,11 +424,29 @@ export class MatrixWidget extends Widget {
         this.markdownButton.innerHTML = this.getMarkdownIcon();
         this.addTooltipToButton(this.markdownButton, () => 'Toggle markdown');
         this.markdownButton.onclick = () => {
+            // 保存当前的高亮状态
+            const currentStageSelection = (window as any)._galaxyStageSelection;
+            const currentFlowSelection = (window as any)._galaxyFlowSelection;
+
             this.showMarkdown = !this.showMarkdown;
             this.markdownButton.innerHTML = this.getMarkdownIcon();
             this.updateSortButtonState();
             this.saveFilterState();
             this.drawMatrix();
+            
+            // 恢复高亮状态
+            setTimeout(() => {
+                if (currentStageSelection) {
+                    d3.selectAll('.matrix-cell')
+                        .classed('matrix-highlight', false)
+                        .classed('matrix-dim', true);
+                    d3.selectAll(`.matrix-cell-${currentStageSelection}`)
+                        .classed('matrix-highlight', true)
+                        .classed('matrix-dim', false);
+                } else if (currentFlowSelection) {
+                    this.applyFlowHighlight(currentFlowSelection.from, currentFlowSelection.to);
+                }
+            }, 100);
         };
         rightButtons.appendChild(this.markdownButton);
 
@@ -749,10 +862,15 @@ export class MatrixWidget extends Widget {
         (window as any)._galaxyStageSelection = stage;
         (window as any)._galaxyFlowSelection = null;
 
-        // 筛选包含该stage的notebook
-        this.filter = { type: 'stage', stage };
-        this.saveFilterState();
-        this.drawMatrix();
+        // 只应用高亮效果，不进行任何筛选
+        setTimeout(() => {
+            d3.selectAll('.matrix-cell')
+                .classed('matrix-highlight', false)
+                .classed('matrix-dim', true);
+            d3.selectAll(`.matrix-cell-${stage}`)
+                .classed('matrix-highlight', true)
+                .classed('matrix-dim', false);
+        }, 100); // 延迟应用高亮，确保matrix已重新绘制
     }
 
     private handleFlowSelected = (event: Event) => {
@@ -761,20 +879,23 @@ export class MatrixWidget extends Widget {
         (window as any)._galaxyFlowSelection = { from, to };
         (window as any)._galaxyStageSelection = null;
 
-        // 筛选包含该flow的notebook
-        this.filter = { type: 'flow', from, to };
-        this.saveFilterState();
-        this.drawMatrix();
+        // 只应用高亮效果，不进行任何筛选
+        setTimeout(() => {
+            this.applyFlowHighlight(from, to);
+        }, 100); // 延迟应用高亮，确保matrix已重新绘制
     }
 
     private handleSelectionCleared = () => {
         // 清除全局选中状态
         (window as any)._galaxyStageSelection = null;
         (window as any)._galaxyFlowSelection = null;
-        // 清除筛选
-        this.filter = null;
-        this.saveFilterState();
-        this.drawMatrix();
+        
+        // 清除高亮效果
+        setTimeout(() => {
+            d3.selectAll('.matrix-cell')
+                .classed('matrix-highlight', false)
+                .classed('matrix-dim', false);
+        }, 100); // 延迟清除高亮，确保matrix已重新绘制
     }
 
     private handleStageHover = (event: Event) => {
@@ -797,7 +918,89 @@ export class MatrixWidget extends Widget {
                     .classed('matrix-highlight', true)
                     .classed('matrix-dim', false);
             }
+        } else {
+            // 如果有选中状态，hover时临时显示hover效果，但保持选中状态的高亮
+            if (!stage) {
+                // 恢复选中状态的高亮
+                const selectedStage = (window as any)._galaxyStageSelection;
+                d3.selectAll('.matrix-cell')
+                    .classed('matrix-highlight', false)
+                    .classed('matrix-dim', true);
+                d3.selectAll(`.matrix-cell-${selectedStage}`)
+                    .classed('matrix-highlight', true)
+                    .classed('matrix-dim', false);
+            } else {
+                // 临时显示hover效果
+                d3.selectAll('.matrix-cell')
+                    .classed('matrix-highlight', false)
+                    .classed('matrix-dim', true);
+                d3.selectAll(`.matrix-cell-${stage}`)
+                    .classed('matrix-highlight', true)
+                    .classed('matrix-dim', false);
+            }
         }
+    }
+
+    // 应用flow高亮的辅助方法
+    private applyFlowHighlight(from: string, to: string): void {
+        const root = d3.select(this.node);
+        root.selectAll('.matrix-cell')
+            .classed('matrix-highlight', false)
+            .classed('matrix-dim', true);
+
+        // 遍历所有 notebook
+        this.notebookOrder.forEach((row, colIdx) => {
+            const nb = this.data[row];
+            const sortedCells = nb.cells.sort((a, b) => a.cellId - b.cellId);
+
+            // 过滤可见cells（与drawMatrix中的逻辑保持一致）
+            const processedCells = sortedCells.filter(cell =>
+                this.showMarkdown || cell.cellType !== 'markdown'
+            );
+
+            // 找到所有符合transition的cell对（在processedCells中查找）
+            const transitionPairs: number[][] = [];
+            for (let i = 0; i < processedCells.length; i++) {
+                const currStage = String(processedCells[i]["1st-level label"] ?? "None");
+                if (currStage === from) {
+                    // 向后查找下一个to stage的cell
+                    for (let j = i + 1; j < processedCells.length; j++) {
+                        const nextStage = String(processedCells[j]["1st-level label"] ?? "None");
+                        if (nextStage === to) {
+                            transitionPairs.push([i, j]);
+                            break; // 找到第一个匹配的就停止
+                        } else if (nextStage !== "None") {
+                            // 如果遇到其他stage，停止搜索
+                            break;
+                        }
+                        // 继续搜索
+                    }
+                }
+            }
+
+            // 高亮所有找到的transition pairs
+            transitionPairs.forEach(([fromIdx, toIdx]) => {
+                // 向前找连续 from
+                let i0 = fromIdx;
+                while (i0 > 0 && String(processedCells[i0 - 1]["1st-level label"] ?? "None") === from) i0--;
+                // 向后找连续 to
+                let i1 = toIdx;
+                while (i1 + 1 < processedCells.length && String(processedCells[i1 + 1]["1st-level label"] ?? "None") === to) i1++;
+
+                // 高亮 from 段
+                for (let j = i0; j <= fromIdx; j++) {
+                    root.select(`.matrix-cell[data-row="${row}"][data-index="${j}"]`)
+                        .classed('matrix-highlight', true)
+                        .classed('matrix-dim', false);
+                }
+                // 高亮 to 段
+                for (let j = toIdx; j <= i1; j++) {
+                    root.select(`.matrix-cell[data-row="${row}"][data-index="${j}"]`)
+                        .classed('matrix-highlight', true)
+                        .classed('matrix-dim', false);
+                }
+            });
+        });
     }
 
     private handleTransitionHover = (event: Event) => {
@@ -814,63 +1017,17 @@ export class MatrixWidget extends Widget {
                     .classed('matrix-highlight', false)
                     .classed('matrix-dim', false);
             } else {
-                root.selectAll('.matrix-cell')
-                    .classed('matrix-highlight', false)
-                    .classed('matrix-dim', true);
-
-                // 遍历所有 notebook
-                this.notebookOrder.forEach((row, colIdx) => {
-                    const nb = this.data[row];
-                    const sortedCells = nb.cells.sort((a, b) => a.cellId - b.cellId);
-
-                    // 过滤可见cells（与drawMatrix中的逻辑保持一致）
-                    const processedCells = sortedCells.filter(cell =>
-                        this.showMarkdown || cell.cellType !== 'markdown'
-                    );
-
-                    // 找到所有符合transition的cell对（在processedCells中查找）
-                    const transitionPairs: number[][] = [];
-                    for (let i = 0; i < processedCells.length; i++) {
-                        const currStage = String(processedCells[i]["1st-level label"] ?? "None");
-                        if (currStage === from) {
-                            // 向后查找下一个to stage的cell
-                            for (let j = i + 1; j < processedCells.length; j++) {
-                                const nextStage = String(processedCells[j]["1st-level label"] ?? "None");
-                                if (nextStage === to) {
-                                    transitionPairs.push([i, j]);
-                                    break; // 找到第一个匹配的就停止
-                                } else if (nextStage !== "None") {
-                                    // 如果遇到其他stage，停止搜索
-                                    break;
-                                }
-                                // 继续搜索
-                            }
-                        }
-                    }
-
-                    // 高亮所有找到的transition pairs
-                    transitionPairs.forEach(([fromIdx, toIdx]) => {
-                        // 向前找连续 from
-                        let i0 = fromIdx;
-                        while (i0 > 0 && String(processedCells[i0 - 1]["1st-level label"] ?? "None") === from) i0--;
-                        // 向后找连续 to
-                        let i1 = toIdx;
-                        while (i1 + 1 < processedCells.length && String(processedCells[i1 + 1]["1st-level label"] ?? "None") === to) i1++;
-
-                        // 高亮 from 段
-                        for (let j = i0; j <= fromIdx; j++) {
-                            root.select(`.matrix-cell[data-row="${row}"][data-index="${j}"]`)
-                                .classed('matrix-highlight', true)
-                                .classed('matrix-dim', false);
-                        }
-                        // 高亮 to 段
-                        for (let j = toIdx; j <= i1; j++) {
-                            root.select(`.matrix-cell[data-row="${row}"][data-index="${j}"]`)
-                                .classed('matrix-highlight', true)
-                                .classed('matrix-dim', false);
-                        }
-                    });
-                });
+                this.applyFlowHighlight(from, to);
+            }
+        } else {
+            // 如果有选中状态，hover时临时显示hover效果，但保持选中状态的高亮
+            if (!from || !to) {
+                // 恢复选中状态的高亮
+                const selectedFlow = (window as any)._galaxyFlowSelection;
+                this.applyFlowHighlight(selectedFlow.from, selectedFlow.to);
+            } else {
+                // 临时显示hover效果
+                this.applyFlowHighlight(from, to);
             }
         }
     }
@@ -879,24 +1036,6 @@ export class MatrixWidget extends Widget {
         const notebooks = this.data;
         const color = this.colorScale;
         let notebookOrder = this.notebookOrder.length ? this.notebookOrder : notebooks.map((_, i) => i);
-        // 过滤 notebook
-        if (this.filter) {
-            if (this.filter.type === 'stage') {
-                notebookOrder = notebookOrder.filter(idx =>
-                    notebooks[idx].cells.some(cell => String(cell["1st-level label"] ?? "None") === this.filter.stage)
-                );
-            } else if (this.filter.type === 'flow') {
-                notebookOrder = notebookOrder.filter(idx => {
-                    const cells = notebooks[idx].cells;
-                    for (let i = 0; i < cells.length - 1; i++) {
-                        const a = String(cells[i]["1st-level label"] ?? "None");
-                        const b = String(cells[i + 1]["1st-level label"] ?? "None");
-                        if (a === this.filter.from && b === this.filter.to) return true;
-                    }
-                    return false;
-                });
-            }
-        }
         // ====== FILTER BY DROPLISTS ======
         const assignmentFilter = (this as any)._assignmentFilter || '';
         const studentFilter = (this as any)._studentFilter || '';
@@ -1295,7 +1434,6 @@ export class MatrixWidget extends Widget {
 
     // 重置MatrixWidget状态，用于切换competition时
     resetState(): void {
-        this.filter = null;
         // 如果有similarityGroups数据，默认激活cluster，否则使用原始顺序
         const hasSimilarityData = this.similarityGroups && this.similarityGroups.length > 0;
         this.sortState = hasSimilarityData ? 3 : 0;
@@ -1351,8 +1489,21 @@ export class MatrixWidget extends Widget {
     }
 
     setFilter(selection: any) {
-        this.filter = selection;
-        this.drawMatrix();
+        // 不再使用filter，只应用高亮效果
+        if (selection && selection.type === 'stage') {
+            setTimeout(() => {
+                d3.selectAll('.matrix-cell')
+                    .classed('matrix-highlight', false)
+                    .classed('matrix-dim', true);
+                d3.selectAll(`.matrix-cell-${selection.stage}`)
+                    .classed('matrix-highlight', true)
+                    .classed('matrix-dim', false);
+            }, 100);
+        } else if (selection && selection.type === 'flow') {
+            setTimeout(() => {
+                this.applyFlowHighlight(selection.from, selection.to);
+            }, 100);
+        }
     }
 
     // 获取当前筛选后的notebook列表
@@ -1400,7 +1551,6 @@ export class MatrixWidget extends Widget {
         const finalScrollTop = (scrollTop === 0 && previousState && previousState.scrollTop > 0) ? previousState.scrollTop : scrollTop;
 
         (window as any)[stateKey] = {
-            filter: this.filter,
             sortState: this.sortState,
             voteEnabled: this.voteEnabled,
             lengthSortEnabled: this.lengthSortEnabled,
@@ -1439,7 +1589,6 @@ export class MatrixWidget extends Widget {
         const savedState = (window as any)[stateKey];
 
         if (savedState) {
-            this.filter = savedState.filter;
             this.sortState = savedState.sortState;
             this.voteEnabled = savedState.voteEnabled || false;
             this.lengthSortEnabled = savedState.lengthSortEnabled || false;
@@ -1488,7 +1637,6 @@ export class MatrixWidget extends Widget {
             }
         } else {
             // 如果没有保存的状态，使用默认状态
-            this.filter = null;
             // 如果有similarityGroups数据，默认激活cluster，否则使用原始顺序
             this.sortState = (this.similarityGroups && this.similarityGroups.length > 0) ? 3 : 0;
             this.voteEnabled = false;
