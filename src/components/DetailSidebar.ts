@@ -281,7 +281,47 @@ export class DetailSidebar extends Widget {
         const [from, to] = flow.split(/->|→/);
         const fromColor = this.colorMap.get(from) || '#1976d2';
         const toColor = this.colorMap.get(to) || '#42a5f5';
-        return `<div style="margin-bottom:3px;"><span style="font-weight:600; font-size:13px;"><span style="background: linear-gradient(90deg, ${fromColor}, ${toColor}); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; color: transparent;">${LABEL_MAP[from] ?? from} → ${LABEL_MAP[to] ?? to}</span></span></div>`;
+        
+        // 获取stage的group信息用于边框样式
+        const fromGroup = STAGE_GROUP_MAP[from];
+        const toGroup = STAGE_GROUP_MAP[to];
+        
+        let fromBorderStyle = 'none';
+        let fromBorderWidth = '0px';
+        let fromBorderColor = 'transparent';
+        let toBorderStyle = 'none';
+        let toBorderWidth = '0px';
+        let toBorderColor = 'transparent';
+
+        if (fromGroup === 'Data-oriented') {
+          fromBorderStyle = 'solid';
+          fromBorderWidth = '1px';
+          fromBorderColor = '#666666';
+        } else if (fromGroup === 'Model-oriented') {
+          fromBorderStyle = 'dashed';
+          fromBorderWidth = '1px';
+          fromBorderColor = '#666666';
+        }
+
+        if (toGroup === 'Data-oriented') {
+          toBorderStyle = 'solid';
+          toBorderWidth = '1px';
+          toBorderColor = '#666666';
+        } else if (toGroup === 'Model-oriented') {
+          toBorderStyle = 'dashed';
+          toBorderWidth = '1px';
+          toBorderColor = '#666666';
+        }
+
+        return `<div style="display:inline-flex; align-items:center; margin-right:8px; margin-bottom:4px;">
+          <div style="width:10px; height:12px; background-color:${fromColor}; border-radius:2px; margin-right:6px; flex-shrink:0; border:${fromBorderWidth} ${fromBorderStyle} ${fromBorderColor}; align-self:center;"></div>
+          <span style="color:#222; font-weight:600; font-size:13px; line-height:12px; display:flex; align-items:center;">${LABEL_MAP[from] ?? from}</span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin:0 4px;">
+            <path d="M5 12H19M19 12L14 7M19 12L14 17" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <div style="width:10px; height:12px; background-color:${toColor}; border-radius:2px; margin-right:6px; flex-shrink:0; border:${toBorderWidth} ${toBorderStyle} ${toBorderColor}; align-self:center;"></div>
+          <span style="color:#222; font-weight:600; font-size:13px; line-height:12px; display:flex; align-items:center;">${LABEL_MAP[to] ?? to}</span>
+        </div>`;
       }).join('');
     };
 
@@ -1399,7 +1439,47 @@ export class DetailSidebar extends Widget {
         const [from, to] = flow.split(/->|→/);
         const fromColor = this.colorMap.get(from) || '#1976d2';
         const toColor = this.colorMap.get(to) || '#42a5f5';
-        return `<div style="margin-bottom:3px;"><span style="font-weight:600; font-size:13px;"><span style="background: linear-gradient(90deg, ${fromColor}, ${toColor}); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; color: transparent;">${LABEL_MAP[from] ?? from} → ${LABEL_MAP[to] ?? to}</span></span></div>`;
+        
+        // 获取stage的group信息用于边框样式
+        const fromGroup = STAGE_GROUP_MAP[from];
+        const toGroup = STAGE_GROUP_MAP[to];
+        
+        let fromBorderStyle = 'none';
+        let fromBorderWidth = '0px';
+        let fromBorderColor = 'transparent';
+        let toBorderStyle = 'none';
+        let toBorderWidth = '0px';
+        let toBorderColor = 'transparent';
+
+        if (fromGroup === 'Data-oriented') {
+          fromBorderStyle = 'solid';
+          fromBorderWidth = '1px';
+          fromBorderColor = '#666666';
+        } else if (fromGroup === 'Model-oriented') {
+          fromBorderStyle = 'dashed';
+          fromBorderWidth = '1px';
+          fromBorderColor = '#666666';
+        }
+
+        if (toGroup === 'Data-oriented') {
+          toBorderStyle = 'solid';
+          toBorderWidth = '1px';
+          toBorderColor = '#666666';
+        } else if (toGroup === 'Model-oriented') {
+          toBorderStyle = 'dashed';
+          toBorderWidth = '1px';
+          toBorderColor = '#666666';
+        }
+
+        return `<div style="display:inline-flex; align-items:center; margin-right:8px; margin-bottom:4px;">
+          <div style="width:10px; height:12px; background-color:${fromColor}; border-radius:2px; margin-right:6px; flex-shrink:0; border:${fromBorderWidth} ${fromBorderStyle} ${fromBorderColor}; align-self:center;"></div>
+          <span style="color:#222; font-weight:600; font-size:13px; line-height:12px; display:flex; align-items:center;">${LABEL_MAP[from] ?? from}</span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin:0 4px;">
+            <path d="M5 12H19M19 12L14 7M19 12L14 17" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <div style="width:10px; height:12px; background-color:${toColor}; border-radius:2px; margin-right:6px; flex-shrink:0; border:${toBorderWidth} ${toBorderStyle} ${toBorderColor}; align-self:center;"></div>
+          <span style="color:#222; font-weight:600; font-size:13px; line-height:12px; display:flex; align-items:center;">${LABEL_MAP[to] ?? to}</span>
+        </div>`;
       }).join('');
     };
 
