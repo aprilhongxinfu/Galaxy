@@ -1189,6 +1189,14 @@ export class MatrixWidget extends Widget {
                 this.showMarkdown || cell.cellType !== 'markdown'
             );
 
+            // 创建从processedCells索引到原始cells索引的映射
+            const processedToOriginalIndexMap: number[] = [];
+            sortedCells.forEach((cell, originalIndex) => {
+                if (this.showMarkdown || cell.cellType !== 'markdown') {
+                    processedToOriginalIndexMap.push(originalIndex);
+                }
+            });
+
             processedCells.forEach((cell, i) => {
                 const currStage = String(cell["1st-level label"] ?? "None");
                 const currClass = currStage;
@@ -1307,16 +1315,18 @@ export class MatrixWidget extends Widget {
                                 // 不触发cell detail事件，让DetailSidebar显示notebook概览
                             } else {
                                 // 对于code cell，显示cell detail
+                                // 使用映射将processedCells的索引转换为原始cells的索引
+                                const originalCellIndex = processedToOriginalIndexMap[i];
                                 window.dispatchEvent(new CustomEvent('galaxy-notebook-detail-jump', {
                                     detail: {
                                         notebookIndex: nb.globalIndex,
-                                        cellIndex: i,
+                                        cellIndex: originalCellIndex,
                                         kernelVersionId: (nb as any).kernelVersionId
                                     }
                                 }));
                                 window.dispatchEvent(new CustomEvent('galaxy-cell-detail', {
                                     detail: {
-                                        cell: { ...d, notebookIndex: nb.globalIndex, cellIndex: i, _notebookDetail: notebookObj }
+                                        cell: { ...d, notebookIndex: nb.globalIndex, cellIndex: originalCellIndex, _notebookDetail: notebookObj }
                                     }
                                 }));
                             }

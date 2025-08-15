@@ -796,9 +796,23 @@ export class DetailSidebar extends Widget {
     const avgPos = allStagePositions.length ? allStagePositions.reduce((a, b) => a + b, 0) / allStagePositions.length : null;
     // 柱状图 SVG
     const chartW = 280, chartH = 100, barW = chartW / binCount;
-    // 获取当前 stage 的主色
+    // 获取当前 stage 的主色和group信息
     const stageLabelStr = String((cell && cell["1st-level label"]) ?? "None");
     const stageColor = this.colorMap?.get?.(stageLabelStr) || '#90caf9';
+    const group = STAGE_GROUP_MAP[stageLabelStr];
+    let borderStyle = 'none';
+    let borderWidth = '0px';
+    let borderColor = 'transparent';
+    
+    if (group === 'Data-oriented') {
+      borderStyle = 'solid';
+      borderWidth = '1px';
+      borderColor = '#666666';
+    } else if (group === 'Model-oriented') {
+      borderStyle = 'dashed';
+      borderWidth = '1px';
+      borderColor = '#666666';
+    }
     let barsSvg = '';
     for (let i = 0; i < binCount; ++i) {
       const x = i * barW;
@@ -852,7 +866,10 @@ export class DetailSidebar extends Widget {
       <div style="background:#f8f9fa; border-radius:6px; padding:12px; margin-bottom:12px; border:1px solid #e9ecef;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
           <div style="font-weight:600; color:#495057; font-size:13px;">Stage</div>
-          <span style="background:${stageColor}; color:#fff; border:none; border-radius:16px; padding:3px 12px; font-size:13px; font-weight:600; display:inline-block; box-shadow:0 2px 4px rgba(0,0,0,0.1);">${stageLabel}</span>
+          <div style="display:inline-flex; align-items:center;">
+            <div style="width:10px; height:12px; background-color:${stageColor}; border-radius:2px; margin-right:6px; flex-shrink:0; border:${borderWidth} ${borderStyle} ${borderColor}; align-self:center;"></div>
+            <span style="color:#222; font-weight:600; font-size:13px; line-height:12px; display:flex; align-items:center;">${stageLabel}</span>
+          </div>
         </div>
         <div style="display:flex; justify-content:space-between; align-items:center;">
           <div style="font-weight:600; color:#495057; font-size:13px;">Code Lines</div>
