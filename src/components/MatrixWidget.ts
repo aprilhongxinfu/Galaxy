@@ -1231,6 +1231,17 @@ export class MatrixWidget extends Widget {
                             .attr('stroke', d.cellType === 'code' ? color(String(d["1st-level label"] ?? "None")) : '#bbb')
                             .attr('filter', 'drop-shadow(0px 0px 6px rgba(0,0,0,0.18))');
 
+                        // 高亮对应的notebook
+                        const notebookIndex = nb?.globalIndex;
+                        if (notebookIndex) {
+                            window.dispatchEvent(new CustomEvent('galaxy-notebook-highlight', {
+                                detail: {
+                                    notebookIndex: notebookIndex,
+                                    highlight: true
+                                }
+                            }));
+                        }
+
                         // 使用缓存的tooltip元素或创建新的
                         let tooltip = (window as any)._galaxyTooltip;
                         if (!tooltip) {
@@ -1300,6 +1311,17 @@ export class MatrixWidget extends Widget {
                             d3.select(this).attr('stroke', '#bbb');
                         } else {
                             d3.select(this).attr('stroke', color(String(datum["1st-level label"] ?? "None")));
+                        }
+
+                        // 取消notebook高亮
+                        const notebookIndex = nb?.globalIndex;
+                        if (notebookIndex) {
+                            window.dispatchEvent(new CustomEvent('galaxy-notebook-highlight', {
+                                detail: {
+                                    notebookIndex: notebookIndex,
+                                    highlight: false
+                                }
+                            }));
                         }
 
                         const tooltip = (window as any)._galaxyTooltip;
