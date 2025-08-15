@@ -34,6 +34,10 @@ export class MatrixWidget extends Widget {
     private cellHeightMode: 'fixed' | 'dynamic' = 'fixed'; // cell高度模式：固定、动态
     private showMarkdown: boolean = false; // markdown显示状态
     private kernelTitleMap: Map<string, { title: string; creationDate: string; totalLines: number; displayname?: string; url?: string }> = new Map(); // 存储kernelVersionId到Title的映射
+    private selectedClusterId: string | null = null; // 当前选中的cluster ID
+    private clusterInfoContainer: HTMLDivElement | null = null; // cluster信息容器
+    private topStats: { topStages?: [string, number][], topTransitions?: [string, number][] } = {}; // 存储top stages和top transitions
+    private _topStatsHandler: (e: any) => void; // 事件处理函数引用
 
     constructor(data: Notebook[], colorScale: (label: string) => string, similarityGroups?: any[], kernelTitleMap?: Map<string, { title: string; creationDate: string; totalLines: number; displayname?: string; url?: string }>, voteData?: any[]) {
         super();
@@ -75,6 +79,23 @@ export class MatrixWidget extends Widget {
         filterBar.appendChild(assignmentSelect);
         filterBar.appendChild(studentSelect);
         this.node.appendChild(filterBar);
+
+        // ====== CLUSTER INFO AREA ======
+        this.clusterInfoContainer = document.createElement('div');
+        this.clusterInfoContainer.className = 'cluster-info-container';
+        this.clusterInfoContainer.style.display = 'none'; // 默认隐藏
+        this.clusterInfoContainer.style.padding = '16px 12px 12px 12px';
+        this.clusterInfoContainer.style.borderBottom = '1px solid #e9ecef';
+        this.clusterInfoContainer.style.backgroundColor = '#ffffff';
+        this.clusterInfoContainer.style.fontSize = '14px';
+        this.clusterInfoContainer.style.lineHeight = '1.5';
+        this.clusterInfoContainer.style.borderRadius = '0';
+        this.clusterInfoContainer.style.boxShadow = 'none';
+        this.clusterInfoContainer.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+        this.clusterInfoContainer.style.color = '#222';
+        this.clusterInfoContainer.style.boxSizing = 'border-box';
+        this.clusterInfoContainer.style.width = '100%';
+        this.node.appendChild(this.clusterInfoContainer);
 
         // Store filter state
         (this as any)._assignmentFilter = '';
@@ -139,6 +160,7 @@ export class MatrixWidget extends Widget {
         sortBar.style.display = 'flex';
         sortBar.style.justifyContent = 'space-between';
         sortBar.style.alignItems = 'center';
+        sortBar.style.marginTop = '4px';
         sortBar.style.marginBottom = '4px';
         sortBar.style.height = '24px';
         sortBar.style.width = '100%';
@@ -461,6 +483,16 @@ export class MatrixWidget extends Widget {
         this.node.style.display = 'flex';
         this.node.style.flexDirection = 'column';
         this.node.style.height = '100%';
+
+        // 监听top stats更新事件
+        this._topStatsHandler = (e: any) => {
+            this.topStats = e.detail;
+            // 如果当前正在显示cluster信息，则更新显示
+            if (this.selectedClusterId && this.clusterInfoContainer) {
+                this.showSelectedClusterInfo();
+            }
+        };
+        window.addEventListener('galaxy-top-stats-updated', this._topStatsHandler);
     }
 
     private getSortIcon(): string {
@@ -761,9 +793,7 @@ export class MatrixWidget extends Widget {
                         }
                     });
 
-                    // 调试信息：打印cluster内部排序结果
-                    console.log(`Cluster ${groupId} internal sorting (direction: ${this.clusterSizeSortDirection}):`,
-                        sortedNotebooks.map(nb => ({ index: nb.notebookIndex, totalLines: nb.totalLines })));
+
 
                     return {
                         groupId,
@@ -772,8 +802,7 @@ export class MatrixWidget extends Widget {
                     };
                 });
 
-                // 调试信息：打印当前排序方向
-                console.log('Current clusterSizeSortDirection:', this.clusterSizeSortDirection);
+
 
                 // 按cluster size排序，如果size相同则按总total length排序（支持升序和降序）
                 clusterSizes.sort((a, b) => {
@@ -839,6 +868,9 @@ export class MatrixWidget extends Widget {
             if (!existingContainer) {
                 this.drawMatrix();
             }
+            
+            // 更新cluster信息显示
+            this.updateClusterInfo();
         }, 50); // 添加小延迟，确保tab切换完成
 
         window.addEventListener('galaxy-stage-hover', this.handleStageHover);
@@ -854,6 +886,12 @@ export class MatrixWidget extends Widget {
         window.removeEventListener('galaxy-stage-selected', this.handleStageSelected);
         window.removeEventListener('galaxy-flow-selected', this.handleFlowSelected);
         window.removeEventListener('galaxy-selection-cleared', this.handleSelectionCleared);
+        
+        // 清理clear selection按钮的事件监听器
+        const clearBtn = this.clusterInfoContainer?.querySelector('#clear-cluster-selection-btn') as HTMLButtonElement;
+        if (clearBtn) {
+            clearBtn.removeEventListener('click', this.clearClusterSelection);
+        }
     }
 
     private handleStageSelected = (event: Event) => {
@@ -1118,7 +1156,14 @@ export class MatrixWidget extends Widget {
         });
 
         // 计算内容高度
-        const contentHeight = totalHeight + 100;
+        let contentHeight = totalHeight + 100;
+        
+        // 在cluster模式下为cluster标签和cluster信息区域添加额外空间
+        if (this.sortState === 3 && this.similarityGroups && this.similarityGroups.length > 0) {
+            contentHeight += 50; // 为cluster标签预留50px空间
+            contentHeight += 20; // 为cluster信息区域预留20px空间
+        }
+        
         // 获取容器高度（如为0可用默认值）
         const minHeight = this.node.clientHeight || 400;
         const svgHeight = Math.max(contentHeight, minHeight);
@@ -1132,7 +1177,7 @@ export class MatrixWidget extends Widget {
         container.style.flex = '1 1 auto';
         container.style.overflow = 'auto';
         container.style.height = 'auto';
-        container.style.padding = '8px 8px 4px 8px';
+        container.style.padding = '0px 8px 4px 8px';
 
         // 添加滚动事件监听器来保存滚动位置
         container.addEventListener('scroll', () => {
@@ -1148,7 +1193,9 @@ export class MatrixWidget extends Widget {
             .attr('height', svgHeight)
             .attr('id', 'matrix');
 
-        const g = svg.append('g').attr('transform', 'translate(20, 24)');
+        // 在cluster模式下调整transform，为cluster标签和cluster信息区域留出空间
+        const translateY = (this.sortState === 3 && this.similarityGroups && this.similarityGroups.length > 0) ? 70 : 8;
+        const g = svg.append('g').attr('transform', `translate(20, ${translateY})`);
 
         const self = this;
 
@@ -1184,6 +1231,14 @@ export class MatrixWidget extends Widget {
             let prevStage: string | null = null;
             let visibleCellIndex = 0; // 用于跟踪可见cell的索引
 
+            // 检查当前notebook是否属于选中的cluster
+            let isInSelectedCluster = false;
+            if (this.selectedClusterId && this.sortState === 3 && this.similarityGroups && this.similarityGroups.length > 0) {
+                const kernelId = (nb as any)?.kernelVersionId?.toString();
+                const simRow = kernelId ? this.similarityGroups.find((row: any) => row.kernelVersionId === kernelId) : null;
+                isInSelectedCluster = simRow && simRow.cluster_id === this.selectedClusterId;
+            }
+
             // 直接使用原始cells
             const processedCells = sortedCells.filter(cell =>
                 this.showMarkdown || cell.cellType !== 'markdown'
@@ -1209,6 +1264,16 @@ export class MatrixWidget extends Widget {
                 const cellHeight = cellHeights[colIdx][visibleCellIndex];
                 const cellY = cellYPositions[colIdx][visibleCellIndex];
 
+                // 根据cluster选择状态决定cell的样式
+                let cellFill = cell.cellType === 'code' ? color(currStage) : 'white';
+                let cellStroke = cell.cellType === 'code' ? color(currStage) : '#bbb';
+                let cellOpacity = 1;
+                
+                if (this.selectedClusterId && !isInSelectedCluster) {
+                    // 如果选中了cluster但当前notebook不属于该cluster，则灰掉
+                    cellOpacity = 0.3;
+                }
+
                 const base = g
                     .append('rect')
                     .datum({ ...cell, kernelVersionId: (nb as any)?.kernelVersionId || null, notebook_name: (nb as any)?.notebook_name || null })
@@ -1216,9 +1281,10 @@ export class MatrixWidget extends Widget {
                     .attr('y', cellY + 0)
                     .attr('width', cellWidth - 2)
                     .attr('height', cellHeight - 2)
-                    .attr('fill', cell.cellType === 'code' ? color(currStage) : 'white')
-                    .attr('stroke', cell.cellType === 'code' ? color(currStage) : '#bbb')
+                    .attr('fill', cellFill)
+                    .attr('stroke', cellStroke)
                     .attr('stroke-width', 1)
+                    .attr('opacity', cellOpacity)
                     .attr('data-row', row.toString())
                     .attr('data-index', i.toString())
                     .attr('data-stage', currClass)
@@ -1398,7 +1464,7 @@ export class MatrixWidget extends Widget {
             const nb = notebooks[notebookOrder[col]];
             headerG.append('text')
                 .attr('x', columnPositions[col] + cellWidth / 2)
-                .attr('y', -10)
+                .attr('y', -2)
                 .attr('text-anchor', 'middle')
                 .attr('font-size', '10px')
                 .attr('fill', '#555')
@@ -1433,9 +1499,103 @@ export class MatrixWidget extends Widget {
                 });
         }
 
-        // 在矩阵绘制完成后恢复滚动位置
+        // 在cluster模式下添加cluster标签
+        if (this.sortState === 3 && this.similarityGroups && this.similarityGroups.length > 0) {
+            const clusterLabelsG = g.append('g').attr('class', 'cluster-labels');
+            
+            // 计算每个cluster的范围
+            const clusterRanges: { clusterId: string; startCol: number; endCol: number; startX: number; endX: number }[] = [];
+            let currentClusterId: string | null = null;
+            let clusterStartCol = 0;
+            let clusterStartX = columnPositions[0];
+
+            for (let col = 0; col < notebookOrder.length; col++) {
+                const nb = notebooks[notebookOrder[col]] as any;
+                const kernelId = nb && nb.kernelVersionId ? nb.kernelVersionId.toString() : null;
+                const simRow = kernelId ? this.similarityGroups.find((row: any) => row.kernelVersionId === kernelId) : null;
+                const clusterId = simRow ? simRow.cluster_id : null;
+
+                // 如果cluster ID发生变化，保存前一个cluster的范围
+                if (clusterId !== currentClusterId) {
+                    if (currentClusterId !== null) {
+                        const endX = columnPositions[col - 1] + cellWidth;
+                        clusterRanges.push({
+                            clusterId: currentClusterId,
+                            startCol: clusterStartCol,
+                            endCol: col - 1,
+                            startX: clusterStartX,
+                            endX: endX
+                        });
+                    }
+                    
+                    // 开始新的cluster
+                    currentClusterId = clusterId;
+                    clusterStartCol = col;
+                    clusterStartX = columnPositions[col];
+                }
+            }
+
+            // 添加最后一个cluster的范围
+            if (currentClusterId !== null) {
+                const endX = columnPositions[notebookOrder.length - 1] + cellWidth;
+                clusterRanges.push({
+                    clusterId: currentClusterId,
+                    startCol: clusterStartCol,
+                    endCol: notebookOrder.length - 1,
+                    startX: clusterStartX,
+                    endX: endX
+                });
+            }
+
+            // 为每个cluster绘制标签
+            clusterRanges.forEach((range, index) => {
+                const centerX = (range.startX + range.endX) / 2;
+                const isSelected = this.selectedClusterId === range.clusterId;
+                
+                // 绘制横线
+                clusterLabelsG.append('line')
+                    .attr('x1', range.startX)
+                    .attr('y1', -25)
+                    .attr('x2', range.endX)
+                    .attr('y2', -25)
+                    .attr('stroke', isSelected ? '#4caf50' : '#666')
+                    .attr('stroke-width', isSelected ? 3 : 2)
+                    .attr('stroke-linecap', 'round')
+                    .style('cursor', 'pointer')
+                    .on('click', () => {
+                        this.selectCluster(range.clusterId);
+                    });
+
+                // 绘制cluster标签文本
+                clusterLabelsG.append('text')
+                    .attr('x', centerX)
+                    .attr('y', -35)
+                    .attr('text-anchor', 'middle')
+                    .attr('font-size', '11px')
+                    .attr('font-weight', '600')
+                    .attr('fill', isSelected ? '#4caf50' : '#333')
+                    .style('cursor', 'pointer')
+                    .text(`Cluster ${range.clusterId}`)
+                    .on('click', () => {
+                        this.selectCluster(range.clusterId);
+                    });
+
+                // 添加垂直线连接到横线
+                clusterLabelsG.append('line')
+                    .attr('x1', centerX)
+                    .attr('y1', -35)
+                    .attr('x2', centerX)
+                    .attr('y2', -25)
+                    .attr('stroke', isSelected ? '#4caf50' : '#666')
+                    .attr('stroke-width', 1)
+                    .attr('stroke-dasharray', '2,2');
+            });
+        }
+
+        // 在矩阵绘制完成后恢复滚动位置和更新cluster信息
         setTimeout(() => {
             this.restoreScrollPosition();
+            this.updateClusterInfo();
         }, 200); // 增加延迟时间，确保容器完全渲染
     }
 
@@ -1506,6 +1666,7 @@ export class MatrixWidget extends Widget {
         (this as any)._studentFilter = '';
         this.cellHeightMode = 'fixed';
         this.showMarkdown = false; // 默认不显示markdown
+        this.selectedClusterId = null; // 重置cluster选择状态
 
         // 只有在DOM元素已经创建时才更新按钮状态
         if (this.sortButton) {
@@ -1547,6 +1708,9 @@ export class MatrixWidget extends Widget {
         const tabId = this.getTabId();
         const stateKey = `_galaxyMatrixFilterState_${tabId}`;
         delete (window as any)[stateKey];
+
+        // 更新cluster信息显示
+        this.updateClusterInfo();
     }
 
     setFilter(selection: any) {
@@ -1578,10 +1742,26 @@ export class MatrixWidget extends Widget {
         });
     }
 
+    // 获取基于cluster筛选的notebook列表
+    private getClusterFilteredNotebooks(): any[] {
+        const baseFilteredNotebooks = this.getFilteredNotebooks();
+        
+        // 如果没有选中cluster，返回基础筛选结果
+        if (!this.selectedClusterId) {
+            return baseFilteredNotebooks;
+        }
+        
+        // 如果选中了cluster，只返回属于该cluster的notebook
+        return baseFilteredNotebooks.filter(nb => {
+            const kernelId = (nb as any).kernelVersionId?.toString();
+            const simRow = kernelId ? this.similarityGroups.find((row: any) => row.kernelVersionId === kernelId) : null;
+            return simRow && simRow.cluster_id === this.selectedClusterId;
+        });
+    }
+
     // 根据当前排序状态更新按钮样式和可用性
     private updateSortButtonState() {
         if (this.sortButton) {
-            // vote和length现在是互斥的，不需要禁用按钮
             this.sortButton.style.opacity = '1';
             this.sortButton.style.cursor = 'pointer';
             this.sortButton.disabled = false;
@@ -1590,7 +1770,6 @@ export class MatrixWidget extends Widget {
 
     // 获取当前tab ID
     private getTabId(): string {
-        // MatrixWidget总是显示overview，所以使用overview标识
         return 'overview';
     }
 
@@ -1621,6 +1800,7 @@ export class MatrixWidget extends Widget {
             studentFilter: (this as any)._studentFilter,
             cellHeightMode: this.cellHeightMode,
             showMarkdown: this.showMarkdown,
+            selectedClusterId: this.selectedClusterId,
             scrollLeft: finalScrollLeft,
             scrollTop: finalScrollTop
         };
@@ -1659,6 +1839,7 @@ export class MatrixWidget extends Widget {
             (this as any)._studentFilter = savedState.studentFilter || '';
             this.cellHeightMode = savedState.cellHeightMode || 'fixed';
             this.showMarkdown = savedState.showMarkdown !== undefined ? savedState.showMarkdown : false; // 恢复markdown显示状态
+            this.selectedClusterId = savedState.selectedClusterId || null; // 恢复cluster选择状态
 
             // 更新按钮状态
             this.sortButton.innerHTML = this.getSortIcon();
@@ -1675,6 +1856,9 @@ export class MatrixWidget extends Widget {
             }
 
             this.updateSortButtonState();
+
+            // 更新cluster信息显示
+            this.updateClusterInfo();
 
             // 恢复assignment和student筛选器的值
             const assignmentSelect = this.node.querySelector('select') as HTMLSelectElement;
@@ -1708,6 +1892,7 @@ export class MatrixWidget extends Widget {
             (this as any)._studentFilter = '';
             this.cellHeightMode = 'fixed';
             this.showMarkdown = false; // 默认不显示markdown
+            this.selectedClusterId = null; // 重置cluster选择状态
 
             // 更新按钮状态
             this.sortButton.innerHTML = this.getSortIcon();
@@ -1727,6 +1912,9 @@ export class MatrixWidget extends Widget {
 
             this.updateSortButtonState();
 
+            // 更新cluster信息显示
+            this.updateClusterInfo();
+
             // 应用默认排序
             this.updateNotebookOrder();
 
@@ -1744,4 +1932,278 @@ export class MatrixWidget extends Widget {
         }
     }
 
+    // 选择cluster
+    private selectCluster(clusterId: string | null) {
+        if (this.selectedClusterId === clusterId) {
+            // 如果点击的是当前选中的cluster，则取消选择
+            this.selectedClusterId = null;
+        } else {
+            // 选择新的cluster
+            this.selectedClusterId = clusterId;
+        }
+        
+        // 重新绘制矩阵以更新高亮状态
+        this.drawMatrix();
+        
+        // 派发cluster选择事件，通知LeftSidebar更新数据
+        const clusterFilteredNotebooks = this.getClusterFilteredNotebooks();
+        window.dispatchEvent(new CustomEvent('galaxy-cluster-selected', { 
+            detail: { 
+                clusterId: this.selectedClusterId,
+                notebooks: clusterFilteredNotebooks 
+            } 
+        }));
+    }
+
+    // 更新cluster信息显示
+    private updateClusterInfo() {
+        if (!this.clusterInfoContainer) return;
+
+        if (this.sortState === 3 && this.similarityGroups && this.similarityGroups.length > 0) {
+            this.clusterInfoContainer.style.display = 'block';
+            
+            if (this.selectedClusterId) {
+                // 显示选中cluster的详细信息
+                this.showSelectedClusterInfo();
+            } else {
+                // 显示cluster概览信息
+                this.showClusterOverview();
+            }
+        } else {
+            this.clusterInfoContainer.style.display = 'none';
+        }
+    }
+
+    // 显示选中cluster的详细信息
+    private showSelectedClusterInfo() {
+        if (!this.clusterInfoContainer || !this.selectedClusterId) return;
+
+        // 获取选中cluster的notebook
+        const clusterNotebooks = this.data.filter((nb, index) => {
+            const kernelId = (nb as any).kernelVersionId?.toString();
+            const simRow = kernelId ? this.similarityGroups.find((row: any) => row.kernelVersionId === kernelId) : null;
+            return simRow && simRow.cluster_id === this.selectedClusterId;
+        });
+
+        // 计算cluster统计信息
+        const totalNotebooks = clusterNotebooks.length;
+        const totalCells = clusterNotebooks.reduce((sum, nb) => sum + nb.cells.length, 0);
+        const avgCells = totalNotebooks > 0 ? Math.round(totalCells / totalNotebooks) : 0;
+
+        // 计算code lines统计 - 使用totalLines属性
+        let totalCodeLines = 0;
+        clusterNotebooks.forEach(nb => {
+            // 使用totalLines属性获取代码行数
+            const notebookTotalLines = (nb as any).totalLines || 0;
+            totalCodeLines += notebookTotalLines;
+        });
+
+        const avgCodeLines = totalNotebooks > 0 ? Math.round(totalCodeLines / totalNotebooks) : 0;
+
+        // 使用从LeftSidebar传来的top stages和top transitions
+        const { topStages, topTransitions } = this.topStats;
+
+        // 获取投票信息
+        let totalVotes = 0;
+        let avgVotes = 0;
+        if (this.voteData && this.voteData.length > 0) {
+            const clusterVotes = clusterNotebooks.map(nb => {
+                const kernelId = (nb as any).kernelVersionId?.toString();
+                const voteRow = kernelId ? this.voteData.find((row: any) => row.kernelVersionId === kernelId) : null;
+                return voteRow ? parseFloat(voteRow.TotalVotes) || 0 : 0;
+            });
+            totalVotes = clusterVotes.reduce((sum, votes) => sum + votes, 0);
+            avgVotes = clusterVotes.length > 0 ? Math.round(totalVotes / clusterVotes.length) : 0;
+        }
+
+        this.clusterInfoContainer.innerHTML = `
+            <div style="font-size:16px; font-weight:700; margin-bottom:12px; line-height:1.3; word-break:break-all; padding-bottom:8px; border-bottom:1px solid #e9ecef; display:flex; justify-content:space-between; align-items:center;">
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <span style="color: #4caf50;">Cluster ${this.selectedClusterId}</span>
+                    <span style="color: #6c757d; font-size: 13px; font-weight: 400;">
+                        ${totalNotebooks} notebooks
+                    </span>
+                </div>
+                <button id="clear-cluster-selection-btn" 
+                        style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 12px; color: #6c757d; transition: background-color 0.2s; font-weight: 500;">
+                    ✕ Clear Selection
+                </button>
+            </div>
+            
+            <div style="background:#f8f9fa; border-radius:6px; padding:8px; margin-bottom:8px; border:1px solid #e9ecef;">
+                <div style="display:flex; flex-direction:row; gap:12px; align-items:center; flex-wrap:wrap;">
+                    <div style="display:flex; align-items:center; gap:6px;">
+                        <span style="font-size:11px; color:#6c757d;">Cells:</span>
+                        <span style="font-size:13px; font-weight:600; color:#222;">${totalCells.toLocaleString()}</span>
+                        <span style="font-size:11px; color:#6c757d;">(avg:</span>
+                        <span style="font-size:13px; font-weight:600; color:#222;">${avgCells.toLocaleString()}</span>
+                        <span style="font-size:11px; color:#6c757d;">)</span>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:6px;">
+                        <span style="font-size:11px; color:#6c757d;">Code Lines:</span>
+                        <span style="font-size:13px; font-weight:600; color:#222;">${totalCodeLines.toLocaleString()}</span>
+                        <span style="font-size:11px; color:#6c757d;">(avg:</span>
+                        <span style="font-size:13px; font-weight:600; color:#222;">${avgCodeLines.toLocaleString()}</span>
+                        <span style="font-size:11px; color:#6c757d;">)</span>
+                    </div>
+                    ${this.voteData && this.voteData.length > 0 ? `
+                        <div style="display:flex; align-items:center; gap:6px;">
+                            <span style="font-size:11px; color:#6c757d;">Votes:</span>
+                            <span style="font-size:13px; font-weight:600; color:#222;">${totalVotes.toLocaleString()}</span>
+                            <span style="font-size:11px; color:#6c757d;">(avg:</span>
+                            <span style="font-size:13px; font-weight:600; color:#222;">${avgVotes.toLocaleString()}</span>
+                            <span style="font-size:11px; color:#6c757d;">)</span>
+                        </div>
+                    ` : ''}
+                </div>
+            </div>
+            
+            ${(topStages && topStages.length > 0) || (topTransitions && topTransitions.length > 0) ? `
+                <div style="background:#fff; border-radius:6px; padding:6px; margin-bottom:8px; border:1px solid #e9ecef; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+                    <div style="display:flex; flex-direction:row; gap:12px; align-items:flex-start;">
+                        ${topStages && topStages.length > 0 ? `
+                            <div style="display:flex; flex-direction:column; gap:3px; flex:1;">
+                                <span style="font-size:10px; color:#6c757d; font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">Top Stages</span>
+                                <div style="display:flex; flex-direction:row; gap:4px; align-items:center; flex-wrap:wrap;">
+                                    ${topStages.map(([stage, count]) => `
+                                        <div style="display:inline-flex; align-items:center; background:#f8f9fa; border-radius:3px; padding:2px 6px; border:1px solid #e9ecef; font-size:11px;">
+                                            <div style="width:8px; height:10px; background-color:${this.colorScale(stage)}; border-radius:1px; margin-right:4px; flex-shrink:0;"></div>
+                                            <span style="color:#222; font-weight:600; font-size:11px; line-height:1;">
+                                                ${typeof LABEL_MAP !== 'undefined' ? (LABEL_MAP[stage] ?? stage) : stage}
+                                            </span>
+                                            <span style="color:#1976d2; font-size:10px; font-weight:600; margin-left:3px;">${count}</span>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        ` : ''}
+                        ${topTransitions && topTransitions.length > 0 ? `
+                            <div style="display:flex; flex-direction:column; gap:3px; flex:1;">
+                                <span style="font-size:10px; color:#6c757d; font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">Top Transitions</span>
+                                <div style="display:flex; flex-direction:row; gap:4px; align-items:center; flex-wrap:wrap;">
+                                    ${topTransitions.map(([transition, count]) => {
+                                        const [fromStage, toStage] = transition.split(' → ');
+                                        return `
+                                            <div style="display:inline-flex; align-items:center; background:#f8f9fa; border-radius:3px; padding:2px 6px; border:1px solid #e9ecef; font-size:11px;">
+                                                <div style="display:inline-flex; align-items:center;">
+                                                    <div style="width:8px; height:10px; background-color:${this.colorScale(fromStage)}; border-radius:1px; margin-right:4px; flex-shrink:0;"></div>
+                                                    <span style="color:#222; font-weight:600; font-size:11px; line-height:1;">
+                                                        ${typeof LABEL_MAP !== 'undefined' ? (LABEL_MAP[fromStage] ?? fromStage) : fromStage}
+                                                    </span>
+                                                </div>
+                                                <span style="color:#666; font-size:10px; margin:0 2px;">→</span>
+                                                <div style="display:inline-flex; align-items:center;">
+                                                    <div style="width:8px; height:10px; background-color:${this.colorScale(toStage)}; border-radius:1px; margin-right:4px; flex-shrink:0;"></div>
+                                                    <span style="color:#222; font-weight:600; font-size:11px; line-height:1;">
+                                                        ${typeof LABEL_MAP !== 'undefined' ? (LABEL_MAP[toStage] ?? toStage) : toStage}
+                                                    </span>
+                                                </div>
+                                                <span style="color:#1976d2; font-size:10px; font-weight:600; margin-left:3px;">${count}</span>
+                                            </div>
+                                        `;
+                                    }).join('')}
+                                </div>
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+            ` : ''}
+        `;
+
+        // 添加事件监听器到clear selection按钮
+        setTimeout(() => {
+            const clearBtn = this.clusterInfoContainer?.querySelector('#clear-cluster-selection-btn') as HTMLButtonElement;
+            if (clearBtn) {
+                // 移除之前的事件监听器（如果有的话）
+                clearBtn.removeEventListener('click', this.clearClusterSelection);
+                // 添加新的事件监听器
+                clearBtn.addEventListener('click', () => this.clearClusterSelection());
+            }
+        }, 0);
+    }
+
+    // 显示cluster概览信息
+    private showClusterOverview() {
+        if (!this.clusterInfoContainer) return;
+
+        // 计算所有cluster的统计信息
+        const clusterStats = new Map<string, { count: number; totalCells: number; totalVotes: number }>();
+        
+        this.data.forEach((nb, index) => {
+            const kernelId = (nb as any).kernelVersionId?.toString();
+            const simRow = kernelId ? this.similarityGroups.find((row: any) => row.kernelVersionId === kernelId) : null;
+            if (simRow && simRow.cluster_id) {
+                const clusterId = simRow.cluster_id;
+                const current = clusterStats.get(clusterId) || { count: 0, totalCells: 0, totalVotes: 0 };
+                current.count++;
+                current.totalCells += nb.cells.length;
+                
+                // 添加投票信息
+                if (this.voteData && this.voteData.length > 0) {
+                    const voteRow = kernelId ? this.voteData.find((row: any) => row.kernelVersionId === kernelId) : null;
+                    if (voteRow && voteRow.TotalVotes !== undefined) {
+                        current.totalVotes += parseFloat(voteRow.TotalVotes) || 0;
+                    }
+                }
+                
+                clusterStats.set(clusterId, current);
+            }
+        });
+
+        const totalClusters = clusterStats.size;
+        const totalNotebooks = this.data.length;
+        const avgNotebooksPerCluster = totalClusters > 0 ? Math.round(totalNotebooks / totalClusters) : 0;
+
+        this.clusterInfoContainer.innerHTML = `
+            <div style="font-size:16px; font-weight:700; margin-bottom:12px; line-height:1.3; word-break:break-all; padding-bottom:8px; border-bottom:1px solid #e9ecef; display:flex; justify-content:space-between; align-items:center;">
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <span style="color: #222;">Cluster Overview</span>
+                    <span style="color: #6c757d; font-size: 13px; font-weight: 400;">
+                        ${totalClusters} clusters • ${totalNotebooks} notebooks
+                    </span>
+                </div>
+                <div style="font-size:12px; color:#4caf50; font-weight:500;">
+                    💡 Click cluster labels to view details
+                </div>
+            </div>
+            
+            <div style="background:#f8f9fa; border-radius:6px; padding:12px; margin-bottom:12px; border:1px solid #e9ecef;">
+                <div style="display:flex; flex-direction:row; gap:12px; align-items:center;">
+                    <div style="display:flex; align-items:center; gap:6px;">
+                        <span style="font-size:11px; color:#6c757d;">Total Clusters:</span>
+                        <span style="font-size:13px; font-weight:600; color:#495057;">${totalClusters}</span>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:6px;">
+                        <span style="font-size:11px; color:#6c757d;">Total Notebooks:</span>
+                        <span style="font-size:13px; font-weight:600; color:#495057;">${totalNotebooks}</span>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:6px;">
+                        <span style="font-size:11px; color:#6c757d;">Avg/Cluster:</span>
+                        <span style="font-size:13px; font-weight:600; color:#495057;">${avgNotebooksPerCluster}</span>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    // 清除cluster选择
+    private clearClusterSelection() {
+        this.selectedClusterId = null;
+        this.drawMatrix();
+        
+        // 派发cluster选择事件，通知LeftSidebar更新数据
+        const clusterFilteredNotebooks = this.getClusterFilteredNotebooks();
+        window.dispatchEvent(new CustomEvent('galaxy-cluster-selected', { 
+            detail: { 
+                clusterId: this.selectedClusterId,
+                notebooks: clusterFilteredNotebooks 
+            } 
+        }));
+    }
+
+    dispose(): void {
+        // 移除事件监听器
+        window.removeEventListener('galaxy-top-stats-updated', this._topStatsHandler);
+        super.dispose();
+    }
 }

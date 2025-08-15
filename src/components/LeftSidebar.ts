@@ -33,6 +33,7 @@ export class LeftSidebar extends Widget {
     private _resizeObserver: ResizeObserver | null = null;
     private hiddenStages: Set<string> = new Set(); // 隐藏的 stage
     private _renderTimeout: any = null; // 防抖定时器
+    private _eventHandlers: { [key: string]: (e: any) => void } = {}; // 事件处理函数引用
 
     constructor(data: Notebook[], colorMap: Map<string, string>) {
         super();
@@ -63,8 +64,9 @@ export class LeftSidebar extends Widget {
             });
         });
         this.stageData = Array.from(stageStats.keys()).map(stage => ({ stage: String(stage), count: 0 }));
-        // 保存初始顺序
         this.initialStageOrder = this.stageData.map(d => d.stage);
+        
+        this.render();
 
         // 清空 this.node
         this.node.innerHTML = '';
@@ -171,7 +173,7 @@ export class LeftSidebar extends Widget {
             document.body.appendChild(tooltip);
         }
 
-        window.addEventListener('galaxy-selection-cleared', (e: any) => {
+        this._eventHandlers['galaxy-selection-cleared'] = (e: any) => {
             const { tabId } = e.detail || {};
             // 如果是 overview 模式，处理所有 notebook detail 的清除事件
             // 如果是 notebook detail 模式，只处理当前 tab 的事件
@@ -204,9 +206,11 @@ export class LeftSidebar extends Widget {
                 this.saveFilterState();
                 this.render();
             }
-        });
+        };
+        window.addEventListener('galaxy-selection-cleared', this._eventHandlers['galaxy-selection-cleared']);
+        
         // 监听 stage 选中事件（按tab隔离）
-        window.addEventListener('galaxy-stage-selected', (e: any) => {
+        this._eventHandlers['galaxy-stage-selected'] = (e: any) => {
             const { stage, tabId } = e.detail;
             const currentTabId = this.getTabId();
             // 只处理当前tab的事件
@@ -215,9 +219,11 @@ export class LeftSidebar extends Widget {
                 this.saveFilterState();
                 this.render();
             }
-        });
+        };
+        window.addEventListener('galaxy-stage-selected', this._eventHandlers['galaxy-stage-selected']);
+        
         // 监听 flow 选中事件（按tab隔离）
-        window.addEventListener('galaxy-flow-selected', (e: any) => {
+        this._eventHandlers['galaxy-flow-selected'] = (e: any) => {
             const { from, to, tabId } = e.detail;
             const currentTabId = this.getTabId();
             // 只处理当前tab的事件
@@ -226,14 +232,21 @@ export class LeftSidebar extends Widget {
                 this.saveFilterState();
                 this.render();
             }
-        });
+        };
+        window.addEventListener('galaxy-flow-selected', this._eventHandlers['galaxy-flow-selected']);
         // 监听 matrix 筛选事件，flow chart 跟随筛选
-        window.addEventListener('galaxy-matrix-filtered', (e: any) => {
+        this._eventHandlers['galaxy-matrix-filtered'] = (e: any) => {
             const filteredData = e.detail?.notebooks ?? [];
             this.setData(filteredData, this.colorMap);
-        });
+        };
+        window.addEventListener('galaxy-matrix-filtered', this._eventHandlers['galaxy-matrix-filtered']);
 
-
+        // 监听 cluster 选择事件，flow chart 跟随cluster筛选
+        this._eventHandlers['galaxy-cluster-selected'] = (e: any) => {
+            const clusterData = e.detail?.notebooks ?? [];
+            this.setData(clusterData, this.colorMap);
+        };
+        window.addEventListener('galaxy-cluster-selected', this._eventHandlers['galaxy-cluster-selected']);
 
         this.render();
     }
@@ -1748,6 +1761,38 @@ export class LeftSidebar extends Widget {
         }
 
         // 选中状态下不触发hover事件，避免minimap高亮
+
+        // 获取top stages和top transitions（过滤掉隐藏的stages）
+        const stageEntries = Array.from(stageStats.entries())
+            .filter(([stage]) => !this.hiddenStages.has(stage) && stage !== "None")
+            .sort((a, b) => b[1].count - a[1].count);
+        
+        // 获取数量最多的stage（可能有多个数量相同的）
+        const maxStageCount = stageEntries.length > 0 ? stageEntries[0][1].count : 0;
+        const topStages = stageEntries
+            .filter(([stage, stats]) => stats.count === maxStageCount)
+            .map(([stage, stats]) => [stage, stats.count] as [string, number]);
+        
+        const transitionEntries = Array.from(transitions.entries())
+            .filter(([transition]) => {
+                const [from, to] = transition.split("->");
+                return !this.hiddenStages.has(from) && !this.hiddenStages.has(to);
+            })
+            .sort((a, b) => b[1] - a[1]);
+        
+        // 获取数量最多的transition（可能有多个数量相同的）
+        const maxTransitionCount = transitionEntries.length > 0 ? transitionEntries[0][1] : 0;
+        const topTransitions = transitionEntries
+            .filter(([transition, count]) => count === maxTransitionCount)
+            .map(([transition, count]) => [transition.replace('->', ' → '), count] as [string, number]);
+
+        // 派发top stages和top transitions给MatrixWidget
+        window.dispatchEvent(new CustomEvent('galaxy-top-stats-updated', {
+            detail: { 
+                topStages: topStages.length > 0 ? topStages : undefined,
+                topTransitions: topTransitions.length > 0 ? topTransitions : undefined
+            }
+        }));
     }
 
 
@@ -1761,6 +1806,13 @@ export class LeftSidebar extends Widget {
             clearTimeout(this._renderTimeout);
             this._renderTimeout = null;
         }
+        
+        // 移除事件监听器
+        Object.keys(this._eventHandlers).forEach(eventName => {
+            window.removeEventListener(eventName, this._eventHandlers[eventName]);
+        });
+        this._eventHandlers = {};
+        
         super.dispose();
     }
 
@@ -1814,6 +1866,9 @@ export class LeftSidebar extends Widget {
     setData(data: Notebook[], colorMap: Map<string, string>) {
         this.data = data;
         this.colorMap = colorMap;
+        
+
+        
         // 保持当前的selection状态，不清除
         // this.selection = null;
         // 重新初始化 stageData 和 initialStageOrder
@@ -1834,8 +1889,13 @@ export class LeftSidebar extends Widget {
         });
         this.stageData = Array.from(stageStats.keys()).map(stage => ({ stage: String(stage), count: 0 }));
         this.initialStageOrder = this.stageData.map(d => d.stage);
+        
+
+        
         this.render();
     }
+
+
 
     // 获取当前tab ID
     private getTabId(): string {
