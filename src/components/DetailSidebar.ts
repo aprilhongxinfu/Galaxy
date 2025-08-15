@@ -87,12 +87,14 @@ export class DetailSidebar extends Widget {
         this.setSummary(filteredData, this._mostFreqStage, this._mostFreqFlow, this.notebookOrder);
       }
     });
-    // 监听 notebook order 变化事件 - 只更新notebookOrder，不重新渲染
+    // 监听 notebook order 变化事件 - 更新notebookOrder并重新渲染
     window.addEventListener('galaxy-notebook-order-changed', (e: any) => {
       this.notebookOrder = e.detail?.notebookOrder ?? [];
+      // 如果有filter，重新渲染以更新notebook list顺序
+      if (this.filter) {
+        this.setSummary(this._allData, this._mostFreqStage, this._mostFreqFlow, this.notebookOrder);
+      }
     });
-
-
   }
 
   onAfterAttach() {
@@ -1263,7 +1265,6 @@ export class DetailSidebar extends Widget {
             ${this.generateNotebookListHTML(notebookListHtml, false, '480px', '430px')}
           </div>
         </div>`;
-
       return;
     }
 
