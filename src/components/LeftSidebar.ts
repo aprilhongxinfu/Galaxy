@@ -71,13 +71,13 @@ export class LeftSidebar extends Widget {
         this.node.style.display = 'flex';
         this.node.style.flexDirection = 'column';
         this.node.style.height = '100%';
-        this.node.style.padding = '16px 16px 12px 16px'; // 统一内边距
+        this.node.style.padding = '16px 16px 16px 16px'; // 恢复原来的底部内边距
         this.node.style.minWidth = '340px'; // 保证sidebar最小宽度不小于SVG
 
         // 右下角重置排序 icon
         const resetDiv = document.createElement('div');
         resetDiv.style.position = 'absolute';
-        resetDiv.style.bottom = '8px'; // 调整位置与legend最后一行持平
+        resetDiv.style.bottom = '8px'; // 与legend最后一行平齐
         resetDiv.style.right = '18px';
         resetDiv.style.zIndex = '10';
         resetDiv.style.cursor = 'pointer';
@@ -136,7 +136,8 @@ export class LeftSidebar extends Widget {
         this.legendDiv.style.display = 'block';
         this.legendDiv.style.overflow = 'visible';
         this.legendDiv.style.flex = 'none';
-        this.legendDiv.style.margin = '0';
+        this.legendDiv.style.maxHeight = 'none'; // 确保legend不会被截断
+        this.legendDiv.style.margin = '0'; // 移除底部margin，让legend与refresh icon平齐
         this.legendDiv.style.padding = '0';
         this.legendDiv.style.height = 'auto'; // 根据内容自适应高度
         this.legendDiv.style.minHeight = '0'; // 允许收缩
@@ -399,13 +400,12 @@ export class LeftSidebar extends Widget {
         }
 
         this.svg.selectAll('*').remove();
-        // 预留 legend 区域高度，保证legend始终可见且不重叠
-        const legendAreaHeight = 120; // 减少固定高度，让legend自适应
+        // 由于SVG legend被注释掉了，不再需要预留legend区域高度
         const chartPadding = 30;  // 减少底部padding
         // 计算SVG高度，基于yScale的范围
         const virtualHeight = 1000; // 使用固定的逻辑高度
-        // SVG总高度 = flowchart高度 + legend区域
-        const svgHeight = virtualHeight + chartPadding + legendAreaHeight;
+        // SVG总高度 = flowchart高度 + padding（不再预留legend区域）
+        const svgHeight = virtualHeight + chartPadding;
         // 设置 viewBox
         this.svg.attr("viewBox", `0 0 400 ${svgHeight}`);
 
@@ -466,7 +466,7 @@ export class LeftSidebar extends Widget {
         });
 
         // 使用yScale来分布block的位置
-        const yScale = d3.scaleLinear().domain([0, 1]).range([10, virtualHeight + 100]);
+        const yScale = d3.scaleLinear().domain([0, 1]).range([10, virtualHeight - 50]);
         const renderMaxCount = d3.max(this.stageData, (d) => d.count) || 1;
         const sizeScale = d3.scaleLinear().domain([0, renderMaxCount]).range([20, 80]);
 
@@ -1033,6 +1033,8 @@ export class LeftSidebar extends Widget {
                 groupBox.style.borderRadius = '4px';
                 groupBox.style.padding = '6px'; // 减少内边距
                 groupBox.style.width = 'fit-content'; // 根据内容自适应宽度
+                groupBox.style.height = 'auto'; // 根据内容自适应高度
+                groupBox.style.minHeight = 'fit-content'; // 最小高度适应内容
                 // groupBox.style.backgroundColor = '#f9f9f9';
                 // Model-oriented 使用虚线边框
                 if (groupName === 'Model-oriented') {
@@ -1065,7 +1067,7 @@ export class LeftSidebar extends Widget {
                     const item = document.createElement('div');
                     item.style.display = 'flex';
                     item.style.alignItems = 'center';
-                    item.style.cursor = 'pointer';
+                    // item.style.cursor = 'pointer';
                     item.style.padding = '1px 4px';
                     item.style.borderRadius = '2px';
 
@@ -1097,6 +1099,7 @@ export class LeftSidebar extends Widget {
                     item.appendChild(label);
 
                     // 点击切换显示/隐藏
+                    /*
                     item.onclick = () => {
                         if (isStageHidden) {
                             this.hiddenStages.delete(d.stage);
@@ -1110,6 +1113,7 @@ export class LeftSidebar extends Widget {
                         this.saveFilterState();
                         this.render();
                     };
+                    */
 
                     groupContent.appendChild(item);
                 });
@@ -1123,7 +1127,7 @@ export class LeftSidebar extends Widget {
                     const item = document.createElement('div');
                     item.style.display = 'flex';
                     item.style.alignItems = 'center';
-                    item.style.cursor = 'pointer';
+                    // item.style.cursor = 'pointer';
                     item.style.padding = '1px 4px';
                     item.style.borderRadius = '2px';
 
@@ -1155,6 +1159,7 @@ export class LeftSidebar extends Widget {
                     item.appendChild(label);
 
                     // 点击切换显示/隐藏
+                    /*
                     item.onclick = () => {
                         if (isStageHidden) {
                             this.hiddenStages.delete(d.stage);
@@ -1168,6 +1173,7 @@ export class LeftSidebar extends Widget {
                         this.saveFilterState();
                         this.render();
                     };
+                    */
 
                     groupContent.appendChild(item);
                 });
@@ -1181,7 +1187,7 @@ export class LeftSidebar extends Widget {
                     const item = document.createElement('div');
                     item.style.display = 'flex';
                     item.style.alignItems = 'center';
-                    item.style.cursor = 'pointer';
+                    // item.style.cursor = 'pointer';
                     item.style.padding = '1px 4px';
                     item.style.borderRadius = '2px';
 
@@ -1213,6 +1219,7 @@ export class LeftSidebar extends Widget {
                     item.appendChild(label);
 
                     // 点击切换显示/隐藏
+                    /*
                     item.onclick = () => {
                         if (isStageHidden) {
                             this.hiddenStages.delete(d.stage);
@@ -1226,6 +1233,7 @@ export class LeftSidebar extends Widget {
                         this.saveFilterState();
                         this.render();
                     };
+                    */
 
                     groupContent.appendChild(item);
                 });
@@ -1235,48 +1243,269 @@ export class LeftSidebar extends Widget {
             return groupBox;
         };
 
-        // 按顺序添加组：Environment, Data-oriented+Model-oriented(左右并排), Data export, Other
-        const groupOrder = ['Environment', 'Data export', 'Other'];
-
-        // 先添加Environment组
-        const environmentGroup = createGroupBox('Environment', processedGroups['Environment'] || []);
-        if (environmentGroup) {
-            legendContainer.appendChild(environmentGroup);
-        }
-
         // 创建Data-oriented和Model-oriented的容器，让它们左右并排
-        const dataModelContainer = document.createElement('div');
-        dataModelContainer.style.display = 'flex';
-        dataModelContainer.style.gap = '12px';
-        dataModelContainer.style.marginBottom = '1px';
-        dataModelContainer.style.width = '100%'; // 占满容器宽度
-        dataModelContainer.style.minWidth = '0'; // 允许容器收缩
-
-        // 添加Data-oriented和Model-oriented到左右两边
         const dataGroup = createGroupBox('Data-oriented', processedGroups['Data-oriented'] || []);
         const modelGroup = createGroupBox('Model-oriented', processedGroups['Model-oriented'] || []);
         
-        if (dataGroup) {
-            dataGroup.style.flex = '1'; // 让Data-oriented组占据剩余空间的一半
-            dataModelContainer.appendChild(dataGroup);
-        }
-        if (modelGroup) {
-            modelGroup.style.flex = '1'; // 让Model-oriented组占据剩余空间的一半
-            dataModelContainer.appendChild(modelGroup);
-        }
-
-        // 添加Data-oriented和Model-oriented的容器
-        if (dataGroup || modelGroup) {
+        // 检查Data-oriented和Model-oriented是否存在
+        const hasDataGroup = dataGroup !== null;
+        const hasModelGroup = modelGroup !== null;
+        
+        if (hasDataGroup && hasModelGroup) {
+            // 两个都存在，创建左右并排的容器
+            const dataModelContainer = document.createElement('div');
+            dataModelContainer.style.display = 'flex';
+            dataModelContainer.style.gap = '12px';
+            dataModelContainer.style.marginBottom = '1px';
+            dataModelContainer.style.width = '100%';
+            dataModelContainer.style.minWidth = '0';
+            dataModelContainer.style.alignItems = 'flex-start';
+            
+            dataGroup!.style.flex = '1';
+            dataGroup!.style.height = 'auto';
+            dataModelContainer.appendChild(dataGroup!);
+            
+            modelGroup!.style.flex = '1';
+            modelGroup!.style.height = 'auto';
+            dataModelContainer.appendChild(modelGroup!);
+            
             legendContainer.appendChild(dataModelContainer);
+        } else if (hasDataGroup || hasModelGroup) {
+            // 只有一个存在，创建左右布局的容器
+            const singleContainer = document.createElement('div');
+            singleContainer.style.display = 'flex';
+            singleContainer.style.gap = '12px';
+            singleContainer.style.marginBottom = '1px';
+            singleContainer.style.width = '100%';
+            singleContainer.style.alignItems = 'flex-start';
+            
+            const singleGroup = hasDataGroup ? dataGroup! : modelGroup!;
+            singleGroup.style.width = 'fit-content';
+            singleGroup.style.height = 'auto';
+            singleContainer.appendChild(singleGroup);
+            
+            legendContainer.appendChild(singleContainer);
+        }
+        // 如果两个都不存在，不添加任何容器
+
+        // 创建Environment和Data export的组合组
+        const envStages = processedGroups['Environment'] || [];
+        const exportStages = processedGroups['Data export'] || [];
+        const combinedStages = [...envStages, ...exportStages];
+        
+        if (combinedStages.length > 0) {
+            // 创建组合组
+            const combinedGroup = document.createElement('div');
+            combinedGroup.style.display = 'flex';
+            combinedGroup.style.flexDirection = 'column';
+            combinedGroup.style.gap = '2px';
+            combinedGroup.style.marginBottom = '1px';
+            
+            // 添加Environment部分
+            if (envStages.length > 0) {
+                const envSection = document.createElement('div');
+                envSection.style.display = 'flex';
+                envSection.style.flexDirection = 'column';
+                envSection.style.gap = '2px';
+                
+                envStages.forEach((d) => {
+                    const item = document.createElement('div');
+                    item.style.display = 'flex';
+                    item.style.alignItems = 'center';
+                    item.style.padding = '1px 4px';
+                    item.style.borderRadius = '2px';
+
+                    const isStageHidden = this.hiddenStages.has(d.stage);
+                    const colorBox = document.createElement('span');
+                    colorBox.style.display = 'inline-block';
+                    colorBox.style.width = '8px';
+                    colorBox.style.height = '10px';
+                    colorBox.style.borderRadius = '2px';
+                    colorBox.style.background = this.colorMap.get(d.stage) || '#ccc';
+                    colorBox.style.marginRight = '6px';
+                    colorBox.style.opacity = isStageHidden ? '0.3' : '1';
+
+                    const label = document.createElement('span');
+                    label.style.fontSize = '12px';
+                    label.textContent = LABEL_MAP[d.stage] ?? d.stage;
+                    label.style.opacity = isStageHidden ? '0.3' : '1';
+
+                    item.appendChild(colorBox);
+                    item.appendChild(label);
+                    envSection.appendChild(item);
+                });
+                
+                combinedGroup.appendChild(envSection);
+            }
+            
+            // 添加Data export部分
+            if (exportStages.length > 0) {
+                const exportSection = document.createElement('div');
+                exportSection.style.display = 'flex';
+                exportSection.style.flexDirection = 'column';
+                exportSection.style.gap = '2px';
+                
+                exportStages.forEach((d) => {
+                    const item = document.createElement('div');
+                    item.style.display = 'flex';
+                    item.style.alignItems = 'center';
+                    item.style.padding = '1px 4px';
+                    item.style.borderRadius = '2px';
+
+                    const isStageHidden = this.hiddenStages.has(d.stage);
+                    const colorBox = document.createElement('span');
+                    colorBox.style.display = 'inline-block';
+                    colorBox.style.width = '8px';
+                    colorBox.style.height = '10px';
+                    colorBox.style.borderRadius = '2px';
+                    colorBox.style.background = this.colorMap.get(d.stage) || '#ccc';
+                    colorBox.style.marginRight = '6px';
+                    colorBox.style.opacity = isStageHidden ? '0.3' : '1';
+
+                    const label = document.createElement('span');
+                    label.style.fontSize = '12px';
+                    label.textContent = LABEL_MAP[d.stage] ?? d.stage;
+                    label.style.opacity = isStageHidden ? '0.3' : '1';
+
+                    item.appendChild(colorBox);
+                    item.appendChild(label);
+                    exportSection.appendChild(item);
+                });
+                
+                combinedGroup.appendChild(exportSection);
+            }
+            
+            // 根据Data-oriented和Model-oriented的存在情况决定放置位置
+            if (hasDataGroup && hasModelGroup) {
+                // 两个都存在，使用原有的逻辑
+                const dataStageCount = processedGroups['Data-oriented'] ? processedGroups['Data-oriented'].length : 0;
+                const modelStageCount = processedGroups['Model-oriented'] ? processedGroups['Model-oriented'].length : 0;
+                
+                if (dataStageCount < modelStageCount) {
+                    // Data-oriented的stage数量较少，将组合组放在Data-oriented框外面
+                    dataGroup!.style.position = 'relative';
+                    combinedGroup.style.position = 'absolute';
+                    combinedGroup.style.top = '100%';
+                    combinedGroup.style.left = '0';
+                    combinedGroup.style.marginTop = '4px';
+                    dataGroup!.appendChild(combinedGroup);
+                } else if (modelStageCount < dataStageCount) {
+                    // Model-oriented的stage数量较少，将组合组放在Model-oriented框外面
+                    modelGroup!.style.position = 'relative';
+                    combinedGroup.style.position = 'absolute';
+                    combinedGroup.style.top = '100%';
+                    combinedGroup.style.left = '0';
+                    combinedGroup.style.marginTop = '4px';
+                    modelGroup!.appendChild(combinedGroup);
+                } else {
+                    // 两个框的stage数量相等，分别放置Environment和Data export
+                    // 创建Environment组
+                    if (envStages.length > 0) {
+                        const envGroup = document.createElement('div');
+                        envGroup.style.display = 'flex';
+                        envGroup.style.flexDirection = 'column';
+                        envGroup.style.gap = '2px';
+                        envGroup.style.marginBottom = '1px';
+                        
+                        envStages.forEach((d) => {
+                            const item = document.createElement('div');
+                            item.style.display = 'flex';
+                            item.style.alignItems = 'center';
+                            item.style.padding = '1px 4px';
+                            item.style.borderRadius = '2px';
+
+                            const isStageHidden = this.hiddenStages.has(d.stage);
+                            const colorBox = document.createElement('span');
+                            colorBox.style.display = 'inline-block';
+                            colorBox.style.width = '8px';
+                            colorBox.style.height = '10px';
+                            colorBox.style.borderRadius = '2px';
+                            colorBox.style.background = this.colorMap.get(d.stage) || '#ccc';
+                            colorBox.style.marginRight = '6px';
+                            colorBox.style.opacity = isStageHidden ? '0.3' : '1';
+
+                            const label = document.createElement('span');
+                            label.style.fontSize = '12px';
+                            label.textContent = LABEL_MAP[d.stage] ?? d.stage;
+                            label.style.opacity = isStageHidden ? '0.3' : '1';
+
+                            item.appendChild(colorBox);
+                            item.appendChild(label);
+                            envGroup.appendChild(item);
+                        });
+                        
+                        // 将Environment组放在Data-oriented框外面
+                        dataGroup!.style.position = 'relative';
+                        envGroup.style.position = 'absolute';
+                        envGroup.style.top = '100%';
+                        envGroup.style.left = '0';
+                        envGroup.style.marginTop = '4px';
+                        dataGroup!.appendChild(envGroup);
+                    }
+                    
+                    // 创建Data export组
+                    if (exportStages.length > 0) {
+                        const exportGroup = document.createElement('div');
+                        exportGroup.style.display = 'flex';
+                        exportGroup.style.flexDirection = 'column';
+                        exportGroup.style.gap = '2px';
+                        exportGroup.style.marginBottom = '1px';
+                        
+                        exportStages.forEach((d) => {
+                            const item = document.createElement('div');
+                            item.style.display = 'flex';
+                            item.style.alignItems = 'center';
+                            item.style.padding = '1px 4px';
+                            item.style.borderRadius = '2px';
+
+                            const isStageHidden = this.hiddenStages.has(d.stage);
+                            const colorBox = document.createElement('span');
+                            colorBox.style.display = 'inline-block';
+                            colorBox.style.width = '8px';
+                            colorBox.style.height = '10px';
+                            colorBox.style.borderRadius = '2px';
+                            colorBox.style.background = this.colorMap.get(d.stage) || '#ccc';
+                            colorBox.style.marginRight = '6px';
+                            colorBox.style.opacity = isStageHidden ? '0.3' : '1';
+
+                            const label = document.createElement('span');
+                            label.style.fontSize = '12px';
+                            label.textContent = LABEL_MAP[d.stage] ?? d.stage;
+                            label.style.opacity = isStageHidden ? '0.3' : '1';
+
+                            item.appendChild(colorBox);
+                            item.appendChild(label);
+                            exportGroup.appendChild(item);
+                        });
+                        
+                        // 将Data export组放在Model-oriented框外面
+                        modelGroup!.style.position = 'relative';
+                        exportGroup.style.position = 'absolute';
+                        exportGroup.style.top = '100%';
+                        exportGroup.style.left = '0';
+                        exportGroup.style.marginTop = '4px';
+                        modelGroup!.appendChild(exportGroup);
+                    }
+                }
+            } else if (hasDataGroup || hasModelGroup) {
+                // 只有一个存在，将组合组放在容器的右边
+                const singleContainer = legendContainer.lastElementChild as HTMLElement;
+                if (singleContainer) {
+                    combinedGroup.style.width = 'fit-content';
+                    combinedGroup.style.height = 'auto';
+                    singleContainer.appendChild(combinedGroup);
+                }
+            } else {
+                // 两个都不存在，直接添加到主容器
+                legendContainer.appendChild(combinedGroup);
+            }
         }
 
-        // 再添加其他组
-        groupOrder.slice(1).forEach(groupName => {
-            const group = createGroupBox(groupName, processedGroups[groupName] || []);
-            if (group) {
-                legendContainer.appendChild(group);
-            }
-        });
+        // 添加Other组
+        const otherGroup = createGroupBox('Other', processedGroups['Other'] || []);
+        if (otherGroup) {
+            legendContainer.appendChild(otherGroup);
+        }
 
         this.legendDiv.appendChild(legendContainer);
         this.legendDiv.style.border = '';
