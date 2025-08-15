@@ -1345,14 +1345,11 @@ export class MatrixWidget extends Widget {
                             }
                         }
 
-                        // 如果有 similarityGroups，显示 cluster_id, similarity, label_integers
+                        // 如果有 similarityGroups，显示 similarity, label_integers
                         if (self.similarityGroups && self.similarityGroups.length > 0) {
                             const simRow = kernelId ? self.similarityGroups.find((row: any) => row.kernelVersionId === kernelId) : null;
-                            if (simRow) {
-                                tooltipContent += `<br>cluster_id: ${simRow.cluster_id}`;
-                                if (simRow.similarity !== undefined) {
-                                    tooltipContent += `<br>similarity: ${simRow.similarity}`;
-                                }
+                            if (simRow && simRow.similarity !== undefined) {
+                                tooltipContent += `<br>similarity: ${simRow.similarity}`;
                             }
                         }
 
@@ -1580,15 +1577,14 @@ export class MatrixWidget extends Widget {
                         this.selectCluster(range.clusterId);
                     });
 
-                // 添加垂直线连接到横线
-                clusterLabelsG.append('line')
-                    .attr('x1', centerX)
-                    .attr('y1', -35)
-                    .attr('x2', centerX)
-                    .attr('y2', -25)
-                    .attr('stroke', isSelected ? '#4caf50' : '#666')
-                    .attr('stroke-width', 1)
-                    .attr('stroke-dasharray', '2,2');
+                // // 添加垂直线连接到横线
+                // clusterLabelsG.append('line')
+                //     .attr('x1', centerX)
+                //     .attr('y1', -35)
+                //     .attr('x2', centerX)
+                //     .attr('y2', -25)
+                //     .attr('stroke', isSelected ? '#4caf50' : '#666')
+                //     .attr('stroke-width', 1);
             });
         }
 
@@ -2158,9 +2154,6 @@ export class MatrixWidget extends Widget {
             <div style="font-size:16px; font-weight:700; margin-bottom:12px; line-height:1.3; word-break:break-all; padding-bottom:8px; border-bottom:1px solid #e9ecef; display:flex; justify-content:space-between; align-items:center;">
                 <div style="display:flex; align-items:center; gap:8px;">
                     <span style="color: #222;">Cluster Overview</span>
-                    <span style="color: #6c757d; font-size: 13px; font-weight: 400;">
-                        ${totalClusters} clusters • ${totalNotebooks} notebooks
-                    </span>
                 </div>
                 <div style="font-size:12px; color:#4caf50; font-weight:500;">
                     💡 Click cluster labels to view details
@@ -2174,11 +2167,7 @@ export class MatrixWidget extends Widget {
                         <span style="font-size:13px; font-weight:600; color:#495057;">${totalClusters}</span>
                     </div>
                     <div style="display:flex; align-items:center; gap:6px;">
-                        <span style="font-size:11px; color:#6c757d;">Total Notebooks:</span>
-                        <span style="font-size:13px; font-weight:600; color:#495057;">${totalNotebooks}</span>
-                    </div>
-                    <div style="display:flex; align-items:center; gap:6px;">
-                        <span style="font-size:11px; color:#6c757d;">Avg/Cluster:</span>
+                        <span style="font-size:11px; color:#6c757d;">Avg Cluster:</span>
                         <span style="font-size:13px; font-weight:600; color:#495057;">${avgNotebooksPerCluster}</span>
                     </div>
                 </div>
