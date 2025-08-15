@@ -1,14 +1,13 @@
-
-
-
-
 .matrix-cell.matrix-highlight {
   opacity: 1 !important;
+  pointer-events: auto;
+}
+
+.matrix-cell.matrix-highlight:hover {
   transform: scale(1.2);
   transform-box: fill-box;
   transform-origin: 50% 50%;
-  transition: transform 0.15s cubic-bezier(.4,2,.6,1);
-  pointer-events: auto;
+  transition: transform 0.15s cubic-bezier(.4, 2, .6, 1);
 }
 
 .matrix-cell.matrix-dim {
@@ -19,7 +18,7 @@
   transform: scale(1.2);
   transform-box: fill-box;
   transform-origin: 50% 50%;
-  transition: transform 0.15s cubic-bezier(.4,2,.6,1);
+  transition: transform 0.15s cubic-bezier(.4, 2, .6, 1);
   pointer-events: auto;
 }
 
@@ -37,4 +36,3 @@
 .stage-rect {
   cursor: pointer !important;
 }
-

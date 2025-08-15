@@ -91,7 +91,7 @@ export class DetailSidebar extends Widget {
     window.addEventListener('galaxy-notebook-order-changed', (e: any) => {
       this.notebookOrder = e.detail?.notebookOrder ?? [];
     });
-    
+
 
   }
 
@@ -114,7 +114,7 @@ export class DetailSidebar extends Widget {
       this.setCellDetail(cell);
     }
   };
-  
+
   private _notebookHighlightHandler = (e: Event) => {
     const { notebookIndex, highlight } = (e as CustomEvent).detail;
     this.highlightNotebookInList(notebookIndex, highlight);
@@ -249,7 +249,7 @@ export class DetailSidebar extends Widget {
         let borderStyle = 'none';
         let borderWidth = '0px';
         let borderColor = 'transparent';
-        
+
         if (group === 'Data-oriented') {
           borderStyle = 'solid';
           borderWidth = '1px';
@@ -259,7 +259,7 @@ export class DetailSidebar extends Widget {
           borderWidth = '1px';
           borderColor = '#666666';
         }
-        
+
         return `<div style="display:inline-flex; align-items:center; margin-right:8px; margin-bottom:4px;">
           <div style="width:10px; height:12px; background-color:${stageColor}; border-radius:2px; margin-right:6px; flex-shrink:0; border:${borderWidth} ${borderStyle} ${borderColor}; align-self:center;"></div>
           <span style="color:#222; font-weight:600; font-size:13px; line-height:12px; display:flex; align-items:center;">${LABEL_MAP[stage] ?? stage}</span>
@@ -803,7 +803,7 @@ export class DetailSidebar extends Widget {
     let borderStyle = 'none';
     let borderWidth = '0px';
     let borderColor = 'transparent';
-    
+
     if (group === 'Data-oriented') {
       borderStyle = 'solid';
       borderWidth = '1px';
@@ -1036,7 +1036,7 @@ export class DetailSidebar extends Widget {
     } else {
       (window as any)._galaxyFlowSelection = null;
     }
-    
+
     // 保持标题不变，始终显示competition名称或Notebook Overview
     this._currentTitle = this.competitionInfo ? this.competitionInfo.name : 'Notebook Overview';
 
@@ -1179,57 +1179,6 @@ export class DetailSidebar extends Widget {
         avgPerNotebook = containingNotebooks > 0 ? (totalOccurrences / containingNotebooks) : 0;
       }
 
-      // 按原始顺序排序filteredData
-      const sortedFilteredData = [...filteredData].sort((a, b) => {
-        // 找到notebook在原始数据中的索引
-        const aOrigIndex = this._allData.findIndex(item =>
-          item.kernelVersionId && a.kernelVersionId && item.kernelVersionId === a.kernelVersionId
-        );
-        const bOrigIndex = this._allData.findIndex(item =>
-          item.kernelVersionId && b.kernelVersionId && item.kernelVersionId === b.kernelVersionId
-        );
-
-        // 根据notebookOrder中的位置排序
-        const aOrderIndex = this.notebookOrder.indexOf(aOrigIndex);
-        const bOrderIndex = this.notebookOrder.indexOf(bOrigIndex);
-        return aOrderIndex - bOrderIndex;
-      });
-
-      // 渲染选中项的统计信息和筛选后的列表
-      const notebookTableHtml = sortedFilteredData.map((nb, displayIndex) => {
-        let occurrenceCount = 0;
-        if (this.filter.type === 'stage') {
-          nb.cells?.forEach((cell: any) => {
-            const stage = String(cell["1st-level label"] ?? 'None');
-            if (stage === this.filter.stage) {
-              occurrenceCount++;
-            }
-          });
-        } else if (this.filter.type === 'flow') {
-          const cells = nb.cells ?? [];
-          for (let i = 0; i < cells.length - 1; i++) {
-            const from = String(cells[i]["1st-level label"] ?? 'None');
-            const to = String(cells[i + 1]["1st-level label"] ?? 'None');
-            if (from === this.filter.from && to === this.filter.to) {
-              occurrenceCount++;
-            }
-          }
-        }
-
-        // 获取cluster_id
-        const kernelId = nb.kernelVersionId?.toString();
-        const simRow = kernelId ? this.similarityGroups.find((row: any) => row.kernelVersionId === kernelId) : null;
-        const clusterId = simRow ? simRow.cluster_id : '-';
-
-        return `
-          <tr class="filtered-notebook-item" data-notebook-index="${displayIndex}" style="cursor:pointer; transition:background-color 0.15s;">
-            <td style="padding:8px 12px; border-bottom:1px solid #e9ecef; text-align:center; color:#6c757d; font-size:12px; width:50px;">${nb.globalIndex}</td>
-            <td style="padding:8px 12px; border-bottom:1px solid #e9ecef; text-align:center; color:#6c757d; font-size:12px; width:80px;">${clusterId}</td>
-            <td style="padding:8px 12px; border-bottom:1px solid #e9ecef; font-weight:500; color:#495057;">${nb.notebook_name ?? nb.kernelVersionId ?? `Notebook ${nb.globalIndex}`}</td>
-            <td style="padding:8px 12px; border-bottom:1px solid #e9ecef; text-align:right; color:#6c757d; width:100px;">${occurrenceCount}</td>
-          </tr>`;
-      }).join('');
-
       // 生成选中项的显示信息
       let selectedItemInfo = '';
       if (this.filter) {
@@ -1260,6 +1209,25 @@ export class DetailSidebar extends Widget {
         }
       }
 
+      // 在有filter时也生成notebook list
+      const sortedAllData = [...this._allData].sort((a, b) => {
+        const aOrderIndex = this.notebookOrder.indexOf(a.globalIndex - 1);
+        const bOrderIndex = this.notebookOrder.indexOf(b.globalIndex - 1);
+        return aOrderIndex - bOrderIndex;
+      });
+
+      const notebookListHtml = sortedAllData.map((nb) => {
+        const kernelId = nb.kernelVersionId?.toString();
+        const simRow = kernelId ? this.similarityGroups.find((row: any) => row.kernelVersionId === kernelId) : null;
+        const clusterId = simRow ? simRow.cluster_id : '-';
+
+        return `<tr class="overview-notebook-item" data-notebook-index="${nb.globalIndex}" style="cursor:pointer; transition:background-color 0.15s;">
+          <td style="padding:6px 8px; border-bottom:1px solid #e9ecef; text-align:center; color:#6c757d; font-size:11px; width:40px;">${nb.globalIndex}</td>
+          <td style="padding:6px 8px; border-bottom:1px solid #e9ecef; text-align:center; color:#6c757d; font-size:11px; width:70px;">${clusterId}</td>
+          <td style="padding:6px 8px; border-bottom:1px solid #e9ecef; font-weight:500; color:#495057; font-size:12px;">${nb.notebook_name ?? nb.kernelVersionId}</td>
+        </tr>`;
+      }).join('');
+
       this.node.innerHTML = `
         <div style="padding:20px 16px 16px 16px; font-size:14px; line-height:1.7; color:#222;">
           <div style="font-size:18px; font-weight:600; margin-bottom:16px; padding-bottom:12px; border-bottom:1px solid #e9ecef;" id="detail-sidebar-title">
@@ -1285,190 +1253,16 @@ export class DetailSidebar extends Widget {
             </div>
           </div>
           
-          <div style="margin-bottom:16px;">
-            <div style="font-size:15px; font-weight:600; margin-bottom:12px; color:#222; display:flex; align-items:center; justify-content:space-between;">
-              <div style="display:flex; align-items:center; gap:8px;">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M9 12H15M9 16H15M9 8H15M5 3H19C20.1046 3 21 3.89543 21 5V19C21 20.1046 20.1046 21 19 21H5C3.89543 21 3 20.1046 3 19V5C3 3.89543 3.89543 3 5 3Z" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-                Filtered Notebooks
-              </div>
-              <div style="display:flex; align-items:center; gap:4px;">
-                <span style="font-size:12px; color:#6c757d;">Sort by:</span>
-                <button id="sort-occurrences-btn" style="background:none; border:none; cursor:pointer; padding:4px; border-radius:4px; transition:background-color 0.15s;" title="Original order (click for occurrences desc)">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M3 12h18" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                  </svg>
-                </button>
-              </div>
+          <div style="margin-bottom:12px;">
+            <div style="font-size:14px; font-weight:600; margin-bottom:8px; color:#222; display:flex; align-items:center; gap:6px;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M9 12H15M9 16H15M9 8H15M5 3H19C20.1046 3 21 3.89543 21 5V19C21 20.1046 20.1046 21 19 21H5C3.89543 21 3 20.1046 3 19V5C3 3.89543 3.89543 3 5 3Z" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              Notebook List
             </div>
-            ${this.generateNotebookListHTML(notebookTableHtml, true, '400px', '350px')}
+            ${this.generateNotebookListHTML(notebookListHtml, false, '480px', '430px')}
           </div>
         </div>`;
-
-      // 绑定点击事件和悬停效果
-      setTimeout(() => {
-        const notebookItems = this.node.querySelectorAll('.filtered-notebook-item');
-        notebookItems.forEach((item, index) => {
-          item.addEventListener('click', (e) => {
-            e.stopPropagation(); // 阻止事件冒泡
-            const notebook = sortedFilteredData[index];
-            if (notebook) {
-              this.setNotebookDetail(notebook, false); // 恢复事件派发，让主程序打开tab
-            }
-          });
-
-          // 添加悬停效果
-          item.addEventListener('mouseenter', () => {
-            (item as HTMLElement).style.backgroundColor = '#e3f2fd';
-          });
-          item.addEventListener('mouseleave', () => {
-            (item as HTMLElement).style.backgroundColor = '';
-          });
-        });
-
-        // 绑定排序按钮事件
-        const sortBtn = this.node.querySelector('#sort-occurrences-btn');
-        if (sortBtn) {
-          let sortMode = 'original'; // 'original', 'desc', 'asc'
-
-          sortBtn.addEventListener('click', () => {
-            // 切换排序模式：original -> desc -> asc -> original
-            if (sortMode === 'original') {
-              sortMode = 'desc';
-            } else if (sortMode === 'desc') {
-              sortMode = 'asc';
-            } else {
-              sortMode = 'original';
-            }
-
-            // 更新图标和提示文本
-            const svg = sortBtn.querySelector('svg');
-            if (svg) {
-              if (sortMode === 'original') {
-                // 原始顺序：使用横线图标
-                svg.innerHTML = '<path d="M3 12h18" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>';
-                (sortBtn as HTMLButtonElement).title = 'Original order (click for occurrences desc)';
-              } else if (sortMode === 'desc') {
-                // 降序：向下箭头
-                svg.innerHTML = '<path d="M7 10l5 5 5-5" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>';
-                (sortBtn as HTMLButtonElement).title = 'Occurrences descending (click for ascending)';
-              } else {
-                // 升序：向上箭头
-                svg.innerHTML = '<path d="M7 14l5-5 5 5" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>';
-                (sortBtn as HTMLButtonElement).title = 'Occurrences ascending (click for original order)';
-              }
-            }
-
-            // 重新排序数据
-            let sortedData;
-            if (sortMode === 'original') {
-              // 按原始顺序排序
-              sortedData = [...filteredData].sort((a, b) => {
-                const aIndex = this.notebookOrder.indexOf(a.globalIndex - 1);
-                const bIndex = this.notebookOrder.indexOf(b.globalIndex - 1);
-                return aIndex - bIndex;
-              });
-            } else {
-              // 按occurrences排序
-              sortedData = [...filteredData].sort((a, b) => {
-                let aCount = 0, bCount = 0;
-
-                if (this.filter.type === 'stage') {
-                  a.cells?.forEach((cell: any) => {
-                    const stage = String(cell["1st-level label"] ?? 'None');
-                    if (stage === this.filter.stage) aCount++;
-                  });
-                  b.cells?.forEach((cell: any) => {
-                    const stage = String(cell["1st-level label"] ?? 'None');
-                    if (stage === this.filter.stage) bCount++;
-                  });
-                } else if (this.filter.type === 'flow') {
-                  const aCells = a.cells ?? [];
-                  const bCells = b.cells ?? [];
-                  for (let i = 0; i < aCells.length - 1; i++) {
-                    const from = String(aCells[i]["1st-level label"] ?? 'None');
-                    const to = String(aCells[i + 1]["1st-level label"] ?? 'None');
-                    if (from === this.filter.from && to === this.filter.to) aCount++;
-                  }
-                  for (let i = 0; i < bCells.length - 1; i++) {
-                    const from = String(bCells[i]["1st-level label"] ?? 'None');
-                    const to = String(bCells[i + 1]["1st-level label"] ?? 'None');
-                    if (from === this.filter.from && to === this.filter.to) bCount++;
-                  }
-                }
-
-                return sortMode === 'desc' ? bCount - aCount : aCount - bCount;
-              });
-            }
-
-            // 重新生成表格HTML
-            const newTableHtml = sortedData.map((nb, displayIndex) => {
-              let occurrenceCount = 0;
-              if (this.filter.type === 'stage') {
-                nb.cells?.forEach((cell: any) => {
-                  const stage = String(cell["1st-level label"] ?? 'None');
-                  if (stage === this.filter.stage) {
-                    occurrenceCount++;
-                  }
-                });
-              } else if (this.filter.type === 'flow') {
-                const cells = nb.cells ?? [];
-                for (let i = 0; i < cells.length - 1; i++) {
-                  const from = String(cells[i]["1st-level label"] ?? 'None');
-                  const to = String(cells[i + 1]["1st-level label"] ?? 'None');
-                  if (from === this.filter.from && to === this.filter.to) {
-                    occurrenceCount++;
-                  }
-                }
-              }
-
-              // 获取cluster_id
-              const kernelId = nb.kernelVersionId?.toString();
-              const simRow = kernelId ? this.similarityGroups.find((row: any) => row.kernelVersionId === kernelId) : null;
-              const clusterId = simRow ? simRow.cluster_id : '-';
-
-              return `
-                <tr class="filtered-notebook-item" data-notebook-index="${displayIndex}" style="cursor:pointer; transition:background-color 0.15s;">
-                  <td style="padding:8px 12px; border-bottom:1px solid #eee; text-align:center; color:#888; font-size:12px; width:50px;">${nb.globalIndex}</td>
-                  <td style="padding:8px 12px; border-bottom:1px solid #eee; text-align:center; color:#666; font-size:12px; width:80px;">${clusterId}</td>
-                  <td style="padding:8px 12px; border-bottom:1px solid #eee; font-weight:500; color:#333;">${nb.notebook_name ?? nb.kernelVersionId ?? `Notebook ${nb.globalIndex}`}</td>
-                  <td style="padding:8px 12px; border-bottom:1px solid #eee; text-align:right; color:#666; width:100px;">${occurrenceCount}</td>
-                </tr>`;
-            }).join('');
-
-            // 更新表格内容
-            const tbody = this.node.querySelector('#filtered-notebooks-tbody');
-            if (tbody) {
-              tbody.innerHTML = newTableHtml;
-
-              // 重新绑定点击事件
-              const newNotebookItems = tbody.querySelectorAll('.filtered-notebook-item');
-              newNotebookItems.forEach((item, index) => {
-                // 先移除可能存在的旧事件监听器
-                const newItem = item.cloneNode(true) as HTMLElement;
-                item.parentNode?.replaceChild(newItem, item);
-                
-                newItem.addEventListener('click', (e) => {
-                  e.stopPropagation(); // 阻止事件冒泡
-                  const notebook = sortedData[index];
-                  if (notebook) {
-                    this.setNotebookDetail(notebook, false); // 恢复事件派发，让主程序打开tab
-                  }
-                });
-
-                // 重新绑定悬停效果
-                item.addEventListener('mouseenter', () => {
-                  (item as HTMLElement).style.backgroundColor = '#f0f8ff';
-                });
-                item.addEventListener('mouseleave', () => {
-                  (item as HTMLElement).style.backgroundColor = '';
-                });
-              });
-            }
-          });
-        }
-      }, 0);
 
       return;
     }
@@ -1541,7 +1335,7 @@ export class DetailSidebar extends Widget {
         let borderStyle = 'none';
         let borderWidth = '0px';
         let borderColor = 'transparent';
-        
+
         if (group === 'Data-oriented') {
           borderStyle = 'solid';
           borderWidth = '1px';
@@ -1551,7 +1345,7 @@ export class DetailSidebar extends Widget {
           borderWidth = '1px';
           borderColor = '#666666';
         }
-        
+
         return `<div style="display:inline-flex; align-items:center; margin-right:8px; margin-bottom:4px;">
           <div style="width:10px; height:12px; background-color:${stageColor}; border-radius:2px; margin-right:6px; flex-shrink:0; border:${borderWidth} ${borderStyle} ${borderColor}; align-self:center;"></div>
           <span style="color:#222; font-weight:600; font-size:13px; line-height:12px; display:flex; align-items:center;">${LABEL_MAP[stage] ?? stage}</span>
@@ -1618,51 +1412,26 @@ export class DetailSidebar extends Widget {
     // Notebook kernelVersionId 列表
     let notebookListHtml = '';
 
-    if (!this.filter && notebookOrder) {
-      // 只有在没有筛选时才允许排序
-      // 根据notebookOrder重新排序filteredData
-      const sortedFilteredData = [...filteredData].sort((a, b) => {
-        // 找到notebook在原始数据中的索引
-        const aOrigIndex = this._allData.findIndex(item =>
-          item.kernelVersionId && a.kernelVersionId && item.kernelVersionId === a.kernelVersionId
-        );
-        const bOrigIndex = this._allData.findIndex(item =>
-          item.kernelVersionId && b.kernelVersionId && item.kernelVersionId === b.kernelVersionId
-        );
+    // 根据notebookOrder重新排序所有notebook（包括有filter时）
+    const sortedAllData = [...this._allData].sort((a, b) => {
+      // 根据notebookOrder中的位置排序
+      const aOrderIndex = this.notebookOrder.indexOf(a.globalIndex - 1);
+      const bOrderIndex = this.notebookOrder.indexOf(b.globalIndex - 1);
+      return aOrderIndex - bOrderIndex;
+    });
 
-        // 根据notebookOrder中的位置排序
-        const aOrderIndex = this.notebookOrder.indexOf(aOrigIndex);
-        const bOrderIndex = this.notebookOrder.indexOf(bOrigIndex);
-        return aOrderIndex - bOrderIndex;
-      });
+    notebookListHtml = sortedAllData.map((nb) => {
+      // 获取cluster_id
+      const kernelId = nb.kernelVersionId?.toString();
+      const simRow = kernelId ? this.similarityGroups.find((row: any) => row.kernelVersionId === kernelId) : null;
+      const clusterId = simRow ? simRow.cluster_id : '-';
 
-      notebookListHtml = sortedFilteredData.map((nb, displayIndex) => {
-        // 获取cluster_id
-        const kernelId = nb.kernelVersionId?.toString();
-        const simRow = kernelId ? this.similarityGroups.find((row: any) => row.kernelVersionId === kernelId) : null;
-        const clusterId = simRow ? simRow.cluster_id : '-';
-
-        return `<tr class="overview-notebook-item" data-notebook-index="${nb.globalIndex}" style="cursor:pointer; transition:background-color 0.15s;">
-          <td style="padding:6px 8px; border-bottom:1px solid #e9ecef; text-align:center; color:#6c757d; font-size:11px; width:40px;">${nb.globalIndex}</td>
-          <td style="padding:6px 8px; border-bottom:1px solid #e9ecef; text-align:center; color:#6c757d; font-size:11px; width:70px;">${clusterId}</td>
-          <td style="padding:6px 8px; border-bottom:1px solid #e9ecef; font-weight:500; color:#495057; font-size:12px;">${nb.notebook_name ?? nb.kernelVersionId}</td>
-        </tr>`;
-      }).join('');
-    } else {
-      // 有筛选时保持filteredData顺序
-      notebookListHtml = filteredData.map((nb, displayIndex) => {
-        // 获取cluster_id
-        const kernelId = nb.kernelVersionId?.toString();
-        const simRow = kernelId ? this.similarityGroups.find((row: any) => row.kernelVersionId === kernelId) : null;
-        const clusterId = simRow ? simRow.cluster_id : '-';
-
-        return `<tr class="overview-notebook-item" data-notebook-index="${nb.globalIndex}" style="cursor:pointer; transition:background-color 0.15s;">
-          <td style="padding:6px 8px; border-bottom:1px solid #e9ecef; text-align:center; color:#6c757d; font-size:11px; width:40px;">${nb.globalIndex}</td>
-          <td style="padding:6px 8px; border-bottom:1px solid #e9ecef; text-align:center; color:#6c757d; font-size:11px; width:70px;">${clusterId}</td>
-          <td style="padding:6px 8px; border-bottom:1px solid #e9ecef; font-weight:500; color:#495057; font-size:12px;">${nb.notebook_name ?? nb.kernelVersionId}</td>
-        </tr>`;
-      }).join('');
-    }
+      return `<tr class="overview-notebook-item" data-notebook-index="${nb.globalIndex}" style="cursor:pointer; transition:background-color 0.15s;">
+        <td style="padding:6px 8px; border-bottom:1px solid #e9ecef; text-align:center; color:#6c757d; font-size:11px; width:40px;">${nb.globalIndex}</td>
+        <td style="padding:6px 8px; border-bottom:1px solid #e9ecef; text-align:center; color:#6c757d; font-size:11px; width:70px;">${clusterId}</td>
+        <td style="padding:6px 8px; border-bottom:1px solid #e9ecef; font-weight:500; color:#495057; font-size:12px;">${nb.notebook_name ?? nb.kernelVersionId}</td>
+      </tr>`;
+    }).join('');
 
 
     // 渲染
@@ -2135,7 +1904,7 @@ export class DetailSidebar extends Widget {
       const globalIdx = parseInt((item as HTMLElement).getAttribute('data-notebook-index') || '0', 10);
       if (globalIdx === notebookIndex) {
         (item as HTMLElement).style.backgroundColor = highlight ? '#e3f2fd' : '';
-        
+
         // 如果是高亮，滚动到该notebook位置
         if (highlight) {
           const tableContainer = this.node.querySelector('.notebook-list-container');
@@ -2144,10 +1913,10 @@ export class DetailSidebar extends Widget {
             const itemTop = (item as HTMLElement).offsetTop;
             const containerHeight = tableContainer.clientHeight;
             const itemHeight = (item as HTMLElement).clientHeight;
-            
+
             // 计算目标滚动位置，使item居中显示
             const targetScrollTop = itemTop - (containerHeight / 2) + (itemHeight / 2);
-            
+
             tableContainer.scrollTo({
               top: targetScrollTop,
               behavior: 'smooth'
@@ -2156,7 +1925,7 @@ export class DetailSidebar extends Widget {
         }
       }
     });
-    
+
     // 处理filtered notebooks
     const filteredNotebookItems = this.node.querySelectorAll('.filtered-notebook-item');
     filteredNotebookItems.forEach((item) => {
@@ -2170,7 +1939,7 @@ export class DetailSidebar extends Widget {
           const nb = filteredData[displayIndex];
           if (nb.globalIndex === notebookIndex) {
             (item as HTMLElement).style.backgroundColor = highlight ? '#e3f2fd' : '';
-            
+
             // 如果是高亮，滚动到该notebook位置
             if (highlight) {
               const tableContainer = this.node.querySelector('.notebook-list-container');
@@ -2179,10 +1948,10 @@ export class DetailSidebar extends Widget {
                 const itemTop = (item as HTMLElement).offsetTop;
                 const containerHeight = tableContainer.clientHeight;
                 const itemHeight = (item as HTMLElement).clientHeight;
-                
+
                 // 计算目标滚动位置，使item居中显示
                 const targetScrollTop = itemTop - (containerHeight / 2) + (itemHeight / 2);
-                
+
                 tableContainer.scrollTo({
                   top: targetScrollTop,
                   behavior: 'smooth'
@@ -2194,19 +1963,19 @@ export class DetailSidebar extends Widget {
       }
     });
   }
-  
+
   // 生成notebook list HTML结构的辅助方法
   private generateNotebookListHTML(
-    notebookListHtml: string, 
-    isFiltered: boolean = false, 
+    notebookListHtml: string,
+    isFiltered: boolean = false,
     maxHeight: string = '240px',
     containerMaxHeight: string = '200px'
   ): string {
     const fontSize = isFiltered ? '13px' : '12px';
     const padding = isFiltered ? '8px 12px' : '6px 8px';
     const borderRadius = isFiltered ? '8px' : '6px';
-    
-    const headerColumns = isFiltered 
+
+    const headerColumns = isFiltered
       ? `
         <th style="padding:${padding}; text-align:center; font-weight:600; color:#495057; width:50px;">#</th>
         <th style="padding:${padding}; text-align:center; font-weight:600; color:#495057; width:80px;">Cluster</th>
@@ -2218,7 +1987,7 @@ export class DetailSidebar extends Widget {
         <th style="padding:${padding}; text-align:center; font-weight:600; color:#495057; width:70px;">Cluster</th>
         <th style="padding:${padding}; text-align:left; font-weight:600; color:#495057;">Notebook</th>
       `;
-    
+
     return `
       <div class="notebook-list-wrapper${isFiltered ? ' filtered-mode' : ''}" style="background:#fff; border-radius:${borderRadius}; border:1px solid #e9ecef; box-shadow:0 1px 3px rgba(0,0,0,0.05); max-height:${maxHeight};">
         <div class="notebook-list-container" style="overflow:auto; max-height:${containerMaxHeight};">
@@ -2242,7 +2011,7 @@ export class DetailSidebar extends Widget {
     if (!this._allData || !Array.isArray(this._allData) || this._allData.length === 0) {
       return [];
     }
-    
+
     const hiddenStages = this._hiddenStages ?? new Set(['6', '1']);
     let filteredData = this._allData.map((nb) => {
       return {
@@ -2253,7 +2022,7 @@ export class DetailSidebar extends Widget {
         })
       };
     }).filter(nb => nb.cells.length > 0);
-    
+
     if (this.filter) {
       if (this.filter.type === 'stage') {
         filteredData = filteredData.filter(nb => nb.cells.some((cell: any) => String(cell["1st-level label"] ?? "None") === this.filter.stage));
@@ -2269,7 +2038,7 @@ export class DetailSidebar extends Widget {
         });
       }
     }
-    
+
     return filteredData;
   }
 } 
