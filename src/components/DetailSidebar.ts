@@ -64,7 +64,7 @@ export class DetailSidebar extends Widget {
     this.addClass('galaxy-detail-sidebar');
     this.setDefault();
     this.node.style.overflowY = 'hidden'; // 禁用整体滚动
-    this.node.style.minWidth = '305px'; // 设置最小宽度
+    this.node.style.minWidth = '340px'; // 设置最小宽度
     this.node.style.height = '100vh'; // 设置为屏幕高度
     this._hiddenStages = hiddenStages ?? new Set(['10', '12']);
     // 监听左侧 legend 显隐变化，自动刷新统计
@@ -337,11 +337,11 @@ export class DetailSidebar extends Widget {
 
     const sortedStages = Object.entries(stageCounts).sort((a, b) => b[1] - a[1]);
 
-    const { colorMap } = this;
+        const { colorMap } = this;
     const maxBar = Math.max(...sortedStages.map(([_, n]) => n), 1);
-    const barW = 28, barH = 64, gap = 10;
+    const barW = 24, barH = 60, gap = 6;
     const svgW = sortedStages.length * (barW + gap);
-    const svgH = barH + 38;
+    const svgH = barH + 32;
 
     // 自适应缩放：如果图表宽度超过容器，则缩小bar宽度和间距
     let actualBarW = barW;
@@ -350,8 +350,8 @@ export class DetailSidebar extends Widget {
 
     if (svgW > 280) { // 留20px边距
       const scale = 280 / svgW;
-      actualBarW = Math.max(barW * scale, 10); // 最小10px宽度
-      actualGap = Math.max(gap * scale, 3); // 最小3px间距
+      actualBarW = Math.max(barW * scale, 8); // 最小8px宽度
+      actualGap = Math.max(gap * scale, 2); // 最小2px间距
       actualSvgW = sortedStages.filter(([stage]) => stage !== "None" && !hiddenStages.has(stage)).length * (actualBarW + actualGap);
     }
 
@@ -365,17 +365,20 @@ export class DetailSidebar extends Widget {
                   width="${actualBarW}"
                   height="${(n / maxBar) * barH}"
                   fill="${colorMap.get(stage) || '#bbb'}"
-                  rx="6" ry="6"
-                  data-tooltip="${LABEL_MAP?.[stage] ?? stage}: ${n}"
-                  style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));">
+                  rx="4" ry="4"
+                  style="filter: drop-shadow(0 1px 3px rgba(0,0,0,0.1));"
+                  onmousemove="(function(evt){var t=document.getElementById('galaxy-tooltip');if(!t){t=document.createElement('div');t.id='galaxy-tooltip';t.style.position='fixed';t.style.display='none';t.style.pointerEvents='none';t.style.background='rgba(0,0,0,0.75)';t.style.color='#fff';t.style.padding='6px 10px';t.style.borderRadius='4px';t.style.fontSize='12px';t.style.zIndex='9999';document.body.appendChild(t);}t.innerHTML='${LABEL_MAP?.[stage] ?? stage}: ${n}';t.style.display='block';t.style.left=evt.clientX+12+'px';t.style.top=evt.clientY+12+'px';}) (event)"
+                  onmouseleave="(function(){var t=document.getElementById('galaxy-tooltip');if(t)t.style.display='none';})()">
             </rect>
             <text x="${i * (actualBarW + actualGap) + actualBarW / 2}"
-                  y="${barH - (n / maxBar) * barH - 8}"
-                  font-size="11"
+                  y="${barH - (n / maxBar) * barH - 6}"
+                  font-size="10"
                   font-weight="600"
                   text-anchor="middle"
                   fill="#495057">${n}</text>
           `).join('')}
+        <text x="-6" y="${barH + 4}" font-size="9" text-anchor="end" fill="#6c757d">0</text>
+        <text x="-6" y="10" font-size="9" text-anchor="end" fill="#6c757d">${maxBar}</text>
       </g>
     </svg>`;
 
@@ -481,8 +484,8 @@ export class DetailSidebar extends Widget {
 
     // 插入内容
     this.node.innerHTML = `
-      <div style="padding:16px 12px 12px 12px; font-size:14px; color:#222; max-width:420px; margin:0 auto; height:100%; display:flex; flex-direction:column; box-sizing:border-box;">
-        <div style="font-size:16px; font-weight:700; margin-bottom:12px; line-height:1.3; word-break:break-all; padding-bottom:8px; border-bottom:1px solid #e9ecef; flex-shrink:0;" id="detail-sidebar-title">
+      <div style="padding:12px 12px 8px 12px; font-size:14px; color:#222; max-width:420px; margin:0 auto; height:100%; display:flex; flex-direction:column; box-sizing:border-box;">
+        <div style="font-size:16px; font-weight:700; margin-bottom:8px; line-height:1.3; word-break:break-all; padding-bottom:6px; border-bottom:1px solid #e9ecef; flex-shrink:0;" id="detail-sidebar-title">
           <span style="${this._getTitleStyle()}">Notebook ${nb.globalIndex !== undefined ? nb.globalIndex : ''}: ${nb.notebook_name ?? nb.kernelVersionId}</span>
           ${nb.url ? `
           <a href="${nb.url}" target="_blank" class="kaggle-link" style="display:inline-flex; align-items:center; text-decoration:none; margin-left:8px; vertical-align:baseline; height:23.4px; line-height:23.4px;" title="View on Kaggle">
@@ -497,7 +500,7 @@ export class DetailSidebar extends Widget {
         </div>
         
         ${nb.displayname ? `
-        <div style="margin-bottom:12px; flex-shrink:0;">
+        <div style="margin-bottom:8px; flex-shrink:0;">
           <div style="display:flex; align-items:center; gap:6px; justify-content:flex-end;">
             <span style="font-size:12px; color:#6c757d; font-weight:500;">by</span>
             <span style="font-size:13px; color:#495057; font-weight:600;">${nb.displayname}</span>
@@ -506,7 +509,7 @@ export class DetailSidebar extends Widget {
         ` : ''}
         
         ${nb.creationDate || nb.totalLines || this.getVoteCount(nb) ? `
-        <div style="background:#f8f9fa; border-radius:6px; padding:12px; margin-bottom:12px; border:1px solid #e9ecef; flex-shrink:0;">
+        <div style="background:#f8f9fa; border-radius:6px; padding:10px; margin-bottom:8px; border:1px solid #e9ecef; flex-shrink:0;">
           <div style="display:flex; flex-direction:row; gap:12px;">
             ${nb.creationDate ? `
             <div style="flex:1; display:flex; flex-direction:column; justify-content:flex-end;">
@@ -530,7 +533,7 @@ export class DetailSidebar extends Widget {
         </div>
         ` : ''}
         
-        <div style="background:#f8f9fa; border-radius:6px; padding:12px; margin-bottom:12px; border:1px solid #e9ecef; flex-shrink:0;">
+        <div style="background:#f8f9fa; border-radius:6px; padding:10px; margin-bottom:8px; border:1px solid #e9ecef; flex-shrink:0;">
           <div style="display:flex; flex-direction:row; gap:12px;">
             <div style="flex:1; display:flex; flex-direction:column; justify-content:flex-end;">
               <div style="font-size:11px; color:#6c757d; margin-bottom:2px;">Total Cells</div>
@@ -547,23 +550,23 @@ export class DetailSidebar extends Widget {
           </div>
         </div>
         
-        <div style="margin-bottom:16px; flex-shrink:0;">
-          <div style="font-size:14px; font-weight:600; margin-bottom:8px; color:#222; display:flex; align-items:center; gap:6px;">
+        <div style="margin-bottom:12px; flex-shrink:0;">
+          <div style="font-size:14px; font-weight:600; margin-bottom:6px; color:#222; display:flex; align-items:center; gap:6px;">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M9 11H15M9 15H15M9 7H15M5 3H19C20.1046 3 21 3.89543 21 5V19C21 20.1046 20.1046 21 19 21H5C3.89543 21 3 20.1046 3 19V5C3 3.89543 3.89543 3 5 3Z" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
             Stage Analysis
           </div>
-          <div style="background:#fff; border-radius:6px; padding:12px; border:1px solid #e9ecef; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
-            <div style="margin-bottom:12px;">
-              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; color:#495057;">
+          <div style="background:#fff; border-radius:6px; padding:10px; border:1px solid #e9ecef; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+            <div style="margin-bottom:8px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; color:#495057;">
                 <span style="font-weight:500; font-size:13px;">Top Stage(s)</span>
                 <span style="color:#1976d2; font-size:12px; font-weight:600;">${stageCountText}</span>
               </div>
               <div style="display:flex; flex-wrap:wrap; gap:6px;" id="dsb-stage-links">${renderStageText()}</div>
             </div>
-            <div style="margin-bottom:12px;">
-              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; color:#495057;">
+            <div>
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; color:#495057;">
                 <span style="font-weight:500; font-size:13px;">Top Transition(s)</span>
                 <span style="color:#1976d2; font-size:12px; font-weight:600;">${flowCountText}</span>
               </div>
@@ -572,8 +575,8 @@ export class DetailSidebar extends Widget {
           </div>
         </div>
         
-        <div style="margin-bottom:16px; flex-shrink:0;">
-          <div style="font-size:14px; font-weight:600; margin-bottom:8px; color:#222; display:flex; align-items:center; gap:6px;">
+        <div style="margin-bottom:12px; flex-shrink:0;">
+          <div style="font-size:14px; font-weight:600; margin-bottom:6px; color:#222; display:flex; align-items:center; gap:6px;">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M3 3v18h18" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
               <path d="M18 17V9" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -582,7 +585,7 @@ export class DetailSidebar extends Widget {
             </svg>
             Stage Frequency Distribution
           </div>
-          <div style="background:#fff; border-radius:6px; padding:8px; border:1px solid #e9ecef; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+          <div style="background:#fff; border-radius:6px; padding:6px; border:1px solid #e9ecef; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
             <div style="width:100%; max-width:320px; margin:0 auto;">${barChart}</div>
           </div>
         </div>
@@ -590,7 +593,7 @@ export class DetailSidebar extends Widget {
         ${selectedStageInfo}
         ${selectedTransitionInfo}
         
-        <div style="flex:1; min-height:0; display:flex; flex-direction:column;">
+        <div style="flex:1; min-height:0; display:flex; flex-direction:column; margin-top:4px;">
           ${nb.toc && nb.toc.length > 0 ? `
           <div style="flex:1; min-height:0; display:flex; flex-direction:column;">
             <div style="font-size:14px; font-weight:600; margin-bottom:8px; color:#222; display:flex; align-items:center; gap:6px; flex-shrink:0;">
