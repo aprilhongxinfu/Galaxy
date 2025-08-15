@@ -1194,7 +1194,7 @@ export class MatrixWidget extends Widget {
             .attr('id', 'matrix');
 
         // 在cluster模式下调整transform，为cluster标签和cluster信息区域留出空间
-        const translateY = (this.sortState === 3 && this.similarityGroups && this.similarityGroups.length > 0) ? 90 : 8;
+        const translateY = (this.sortState === 3 && this.similarityGroups && this.similarityGroups.length > 0) ? 60 : 30;
         const g = svg.append('g').attr('transform', `translate(20, ${translateY})`);
 
         const self = this;
@@ -1274,11 +1274,14 @@ export class MatrixWidget extends Widget {
                     cellOpacity = 0.3;
                 }
 
+                // 在cluster模式下给cell添加额外的y偏移，避免与label重叠
+                const cellYOffset = (this.sortState === 3 && this.similarityGroups && this.similarityGroups.length > 0) ? 20 : 0;
+                
                 const base = g
                     .append('rect')
                     .datum({ ...cell, kernelVersionId: (nb as any)?.kernelVersionId || null, notebook_name: (nb as any)?.notebook_name || null })
                     .attr('x', columnPositions[colIdx] + 0)
-                    .attr('y', cellY + 0)
+                    .attr('y', cellY + cellYOffset)
                     .attr('width', cellWidth - 2)
                     .attr('height', cellHeight - 2)
                     .attr('fill', cellFill)
@@ -1457,11 +1460,14 @@ export class MatrixWidget extends Widget {
 
         // 添加列编号
         const headerG = g.append('g').attr('class', 'matrix-header');
+        // 在cluster模式下给notebook label添加额外的y偏移，避免与cluster label重叠
+        // const labelYOffset = (this.sortState === 3 && this.similarityGroups && this.similarityGroups.length > 0) ? 15 : 0;
+        
         for (let col = 0; col < notebookOrder.length; col++) {
             const nb = notebooks[notebookOrder[col]];
             headerG.append('text')
                 .attr('x', columnPositions[col] + cellWidth / 2)
-                .attr('y', -2)
+                .attr('y', (this.sortState === 3 && this.similarityGroups && this.similarityGroups.length > 0) ? 13 : -8)
                 .attr('text-anchor', 'middle')
                 .attr('font-size', '10px')
                 .attr('fill', '#555')
@@ -1552,9 +1558,9 @@ export class MatrixWidget extends Widget {
                 // 绘制横线
                 clusterLabelsG.append('line')
                     .attr('x1', range.startX)
-                    .attr('y1', -15)
+                    .attr('y1', -5)
                     .attr('x2', range.endX)
-                    .attr('y2', -15)
+                    .attr('y2', -5)
                     .attr('stroke', isSelected ? '#4caf50' : '#666')
                     .attr('stroke-width', isSelected ? 3 : 2)
                     .attr('stroke-linecap', 'round')
@@ -1566,7 +1572,7 @@ export class MatrixWidget extends Widget {
                 // 绘制cluster标签文本
                 clusterLabelsG.append('text')
                     .attr('x', centerX)
-                    .attr('y', -25)
+                    .attr('y', -30)
                     .attr('text-anchor', 'middle')
                     .attr('font-size', '11px')
                     .attr('font-weight', '600')
@@ -1581,7 +1587,7 @@ export class MatrixWidget extends Widget {
                 const notebookCount = range.endCol - range.startCol + 1;
                 clusterLabelsG.append('text')
                     .attr('x', centerX)
-                    .attr('y', -8)
+                    .attr('y', -18)
                     .attr('text-anchor', 'middle')
                     .attr('font-size', '9px')
                     .attr('font-weight', '400')
@@ -2182,7 +2188,7 @@ export class MatrixWidget extends Widget {
                         <span style="font-size:13px; font-weight:600; color:#495057;">${totalClusters}</span>
                     </div>
                     <div style="display:flex; align-items:center; gap:6px;">
-                        <span style="font-size:11px; color:#6c757d;">Avg Cluster:</span>
+                        <span style="font-size:11px; color:#6c757d;">Avg Cluster Size:</span>
                         <span style="font-size:13px; font-weight:600; color:#495057;">${avgNotebooksPerCluster}</span>
                     </div>
                 </div>
