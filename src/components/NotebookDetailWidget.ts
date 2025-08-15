@@ -927,53 +927,7 @@ export class NotebookDetailWidget extends Widget {
         idxDiv.textContent = `[${i + 1}]`;
         left.appendChild(idxDiv);
 
-        // 为code cell添加放大镜图标
-        if (cell.cellType === 'code') {
-          const detailIcon = document.createElement('div');
-          detailIcon.innerHTML = '🔍';
-          detailIcon.style.fontSize = '12px';
-          detailIcon.style.color = '#999';
-          detailIcon.style.cursor = 'pointer';
-          detailIcon.style.marginTop = '2px';
-          detailIcon.style.textAlign = 'right';
-          detailIcon.style.transition = 'color 0.2s';
-          detailIcon.title = '查看详情';
 
-          // 添加hover效果
-          detailIcon.addEventListener('mouseenter', () => {
-            detailIcon.style.color = '#1976d2';
-          });
-          detailIcon.addEventListener('mouseleave', () => {
-            detailIcon.style.color = '#999';
-          });
-
-          // 点击显示详情
-          detailIcon.addEventListener('click', (e) => {
-            // 设置选中状态
-            if (this.selectedCellIdx !== i) {
-              this.selectedCellIdx = i;
-              // 使用局部更新而不是全量 render
-              this.updateMinimapHighlight();
-              this.updateCellSelection();
-              this.updateNavigationControls();
-            }
-
-            const cell = this.notebook.cells[i];
-            window.dispatchEvent(new CustomEvent('galaxy-cell-detail', {
-              detail: {
-                cell: {
-                  ...cell,
-                  notebookIndex: this.notebook.index,
-                  cellIndex: i,
-                  _notebookDetail: this.notebook
-                }
-              }
-            }));
-            e.stopPropagation();
-          });
-
-          left.appendChild(detailIcon);
-        }
         // cell内容区
         const cellDiv = document.createElement('div');
         cellDiv.className = 'nbd-cell';
@@ -1121,7 +1075,7 @@ export class NotebookDetailWidget extends Widget {
           // 点击选中后不添加高亮类，只有hover时才高亮
           r.classList.remove('minimap-highlight');
         }
-        // 点击选中
+        // 点击选中并显示详情
         r.onclick = () => {
           this.selectedCellIdx = i;
           // 使用局部更新而不是全量 render
@@ -1129,21 +1083,18 @@ export class NotebookDetailWidget extends Widget {
           this.updateCellSelection();
           this.updateNavigationControls();
           
-          // 检查是否已经有cell detail打开，如果有则自动切换到当前cell的detail
-          const detailSidebar = document.querySelector('#galaxy-detail-sidebar');
-          if (detailSidebar && (detailSidebar.innerHTML.includes('/ Cell') || detailSidebar.innerHTML.includes('Cell /'))) {
-            const cell = this.notebook.cells[i];
-            window.dispatchEvent(new CustomEvent('galaxy-cell-detail', {
-              detail: {
-                cell: {
-                  ...cell,
-                  notebookIndex: this.notebook.index,
-                  cellIndex: i,
-                  _notebookDetail: this.notebook
-                }
+          // 直接打开cell详情
+          const cell = this.notebook.cells[i];
+          window.dispatchEvent(new CustomEvent('galaxy-cell-detail', {
+            detail: {
+              cell: {
+                ...cell,
+                notebookIndex: this.notebook.index,
+                cellIndex: i,
+                _notebookDetail: this.notebook
               }
-            }));
-          }
+            }
+          }));
           
           setTimeout(() => {
             const cellList = this.node.querySelector('#nbd-cell-list-scroll');
@@ -1162,24 +1113,22 @@ export class NotebookDetailWidget extends Widget {
           }, 0);
         };
       });
-      // cell 列表点击选中（只选中，不显示详情）
+      // cell 列表点击选中并显示详情
       const cellListContainer = this.node.querySelector('#nbd-cell-list-scroll');
       if (cellListContainer) {
         // 选中cell的外层div（display:flex; flex-direction:row; align-items:stretch;）
         const cellWrappers = Array.from(cellListContainer.children) as HTMLElement[];
         cellWrappers.forEach((wrapper, idx) => {
-                  wrapper.onclick = (e) => {
-          if (this.selectedCellIdx !== idx) {
-            this.selectedCellIdx = idx;
-            // 使用局部更新而不是全量 render
-            this.updateMinimapHighlight();
-            this.updateCellSelection();
-            this.updateNavigationControls();
-          }
-          
-          // 检查是否已经有cell detail打开，如果有则自动切换到当前cell的detail
-          const detailSidebar = document.querySelector('#galaxy-detail-sidebar');
-          if (detailSidebar && (detailSidebar.innerHTML.includes('/ Cell') || detailSidebar.innerHTML.includes('Cell /'))) {
+          wrapper.onclick = (e) => {
+            if (this.selectedCellIdx !== idx) {
+              this.selectedCellIdx = idx;
+              // 使用局部更新而不是全量 render
+              this.updateMinimapHighlight();
+              this.updateCellSelection();
+              this.updateNavigationControls();
+            }
+            
+            // 直接打开cell详情
             const cell = this.notebook.cells[idx];
             window.dispatchEvent(new CustomEvent('galaxy-cell-detail', {
               detail: {
@@ -1191,10 +1140,9 @@ export class NotebookDetailWidget extends Widget {
                 }
               }
             }));
-          }
-          
-          e.stopPropagation();
-        };
+            
+            e.stopPropagation();
+          };
         });
       }
       // 恢复滚动位置
@@ -1586,7 +1534,7 @@ export class NotebookDetailWidget extends Widget {
     
     // 绑定 click 事件和其他操作
     minimapSvg.querySelectorAll('rect').forEach((r, i) => {
-      // 点击选中
+      // 点击选中并显示详情
       r.onclick = () => {
         this.selectedCellIdx = i;
         // 使用局部更新而不是全量 render
@@ -1594,21 +1542,18 @@ export class NotebookDetailWidget extends Widget {
         this.updateCellSelection();
         this.updateNavigationControls();
         
-        // 检查是否已经有cell detail打开，如果有则自动切换到当前cell的detail
-        const detailSidebar = document.querySelector('#galaxy-detail-sidebar');
-        if (detailSidebar && (detailSidebar.innerHTML.includes('/ Cell') || detailSidebar.innerHTML.includes('Cell /'))) {
-          const cell = this.notebook.cells[i];
-          window.dispatchEvent(new CustomEvent('galaxy-cell-detail', {
-            detail: {
-              cell: {
-                ...cell,
-                notebookIndex: this.notebook.index,
-                cellIndex: i,
-                _notebookDetail: this.notebook
-              }
+        // 直接打开cell详情
+        const cell = this.notebook.cells[i];
+        window.dispatchEvent(new CustomEvent('galaxy-cell-detail', {
+          detail: {
+            cell: {
+              ...cell,
+              notebookIndex: this.notebook.index,
+              cellIndex: i,
+              _notebookDetail: this.notebook
             }
-          }));
-        }
+          }
+        }));
         
         setTimeout(() => {
           const cellList = this.node.querySelector('#nbd-cell-list-scroll');
@@ -1628,7 +1573,7 @@ export class NotebookDetailWidget extends Widget {
       };
     });
     
-    // cell 列表点击选中（只选中，不显示详情）
+    // cell 列表点击选中并显示详情
     const cellListContainer = this.node.querySelector('#nbd-cell-list-scroll');
     if (cellListContainer) {
       // 选中cell的外层div（display:flex; flex-direction:row; align-items:stretch;）
@@ -1643,21 +1588,18 @@ export class NotebookDetailWidget extends Widget {
             this.updateNavigationControls();
           }
           
-          // 检查是否已经有cell detail打开，如果有则自动切换到当前cell的detail
-          const detailSidebar = document.querySelector('#galaxy-detail-sidebar');
-          if (detailSidebar && (detailSidebar.innerHTML.includes('/ Cell') || detailSidebar.innerHTML.includes('Cell /'))) {
-            const cell = this.notebook.cells[idx];
-            window.dispatchEvent(new CustomEvent('galaxy-cell-detail', {
-              detail: {
-                cell: {
-                  ...cell,
-                  notebookIndex: this.notebook.index,
-                  cellIndex: idx,
-                  _notebookDetail: this.notebook
-                }
+          // 直接打开cell详情
+          const cell = this.notebook.cells[idx];
+          window.dispatchEvent(new CustomEvent('galaxy-cell-detail', {
+            detail: {
+              cell: {
+                ...cell,
+                notebookIndex: this.notebook.index,
+                cellIndex: idx,
+                _notebookDetail: this.notebook
               }
-            }));
-          }
+            }
+          }));
           
           e.stopPropagation();
         };
