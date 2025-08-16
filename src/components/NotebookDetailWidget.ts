@@ -34,6 +34,8 @@ export class NotebookDetailWidget extends Widget {
   private cellSelectionUpdatePending: boolean = false; // 防止重复调用 updateCellSelection
   private scrollTimeout: number | null = null; // 添加滚动防抖定时器
   private isScrollLocked: boolean = false; // 添加滚动锁定状态
+  private _dockObserver: MutationObserver | null = null;
+  private _lockIconResizeHandler: any = null;
 
   // 获取当前tab ID
   private getTabId(): string {
@@ -243,6 +245,22 @@ export class NotebookDetailWidget extends Widget {
     }
   }
 
+  private updateLockIconVisibility(): void {
+    const hasSplit = this.detectSplitLayout();
+    const btn = this.node.querySelector('#nbd-lock-btn') as HTMLButtonElement | null;
+
+    // 如果现在是分屏且没有按钮，就触发一次轻量重渲染（只替换顶部区域）
+    if (hasSplit && !btn) {
+      // 只更新图标区域，避免整页重排：简单做法是调用 this.render(false)
+      // 若担心开销，可以把锁图标那段抽成独立容器再只更新该容器的 innerHTML
+      this.render(false);
+    }
+    // 如果现在不是分屏但有按钮，则移除按钮
+    if (!hasSplit && btn && btn.parentElement) {
+      btn.parentElement.remove(); // 移除锁按钮容器
+    }
+  }
+
   onAfterAttach(): void {
     // 监听全局悬浮事件
     window.addEventListener('galaxy-stage-hover', this.stageHoverHandler);
@@ -280,6 +298,23 @@ export class NotebookDetailWidget extends Widget {
         this.activatePrismLineNumbers();
       }
     }, 100);
+
+    // 监听窗口缩放
+    this._lockIconResizeHandler = this.updateLockIconVisibility.bind(this);
+    window.addEventListener('resize', this._lockIconResizeHandler);
+
+    // 监听 DockPanel 结构变化（分屏/合并/拖拽）
+    const dock = document.querySelector('.lm-DockPanel') 
+              || document.querySelector('.jp-main-dock-panel')
+              || document.querySelector('.jp-LabShell .lm-DockPanel');
+
+    if (dock) {
+      this._dockObserver = new MutationObserver(() => this.updateLockIconVisibility());
+      this._dockObserver.observe(dock, { childList: true, subtree: true, attributes: true });
+    }
+
+    // 首次附着后立即校验一次
+    requestAnimationFrame(() => this.updateLockIconVisibility());
   }
 
   onBeforeDetach(): void {
@@ -315,6 +350,16 @@ export class NotebookDetailWidget extends Widget {
       window.dispatchEvent(new CustomEvent('galaxy-scroll-sync-update', {
         detail: { widgetId: this.id, locked: false }
       }));
+    }
+
+    // 清理布局监听器
+    if (this._dockObserver) {
+      this._dockObserver.disconnect();
+      this._dockObserver = null;
+    }
+    if (this._lockIconResizeHandler) {
+      window.removeEventListener('resize', this._lockIconResizeHandler);
+      this._lockIconResizeHandler = null;
     }
   }
 
@@ -1612,27 +1657,44 @@ export class NotebookDetailWidget extends Widget {
     }
   }
 
+  // 是否可见的工具函数
+  private _isVisible(el: Element | null): el is HTMLElement {
+    if (!el) return false;
+    const htmlEl = el as HTMLElement;
+    if (!htmlEl.offsetParent) return false; // display:none 或在隐藏容器中
+    const rect = htmlEl.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0;
+  }
+
+  // 判定两个矩形是否"并排"（水平分屏，而不是上下堆叠或重叠在同一区域）
+  private _isSideBySide(a: DOMRect, b: DOMRect): boolean {
+    const horizGap = Math.abs(a.left - b.left);
+    const verticalOverlap = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+    // 水平位置明显不同（> 24px），且竖向有显著重叠（> 40% 的较小高度）
+    const minH = Math.min(a.height, b.height);
+    return horizGap > 24 && verticalOverlap > 0.4 * minH;
+  }
+
+  // 更严格的分屏检测：仅当存在另一个"可见的 NotebookDetailWidget"与当前并排时返回 true
   private detectSplitLayout(): boolean {
     try {
-      // 检查主区域是否有多个widget
-      const mainArea = document.querySelector('.lm-MainArea-widget');
-      if (!mainArea) return false;
+      const all = Array.from(document.querySelectorAll('.notebook-detail-widget'))
+        .filter(el => this._isVisible(el));
 
-      const splitPanels = mainArea.querySelectorAll('.lm-SplitPanel');
-      const hasVisualSplit = splitPanels.length > 0;
+      if (all.length <= 1) return false;
 
-      const tabBars = mainArea.querySelectorAll('.lm-TabBar');
-      const hasMultipleTabBars = tabBars.length > 1;
+      const mine = this.node.closest('.notebook-detail-widget') as HTMLElement | null;
+      if (!mine || !this._isVisible(mine)) return false;
 
-      const activeTabs = mainArea.querySelectorAll('.lm-TabBar-tab.lm-mod-current');
-      const hasMultipleActiveTabs = activeTabs.length > 1;
-
-      const mainAreaChildren = mainArea.children;
-      const hasMultipleChildren = mainAreaChildren.length > 1;
-
-      return hasVisualSplit || hasMultipleTabBars || hasMultipleActiveTabs || hasMultipleChildren;
-    } catch (error) {
-      console.error('Error detecting split layout:', error);
+      const a = mine.getBoundingClientRect();
+      for (const el of all) {
+        if (el === mine) continue;
+        const b = (el as HTMLElement).getBoundingClientRect();
+        if (this._isSideBySide(a, b)) return true;
+      }
+      return false;
+    } catch (e) {
+      console.error('detectSplitLayout strict failed:', e);
       return false;
     }
   }
