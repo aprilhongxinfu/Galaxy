@@ -45,7 +45,7 @@ function getCompetitionInfo(competitionId: string): { id: string; name: string; 
       url: 'https://www.kaggle.com/competitions/amex-default-prediction'
     }
   };
-  
+
   const info = competitionMap[competitionId];
   return info ? { id: competitionId, ...info } : null;
 }
@@ -110,6 +110,58 @@ async function loadTocData(competitionId: string, baseDir: string): Promise<any[
   } catch (error) {
     console.log(`TOC data file not found for competition ${competitionId}: ${baseDir}/toc_data/${competitionId}_toc.json`);
     return [];
+  }
+}
+
+// 加载Summary数据
+async function loadSummaryData(competitionId: string, baseDir: string): Promise<any> {
+  try {
+    if (!baseDir) {
+      console.log('No base directory provided for Summary data loading');
+      return null;
+    }
+
+    const summaryPath = `${baseDir}/summary_data/${competitionId}_summarized.json`;
+    console.log('Summary path:', summaryPath);
+
+    // 尝试不同的路径格式
+    const alternativePaths = [
+      summaryPath,
+      `./${baseDir}/summary_data/${competitionId}_summarized.json`,
+      `/${baseDir}/summary_data/${competitionId}_summarized.json`,
+      `${baseDir}/summary_data/${competitionId}_summarized.json`
+    ];
+    const contentsManager = app?.serviceManager?.contents;
+
+    if (!contentsManager) {
+      console.warn('Contents manager not available for Summary loading');
+      return null;
+    }
+
+    console.log(`Loading Summary data from: ${summaryPath}`);
+    console.log('Available contents manager:', !!contentsManager);
+
+    // 尝试多个路径格式
+    for (const path of alternativePaths) {
+      try {
+        console.log(`Trying path: ${path}`);
+        const model = await contentsManager.get(path, { type: 'file', format: 'text', content: true });
+        console.log('Summary file loaded successfully, content length:', (model.content as string).length);
+
+        const summaryData = JSON.parse(model.content as string);
+        console.log(`Summary data loaded successfully for competition ${competitionId}`);
+        return summaryData;
+      } catch (fileError) {
+        console.log(`Failed to load from ${path}:`, (fileError as Error).message);
+        continue;
+      }
+    }
+
+    console.log('Summary data file not found for competition:', competitionId);
+    return null;
+  } catch (error) {
+    console.log(`Summary data file not found for competition ${competitionId}: ${baseDir}/summary_data/${competitionId}_summarized.json`);
+    return null;
   }
 }
 
@@ -385,13 +437,13 @@ function activate(
     // 检查是否需要启用滚动同步
     const shouldEnable = shouldEnableScrollSync();
 
-          // 只在状态真正改变时才输出日志
-      const currentState = { hasMultiple: hasMultipleNotebookDetailWidgets() };
-      const stateChanged = currentState.hasMultiple !== lastScrollSyncState.hasMultiple;
+    // 只在状态真正改变时才输出日志
+    const currentState = { hasMultiple: hasMultipleNotebookDetailWidgets() };
+    const stateChanged = currentState.hasMultiple !== lastScrollSyncState.hasMultiple;
 
-      if (stateChanged) {
-        lastScrollSyncState = currentState;
-      }
+    if (stateChanged) {
+      lastScrollSyncState = currentState;
+    }
 
     if (shouldEnable) {
       // 启用滚动同步
@@ -723,7 +775,8 @@ function activate(
         // 初始化变量
         let similarityGroups: any[] = [];
         let voteData: any[] = [];
-        
+        let summaryData: any = null;
+
         // 关闭之前的插件窗口
         const oldLeft = app.shell.widgets('left');
         for (const w of oldLeft) {
@@ -760,7 +813,7 @@ function activate(
           const baseDir = extractBaseDir(selectedItems[0].path);
           console.log('Extracted competition ID:', competitionId);
           console.log('Extracted base directory:', baseDir);
-          
+
           if (competitionId && baseDir) {
             try {
               const titleMap = await createKernelTitleMap(competitionId, baseDir);
@@ -781,6 +834,18 @@ function activate(
               }
             } else {
               console.log('No base directory available for TOC data loading');
+            }
+
+            // 加载Summary数据（如果存在）
+            if (baseDir) {
+              try {
+                summaryData = await loadSummaryData(competitionId, baseDir);
+                console.log('Applied Summary data for competition:', competitionId);
+              } catch (e) {
+                console.log(`Summary数据不存在，跳过: ${competitionId}_summarized.json`);
+              }
+            } else {
+              console.log('No base directory available for Summary data loading');
             }
 
             // 读取对应的 CSV 文件（如果存在）
@@ -864,20 +929,20 @@ function activate(
           console.log('No competitionId or baseDir found for MatrixWidget');
         }
 
-        matrixWidget = new MatrixWidget(result1, colorScale, similarityGroups, kernelTitleMap, voteData);
+        matrixWidget = new MatrixWidget(result1, colorScale, similarityGroups, kernelTitleMap, voteData, summaryData);
         app.shell.add(matrixWidget, 'main');
         app.shell.activateById(matrixWidget.id);
         matrixWidget.disposed.connect(() => {
           closeSidebarsIfNoMainWidgets(app);
         });
         const notebookOrder = matrixWidget.getNotebookOrder();
-        
+
         // 获取competition信息
         let competitionInfo: { id: string; name: string; url: string } | undefined = undefined;
         if (competitionIdForMatrix) {
           competitionInfo = getCompetitionInfo(competitionIdForMatrix) || undefined;
         }
-        
+
         const detailSidebarInstance = new DetailSidebar(colorMapModule, notebookOrder, undefined, similarityGroups, voteData, competitionInfo);
         detailSidebar = detailSidebarInstance;
         const { mostFreqStage: mfs, mostFreqFlow: mff } = flowChartWidget.getMostFrequentStageAndFlow();
@@ -962,19 +1027,19 @@ function activate(
             // 延迟更新滚动同步状态，避免频繁调用
             setTimeout(() => updateScrollSync(), 100);
 
-                // 检查是否有分屏布局
-    if (hasSplitLayout()) {
-      // 收缩左右sidebar而不是关闭
-      if (typeof (app.shell as any).collapseLeft === 'function') {
-        (app.shell as any).collapseLeft();
-      }
-      if (typeof (app.shell as any).collapseRight === 'function') {
-        (app.shell as any).collapseRight();
-      }
-      // 在分屏布局下也需要更新滚动同步
-      setTimeout(() => updateScrollSync(), 100);
-      return; // 不创建sidebar，直接返回
-    }
+            // 检查是否有分屏布局
+            if (hasSplitLayout()) {
+              // 收缩左右sidebar而不是关闭
+              if (typeof (app.shell as any).collapseLeft === 'function') {
+                (app.shell as any).collapseLeft();
+              }
+              if (typeof (app.shell as any).collapseRight === 'function') {
+                (app.shell as any).collapseRight();
+              }
+              // 在分屏布局下也需要更新滚动同步
+              setTimeout(() => updateScrollSync(), 100);
+              return; // 不创建sidebar，直接返回
+            }
 
             // 新建只显示该 notebook 的 flowchart
             // 确保 colorMap 包含该 notebook 中的所有 stage
@@ -1010,8 +1075,8 @@ function activate(
             if (e.detail.jumpCellIndex !== undefined) {
               setTimeout(() => {
                 window.dispatchEvent(new CustomEvent('galaxy-notebook-detail-jump', {
-                  detail: { 
-                    notebookIndex: nb.index, 
+                  detail: {
+                    notebookIndex: nb.index,
                     cellIndex: e.detail.jumpCellIndex,
                     kernelVersionId: nb.kernelVersionId
                   }
@@ -1169,19 +1234,19 @@ function activate(
     }
     // 只在 layoutModified 里检测，不在 currentChanged/activeChanged 里检测
     app.shell.layoutModified.connect(() => {
-      
+
 
       checkNotebookDetailWidgetStatus();
-          // 检查是否有分屏布局
-    if (hasSplitLayout()) {
-      // 收缩左右sidebar而不是关闭
-      if (typeof (app.shell as any).collapseLeft === 'function') {
-        (app.shell as any).collapseLeft();
+      // 检查是否有分屏布局
+      if (hasSplitLayout()) {
+        // 收缩左右sidebar而不是关闭
+        if (typeof (app.shell as any).collapseLeft === 'function') {
+          (app.shell as any).collapseLeft();
+        }
+        if (typeof (app.shell as any).collapseRight === 'function') {
+          (app.shell as any).collapseRight();
+        }
       }
-      if (typeof (app.shell as any).collapseRight === 'function') {
-        (app.shell as any).collapseRight();
-      }
-    }
       // 在布局变化时更新滚动同步状态
       setTimeout(() => updateScrollSync(), 100);
     });
@@ -1241,7 +1306,7 @@ function activate(
       for (const w of mainWidgets) {
         if (!(w as any).__galaxyDisposedBound) {
           w.disposed.connect(() => {
-            
+
 
             if (w.id && w.id.startsWith('notebook-detail-widget-')) {
               // 对于notebook detail widget的关闭，延迟处理以确保状态稳定

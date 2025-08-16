@@ -38,14 +38,32 @@ export class MatrixWidget extends Widget {
     private clusterInfoContainer: HTMLDivElement | null = null; // cluster信息容器
     private topStats: { topStages?: [string, number][], topTransitions?: [string, number][] } = {}; // 存储top stages和top transitions
     private _topStatsHandler: (e: any) => void; // 事件处理函数引用
+    private summaryData: any = null; // 存储summary数据
 
-    constructor(data: Notebook[], colorScale: (label: string) => string, similarityGroups?: any[], kernelTitleMap?: Map<string, { title: string; creationDate: string; totalLines: number; displayname?: string; url?: string }>, voteData?: any[]) {
+    // 获取cluster的title
+    private getClusterTitle(clusterId: string): string {
+        if (this.summaryData && this.summaryData.analysis_sections &&
+            this.summaryData.analysis_sections.cluster_titles &&
+            this.summaryData.analysis_sections.cluster_titles.structured) {
+            const clusterTitles = this.summaryData.analysis_sections.cluster_titles.structured;
+            const title = clusterTitles[clusterId];
+            if (title) {
+                // 移除引号
+                const cleanTitle = title.replace(/^"|"$/g, '');
+                return cleanTitle;
+            }
+        }
+        return `Cluster ${clusterId}`;
+    }
+
+    constructor(data: Notebook[], colorScale: (label: string) => string, similarityGroups?: any[], kernelTitleMap?: Map<string, { title: string; creationDate: string; totalLines: number; displayname?: string; url?: string }>, voteData?: any[], summaryData?: any) {
         super();
         this.data = data.map((nb, i) => ({ ...nb, globalIndex: i + 1 }));
         this.colorScale = colorScale;
         this.similarityGroups = similarityGroups || [];
         this.voteData = voteData || [];
         this.kernelTitleMap = kernelTitleMap || new Map();
+        this.summaryData = summaryData || null;
 
 
 
@@ -868,7 +886,7 @@ export class MatrixWidget extends Widget {
             if (!existingContainer) {
                 this.drawMatrix();
             }
-            
+
             // 更新cluster信息显示
             this.updateClusterInfo();
         }, 50); // 添加小延迟，确保tab切换完成
@@ -886,7 +904,7 @@ export class MatrixWidget extends Widget {
         window.removeEventListener('galaxy-stage-selected', this.handleStageSelected);
         window.removeEventListener('galaxy-flow-selected', this.handleFlowSelected);
         window.removeEventListener('galaxy-selection-cleared', this.handleSelectionCleared);
-        
+
         // 清理按钮的事件监听器
         const clearBtn = this.clusterInfoContainer?.querySelector('#clear-cluster-selection-btn') as HTMLButtonElement;
         const scrollBtn = this.clusterInfoContainer?.querySelector('#scroll-to-cluster-btn') as HTMLButtonElement;
@@ -1161,13 +1179,13 @@ export class MatrixWidget extends Widget {
 
         // 计算内容高度
         let contentHeight = totalHeight + 100;
-        
+
         // 在cluster模式下为cluster标签和cluster信息区域添加额外空间
         if (this.sortState === 3 && this.similarityGroups && this.similarityGroups.length > 0) {
             contentHeight += 50; // 为cluster标签预留50px空间
             contentHeight += 20; // 为cluster信息区域预留20px空间
         }
-        
+
         // 获取容器高度（如为0可用默认值）
         const minHeight = this.node.clientHeight || 400;
         const svgHeight = Math.max(contentHeight, minHeight);
@@ -1272,7 +1290,7 @@ export class MatrixWidget extends Widget {
                 let cellFill = cell.cellType === 'code' ? color(currStage) : 'white';
                 let cellStroke = cell.cellType === 'code' ? color(currStage) : '#bbb';
                 let cellOpacity = 1;
-                
+
                 if (this.selectedClusterId && !isInSelectedCluster) {
                     // 如果选中了cluster但当前notebook不属于该cluster，则灰掉
                     cellOpacity = 0.3;
@@ -1280,7 +1298,7 @@ export class MatrixWidget extends Widget {
 
                 // 在cluster模式下给cell添加额外的y偏移，避免与label重叠
                 const cellYOffset = (this.sortState === 3 && this.similarityGroups && this.similarityGroups.length > 0) ? 20 : 0;
-                
+
                 const base = g
                     .append('rect')
                     .datum({ ...cell, kernelVersionId: (nb as any)?.kernelVersionId || null, notebook_name: (nb as any)?.notebook_name || null })
@@ -1466,7 +1484,7 @@ export class MatrixWidget extends Widget {
         const headerG = g.append('g').attr('class', 'matrix-header');
         // 在cluster模式下给notebook label添加额外的y偏移，避免与cluster label重叠
         // const labelYOffset = (this.sortState === 3 && this.similarityGroups && this.similarityGroups.length > 0) ? 15 : 0;
-        
+
         for (let col = 0; col < notebookOrder.length; col++) {
             const nb = notebooks[notebookOrder[col]];
             headerG.append('text')
@@ -1509,7 +1527,7 @@ export class MatrixWidget extends Widget {
         // 在cluster模式下添加cluster标签
         if (this.sortState === 3 && this.similarityGroups && this.similarityGroups.length > 0) {
             const clusterLabelsG = g.append('g').attr('class', 'cluster-labels');
-            
+
             // 计算每个cluster的范围
             const clusterRanges: { clusterId: string; startCol: number; endCol: number; startX: number; endX: number }[] = [];
             let currentClusterId: string | null = null;
@@ -1534,7 +1552,7 @@ export class MatrixWidget extends Widget {
                             endX: endX
                         });
                     }
-                    
+
                     // 开始新的cluster
                     currentClusterId = clusterId;
                     clusterStartCol = col;
@@ -1558,7 +1576,7 @@ export class MatrixWidget extends Widget {
             clusterRanges.forEach((range, index) => {
                 const centerX = (range.startX + range.endX) / 2;
                 const isSelected = this.selectedClusterId === range.clusterId;
-                
+
                 // 绘制横线
                 clusterLabelsG.append('line')
                     .attr('x1', range.startX)
@@ -1766,12 +1784,12 @@ export class MatrixWidget extends Widget {
     // 获取基于cluster筛选的notebook列表
     private getClusterFilteredNotebooks(): any[] {
         const baseFilteredNotebooks = this.getFilteredNotebooks();
-        
+
         // 如果没有选中cluster，返回基础筛选结果
         if (!this.selectedClusterId) {
             return baseFilteredNotebooks;
         }
-        
+
         // 如果选中了cluster，只返回属于该cluster的notebook
         return baseFilteredNotebooks.filter(nb => {
             const kernelId = (nb as any).kernelVersionId?.toString();
@@ -1962,21 +1980,21 @@ export class MatrixWidget extends Widget {
             // 选择新的cluster
             this.selectedClusterId = clusterId;
         }
-        
+
         // 清除之前的stage或transition选中状态
         (window as any)._galaxyStageSelection = null;
         (window as any)._galaxyFlowSelection = null;
-        
+
         // 重新绘制矩阵以更新高亮状态
         this.drawMatrix();
-        
+
         // 派发cluster选择事件，通知LeftSidebar更新数据
         const clusterFilteredNotebooks = this.getClusterFilteredNotebooks();
-        window.dispatchEvent(new CustomEvent('galaxy-cluster-selected', { 
-            detail: { 
+        window.dispatchEvent(new CustomEvent('galaxy-cluster-selected', {
+            detail: {
                 clusterId: this.selectedClusterId,
-                notebooks: clusterFilteredNotebooks 
-            } 
+                notebooks: clusterFilteredNotebooks
+            }
         }));
     }
 
@@ -1986,7 +2004,7 @@ export class MatrixWidget extends Widget {
 
         if (this.sortState === 3 && this.similarityGroups && this.similarityGroups.length > 0) {
             this.clusterInfoContainer.style.display = 'block';
-            
+
             if (this.selectedClusterId) {
                 // 显示选中cluster的详细信息
                 this.showSelectedClusterInfo();
@@ -2009,6 +2027,27 @@ export class MatrixWidget extends Widget {
             const simRow = kernelId ? this.similarityGroups.find((row: any) => row.kernelVersionId === kernelId) : null;
             return simRow && simRow.cluster_id === this.selectedClusterId;
         });
+
+        // 从summaryData中获取cluster的title和description
+        let clusterTitle = this.getClusterTitle(this.selectedClusterId);
+        // 在title前面加上cluster序号
+        clusterTitle = `Cluster ${this.selectedClusterId}: ${clusterTitle}`;
+        let clusterDescription = '';
+
+        if (this.summaryData && this.summaryData.analysis_sections) {
+            // 查找individual_summaries中的structured内容
+            if (this.summaryData.analysis_sections.individual_summaries &&
+                this.summaryData.analysis_sections.individual_summaries.structured) {
+                const individualSummaries = this.summaryData.analysis_sections.individual_summaries.structured;
+                const description = individualSummaries[this.selectedClusterId];
+                if (description) {
+                    clusterDescription = description;
+                    console.log('Found description for cluster', this.selectedClusterId, ':', description);
+                } else {
+                    console.log('No description found for cluster', this.selectedClusterId);
+                }
+            }
+        }
 
         // 计算cluster统计信息
         const totalNotebooks = clusterNotebooks.length;
@@ -2042,24 +2081,33 @@ export class MatrixWidget extends Widget {
         }
 
         this.clusterInfoContainer.innerHTML = `
-            <div style="font-size:16px; font-weight:700; margin-bottom:12px; line-height:1.3; word-break:break-all; padding-bottom:8px; border-bottom:1px solid #e9ecef; display:flex; justify-content:space-between; align-items:center;">
-                <div style="display:flex; align-items:center; gap:8px;">
-                    <span style="color: #4caf50;">Cluster ${this.selectedClusterId}</span>
-                    <span style="color: #6c757d; font-size: 13px; font-weight: 400;">
-                        ${totalNotebooks} notebooks
-                    </span>
+            <div style="font-size:16px; font-weight:700; margin-bottom:12px; line-height:1.3; padding-bottom:8px; border-bottom:1px solid #e9ecef; display:flex; justify-content:space-between; align-items:flex-start; gap:12px;">
+                <div style="display:flex; flex-direction:column; gap:4px; flex:1; min-width:0;">
+                    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                        <span style="color: #4caf50; word-break:break-word; line-height:1.4;">${clusterTitle}</span>
+                        <span style="color: #6c757d; font-size: 13px; font-weight: 400; white-space:nowrap;">
+                            ${totalNotebooks} notebooks
+                        </span>
+                    </div>
                 </div>
-                <div style="display:flex; gap:8px;">
+                <div style="display:flex; gap:8px; flex-shrink:0;">
                     <button id="scroll-to-cluster-btn" 
-                            style="background: #4caf50; border: 1px solid #4caf50; border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 12px; color: white; transition: background-color 0.2s; font-weight: 500;">
+                            style="background: #4caf50; border: 1px solid #4caf50; border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 12px; color: white; transition: background-color 0.2s; font-weight: 500; white-space:nowrap;">
                         Back to selection
                     </button>
                     <button id="clear-cluster-selection-btn" 
-                            style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 12px; color: #6c757d; transition: background-color 0.2s; font-weight: 500;">
+                            style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 12px; color: #6c757d; transition: background-color 0.2s; font-weight: 500; white-space:nowrap;">
                         ✕ Clear Selection
                     </button>
                 </div>
             </div>
+            
+            ${clusterDescription ? `
+                <div style="background:#fff; border-radius:6px; padding:8px; margin-bottom:8px; border:1px solid #e9ecef; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+                    <div style="font-size:11px; color:#6c757d; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">Description</div>
+                    <div style="font-size:13px; color:#222; line-height:1.5; font-weight:400;">${clusterDescription}</div>
+                </div>
+            ` : ''}
             
             <div style="background:#f8f9fa; border-radius:6px; padding:8px; margin-bottom:8px; border:1px solid #e9ecef;">
                 <div style="display:flex; flex-direction:row; gap:12px; align-items:center; flex-wrap:wrap;">
@@ -2089,8 +2137,8 @@ export class MatrixWidget extends Widget {
                 </div>
             </div>
             
-            ${(topStages && topStages.length > 0) || (topTransitions && topTransitions.length > 0) ? `
-                <div style="background:#fff; border-radius:6px; padding:6px; margin-bottom:8px; border:1px solid #e9ecef; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+                        ${(topStages && topStages.length > 0) || (topTransitions && topTransitions.length > 0) ? `
+                <div style="background:#f8f9fa; border-radius:6px; padding:8px; margin-bottom:8px; border:1px solid #e9ecef;">
                     <div style="display:flex; flex-direction:row; gap:12px; align-items:flex-start;">
                         ${topStages && topStages.length > 0 ? `
                             <div style="display:flex; flex-direction:column; gap:3px; flex:1;">
@@ -2113,8 +2161,8 @@ export class MatrixWidget extends Widget {
                                 <span style="font-size:10px; color:#6c757d; font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">Top Transition(s)</span>
                                 <div style="display:flex; flex-direction:row; gap:4px; align-items:center; flex-wrap:wrap;">
                                     ${topTransitions.map(([transition, count]) => {
-                                        const [fromStage, toStage] = transition.split(' → ');
-                                        return `
+            const [fromStage, toStage] = transition.split(' → ');
+            return `
                                             <div style="display:inline-flex; align-items:center; background:#f8f9fa; border-radius:3px; padding:2px 6px; border:1px solid #e9ecef; font-size:11px;">
                                                 <div style="display:inline-flex; align-items:center;">
                                                     <div style="width:8px; height:10px; background-color:${this.colorScale(fromStage)}; border-radius:1px; margin-right:4px; flex-shrink:0;"></div>
@@ -2132,7 +2180,7 @@ export class MatrixWidget extends Widget {
                                                 <span style="color:#1976d2; font-size:10px; font-weight:600; margin-left:3px;">${count}</span>
                                             </div>
                                         `;
-                                    }).join('')}
+        }).join('')}
                                 </div>
                             </div>
                         ` : ''}
@@ -2145,14 +2193,14 @@ export class MatrixWidget extends Widget {
         setTimeout(() => {
             const clearBtn = this.clusterInfoContainer?.querySelector('#clear-cluster-selection-btn') as HTMLButtonElement;
             const scrollBtn = this.clusterInfoContainer?.querySelector('#scroll-to-cluster-btn') as HTMLButtonElement;
-            
+
             if (clearBtn) {
                 // 移除之前的事件监听器（如果有的话）
                 clearBtn.removeEventListener('click', this.clearClusterSelection);
                 // 添加新的事件监听器
                 clearBtn.addEventListener('click', () => this.clearClusterSelection());
             }
-            
+
             if (scrollBtn) {
                 // 移除之前的事件监听器（如果有的话）
                 scrollBtn.removeEventListener('click', this.scrollToCluster);
@@ -2162,7 +2210,7 @@ export class MatrixWidget extends Widget {
         }, 0);
     }
 
-    // 显示cluster概览信息
+        // 显示cluster概览信息
     private showClusterOverview() {
         if (!this.clusterInfoContainer) return;
 
@@ -2194,48 +2242,52 @@ export class MatrixWidget extends Widget {
         const totalNotebooks = this.data.length;
         const avgNotebooksPerCluster = totalClusters > 0 ? Math.round(totalNotebooks / totalClusters) : 0;
 
+        // 从summaryData中获取overall_summary
+        let overallSummary = '';
+        if (this.summaryData && this.summaryData.analysis_sections && this.summaryData.analysis_sections.overall_summary) {
+            overallSummary = this.summaryData.analysis_sections.overall_summary;
+        }
+
         this.clusterInfoContainer.innerHTML = `
-            <div style="font-size:16px; font-weight:700; margin-bottom:12px; line-height:1.3; word-break:break-all; padding-bottom:8px; border-bottom:1px solid #e9ecef; display:flex; justify-content:space-between; align-items:center;">
-                <div style="display:flex; align-items:center; gap:8px;">
+            <div style="font-size:16px; font-weight:700; margin-bottom:12px; line-height:1.3; padding-bottom:8px; border-bottom:1px solid #e9ecef; display:flex; justify-content:space-between; align-items:center;">
+                <div style="display:flex; align-items:center; gap:12px;">
                     <span style="color: #222;">Cluster Overview</span>
+                    <div style="display:flex; align-items:center; gap:12px; font-size:13px; font-weight:400; color:#6c757d;">
+                        <span>Total Clusters: <span style="color:#495057; font-weight:600;">${totalClusters}</span></span>
+                        <span>Avg Cluster Size: <span style="color:#495057; font-weight:600;">${avgNotebooksPerCluster}</span></span>
+                    </div>
                 </div>
                 <div style="font-size:12px; color:#4caf50; font-weight:500;">
                     💡 Click cluster labels to view details
                 </div>
             </div>
             
-            <div style="background:#f8f9fa; border-radius:6px; padding:12px; margin-bottom:12px; border:1px solid #e9ecef;">
-                <div style="display:flex; flex-direction:row; gap:12px; align-items:center;">
-                    <div style="display:flex; align-items:center; gap:6px;">
-                        <span style="font-size:11px; color:#6c757d;">Total Clusters:</span>
-                        <span style="font-size:13px; font-weight:600; color:#495057;">${totalClusters}</span>
-                    </div>
-                    <div style="display:flex; align-items:center; gap:6px;">
-                        <span style="font-size:11px; color:#6c757d;">Avg Cluster Size:</span>
-                        <span style="font-size:13px; font-weight:600; color:#495057;">${avgNotebooksPerCluster}</span>
-                    </div>
+            ${overallSummary ? `
+                <div style="background:#f8f9fa; border-radius:6px; padding:8px; margin-bottom:8px; border:1px solid #e9ecef;">
+                    <div style="font-size:11px; color:#6c757d; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">Overall Summary</div>
+                    <div style="font-size:13px; color:#222; line-height:1.5; font-weight:400;">${overallSummary}</div>
                 </div>
-            </div>
+            ` : ''}
         `;
     }
 
     // 清除cluster选择
     private clearClusterSelection() {
         this.selectedClusterId = null;
-        
+
         // 清除之前的stage或transition选中状态
         (window as any)._galaxyStageSelection = null;
         (window as any)._galaxyFlowSelection = null;
-        
+
         this.drawMatrix();
-        
+
         // 派发cluster选择事件，通知LeftSidebar更新数据
         const clusterFilteredNotebooks = this.getClusterFilteredNotebooks();
-        window.dispatchEvent(new CustomEvent('galaxy-cluster-selected', { 
-            detail: { 
+        window.dispatchEvent(new CustomEvent('galaxy-cluster-selected', {
+            detail: {
                 clusterId: this.selectedClusterId,
-                notebooks: clusterFilteredNotebooks 
-            } 
+                notebooks: clusterFilteredNotebooks
+            }
         }));
     }
 
@@ -2249,7 +2301,7 @@ export class MatrixWidget extends Widget {
         // 获取当前排序后的notebook顺序
         const notebooks = this.data;
         const notebookOrder = this.notebookOrder.length ? this.notebookOrder : notebooks.map((_, i) => i);
-        
+
         // 应用筛选
         const assignmentFilter = (this as any)._assignmentFilter || '';
         const studentFilter = (this as any)._studentFilter || '';
@@ -2286,7 +2338,7 @@ export class MatrixWidget extends Widget {
 
         for (let i = 0; i < clusterStartIndex; i++) {
             const nb = notebooks[filteredNotebookOrder[i]] as any;
-            
+
             // 检查是否需要添加组间距
             if (this.sortState === 3 && this.similarityGroups && this.similarityGroups.length > 0) {
                 const kernelId = nb && nb.kernelVersionId ? nb.kernelVersionId.toString() : null;
