@@ -1,6 +1,7 @@
 import { Widget } from '@lumino/widgets';
 import * as d3 from 'd3';
 import { LABEL_MAP } from './labelMap';
+import { STAGE_GROUP_MAP } from './stage_hierarchy';
 
 type Cell = {
     cellId: number;
@@ -2142,42 +2143,90 @@ export class MatrixWidget extends Widget {
                     <div style="display:flex; flex-direction:row; gap:12px; align-items:flex-start;">
                         ${topStages && topStages.length > 0 ? `
                             <div style="display:flex; flex-direction:column; gap:3px; flex:1;">
-                                <span style="font-size:10px; color:#6c757d; font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">Top Stage(s)</span>
+                                <span style="font-size:10px; color:#6c757d; font-weight:600; ">Top Stage(s) <span style="color:#6c757d; margin-left:4px;color:#1976d2">${topStages.length > 0 ? topStages[0][1] : 0} counts</span></span>
                                 <div style="display:flex; flex-direction:row; gap:4px; align-items:center; flex-wrap:wrap;">
-                                    ${topStages.map(([stage, count]) => `
-                                        <div style="display:inline-flex; align-items:center; background:#f8f9fa; border-radius:3px; padding:2px 6px; border:1px solid #e9ecef; font-size:11px;">
-                                            <div style="width:8px; height:10px; background-color:${this.colorScale(stage)}; border-radius:1px; margin-right:4px; flex-shrink:0;"></div>
+                                    ${topStages.map(([stage, count]) => {
+            const group = STAGE_GROUP_MAP[stage];
+            let borderStyle = 'none';
+            let borderWidth = '0px';
+            let borderColor = 'transparent';
+
+            if (group === 'Data-oriented') {
+                borderStyle = 'solid';
+                borderWidth = '1px';
+                borderColor = '#666666';
+            } else if (group === 'Model-oriented') {
+                borderStyle = 'dashed';
+                borderWidth = '1px';
+                borderColor = '#666666';
+            }
+
+            return `
+                                        <div style="display:inline-flex; align-items:center; padding:2px 6px;font-size:11px;">
+                                            <div style="width:8px; height:10px; background-color:${this.colorScale(stage)}; border-radius:2px; margin-right:4px; flex-shrink:0; border:${borderWidth} ${borderStyle} ${borderColor};"></div>
                                             <span style="color:#222; font-weight:600; font-size:11px; line-height:1;">
                                                 ${typeof LABEL_MAP !== 'undefined' ? (LABEL_MAP[stage] ?? stage) : stage}
                                             </span>
-                                            <span style="color:#1976d2; font-size:10px; font-weight:600; margin-left:3px;">${count}</span>
                                         </div>
-                                    `).join('')}
+                                    `;
+        }).join('')}
                                 </div>
                             </div>
                         ` : ''}
                         ${topTransitions && topTransitions.length > 0 ? `
                             <div style="display:flex; flex-direction:column; gap:3px; flex:1;">
-                                <span style="font-size:10px; color:#6c757d; font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">Top Transition(s)</span>
+                                <span style="font-size:10px; color:#6c757d; font-weight:600;">Top Transition(s) <span style="color:#1976d2; margin-left:4px;">${topTransitions.length > 0 ? topTransitions[0][1] : 0} counts</span></span>
                                 <div style="display:flex; flex-direction:row; gap:4px; align-items:center; flex-wrap:wrap;">
                                     ${topTransitions.map(([transition, count]) => {
             const [fromStage, toStage] = transition.split(' → ');
+
+            // 获取from stage的border样式
+            const fromGroup = STAGE_GROUP_MAP[fromStage];
+            let fromBorderStyle = 'none';
+            let fromBorderWidth = '0px';
+            let fromBorderColor = 'transparent';
+
+            if (fromGroup === 'Data-oriented') {
+                fromBorderStyle = 'solid';
+                fromBorderWidth = '1px';
+                fromBorderColor = '#666666';
+            } else if (fromGroup === 'Model-oriented') {
+                fromBorderStyle = 'dashed';
+                fromBorderWidth = '1px';
+                fromBorderColor = '#666666';
+            }
+
+            // 获取to stage的border样式
+            const toGroup = STAGE_GROUP_MAP[toStage];
+            let toBorderStyle = 'none';
+            let toBorderWidth = '0px';
+            let toBorderColor = 'transparent';
+
+            if (toGroup === 'Data-oriented') {
+                toBorderStyle = 'solid';
+                toBorderWidth = '1px';
+                toBorderColor = '#666666';
+            } else if (toGroup === 'Model-oriented') {
+                toBorderStyle = 'dashed';
+                toBorderWidth = '1px';
+                toBorderColor = '#666666';
+            }
+
             return `
-                                            <div style="display:inline-flex; align-items:center; background:#f8f9fa; border-radius:3px; padding:2px 6px; border:1px solid #e9ecef; font-size:11px;">
+                                            <div style="display:inline-flex; align-items:center; padding:2px 6px;font-size:11px;">
                                                 <div style="display:inline-flex; align-items:center;">
-                                                    <div style="width:8px; height:10px; background-color:${this.colorScale(fromStage)}; border-radius:1px; margin-right:4px; flex-shrink:0;"></div>
+                                                    <div style="width:8px; height:10px; background-color:${this.colorScale(fromStage)}; border-radius:2px; margin-right:4px; flex-shrink:0; border:${fromBorderWidth} ${fromBorderStyle} ${fromBorderColor};"></div>
                                                     <span style="color:#222; font-weight:600; font-size:11px; line-height:1;">
                                                         ${typeof LABEL_MAP !== 'undefined' ? (LABEL_MAP[fromStage] ?? fromStage) : fromStage}
                                                     </span>
                                                 </div>
                                                 <span style="color:#666; font-size:10px; margin:0 2px;">→</span>
                                                 <div style="display:inline-flex; align-items:center;">
-                                                    <div style="width:8px; height:10px; background-color:${this.colorScale(toStage)}; border-radius:1px; margin-right:4px; flex-shrink:0;"></div>
+                                                    <div style="width:8px; height:10px; background-color:${this.colorScale(toStage)}; border-radius:2px; margin-right:4px; flex-shrink:0; border:${toBorderWidth} ${toBorderStyle} ${toBorderColor};"></div>
                                                     <span style="color:#222; font-weight:600; font-size:11px; line-height:1;">
                                                         ${typeof LABEL_MAP !== 'undefined' ? (LABEL_MAP[toStage] ?? toStage) : toStage}
                                                     </span>
                                                 </div>
-                                                <span style="color:#1976d2; font-size:10px; font-weight:600; margin-left:3px;">${count}</span>
                                             </div>
                                         `;
         }).join('')}
@@ -2210,13 +2259,13 @@ export class MatrixWidget extends Widget {
         }, 0);
     }
 
-        // 显示cluster概览信息
+    // 显示cluster概览信息
     private showClusterOverview() {
         if (!this.clusterInfoContainer) return;
 
         // 计算所有cluster的统计信息
         const clusterStats = new Map<string, { count: number; totalCells: number; totalVotes: number }>();
-        
+
         this.data.forEach((nb, index) => {
             const kernelId = (nb as any).kernelVersionId?.toString();
             const simRow = kernelId ? this.similarityGroups.find((row: any) => row.kernelVersionId === kernelId) : null;
@@ -2225,7 +2274,7 @@ export class MatrixWidget extends Widget {
                 const current = clusterStats.get(clusterId) || { count: 0, totalCells: 0, totalVotes: 0 };
                 current.count++;
                 current.totalCells += nb.cells.length;
-                
+
                 // 添加投票信息
                 if (this.voteData && this.voteData.length > 0) {
                     const voteRow = kernelId ? this.voteData.find((row: any) => row.kernelVersionId === kernelId) : null;
@@ -2233,7 +2282,7 @@ export class MatrixWidget extends Widget {
                         current.totalVotes += parseFloat(voteRow.TotalVotes) || 0;
                     }
                 }
-                
+
                 clusterStats.set(clusterId, current);
             }
         });

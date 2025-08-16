@@ -337,7 +337,7 @@ export class DetailSidebar extends Widget {
 
     const sortedStages = Object.entries(stageCounts).sort((a, b) => b[1] - a[1]);
 
-        const { colorMap } = this;
+    const { colorMap } = this;
     const maxBar = Math.max(...sortedStages.map(([_, n]) => n), 1);
     const barW = 24, barH = 60, gap = 6;
     const svgW = sortedStages.length * (barW + gap);
@@ -604,15 +604,15 @@ export class DetailSidebar extends Widget {
             </div>
             <div class="toc-scroll" style="background:#fff; border-radius:6px; padding:12px; flex:1; min-height:0; overflow-y:auto; overflow-x:hidden; border:1px solid #e9ecef; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
               ${nb.toc.map((item: any) => {
-        // 统计#数量，决定层级
-        const match = item.heading.match(/^(#+)\s+/);
-        const level = match ? match[1].length : 1;
-        const marginLeft = 10 * (level - 1);
-        const fontSize = level === 1 ? 13 : (level === 2 ? 12 : 11);
-        const fontWeight = level === 1 ? 600 : (level === 2 ? 500 : 400);
-        const color = level === 1 ? '#1976d2' : (level === 2 ? '#1565c0' : '#6c757d');
-        const padding = level === 1 ? '4px 0' : (level === 2 ? '3px 0' : '2px 0');
-        return `
+      // 统计#数量，决定层级
+      const match = item.heading.match(/^(#+)\s+/);
+      const level = match ? match[1].length : 1;
+      const marginLeft = 10 * (level - 1);
+      const fontSize = level === 1 ? 13 : (level === 2 ? 12 : 11);
+      const fontWeight = level === 1 ? 600 : (level === 2 ? 500 : 400);
+      const color = level === 1 ? '#1976d2' : (level === 2 ? '#1565c0' : '#6c757d');
+      const padding = level === 1 ? '4px 0' : (level === 2 ? '3px 0' : '2px 0');
+      return `
                 <div style="margin-bottom:1px; margin-left:${marginLeft}px;">
                   <div class="toc-item" data-cell-id="${item.cellId}" 
                        style="color:${color}; font-size:${fontSize}px; font-weight:${fontWeight}; cursor:pointer; line-height:1.3; padding:${padding}; border-radius:3px; transition:all 0.2s ease;"
@@ -622,7 +622,7 @@ export class DetailSidebar extends Widget {
                   </div>
                 </div>
               `;
-      }).join('')}
+    }).join('')}
             </div>
           </div>
           ` : `
@@ -1357,6 +1357,18 @@ export class DetailSidebar extends Widget {
     });
     const totalCellCount = cellCountsWithIndex.reduce((a, b) => a + b.count, 0);
     const avgCellCount = notebookCount ? (totalCellCount / notebookCount) : 0;
+    
+    // Calculate average votes per notebook
+    let totalVotes = 0;
+    let notebooksWithVotes = 0;
+    filteredData.forEach(nb => {
+      const voteCount = this.getVoteCount(nb);
+      if (voteCount !== null) {
+        totalVotes += voteCount;
+        notebooksWithVotes++;
+      }
+    });
+    const avgVoteCount = notebooksWithVotes > 0 ? (totalVotes / notebooksWithVotes) : 0;
     // stage/flow 统计只用可见 cell，排除被隐藏的stage
     const stageFreq: Record<string, number> = {};
     const stageFlowFreq: Record<string, number> = {};
@@ -1574,13 +1586,17 @@ export class DetailSidebar extends Widget {
               <div style="font-size:11px; color:#6c757d; margin-bottom:2px;">Total Notebooks</div>
               <div style="font-size:14px; font-weight:600; color:#495057;">${notebookCount}</div>
             </div>
-            <div style="flex:1; display:flex; flex-direction:column; justify-content:flex-end;">
+            <!--<div style="flex:1; display:flex; flex-direction:column; justify-content:flex-end;">
               <div style="font-size:11px; color:#6c757d; margin-bottom:2px;">Total Cells</div>
               <div style="font-size:14px; font-weight:600; color:#495057;">${totalCellCount}</div>
+            </div>-->
+            <div style="flex:1; display:flex; flex-direction:column; justify-content:flex-end;">
+              <div style="font-size:11px; color:#6c757d; margin-bottom:2px;">Avg Cells/Notebook</div>
+              <div style="font-size:14px; font-weight:600; color:#495057;">${avgCellCount.toFixed(2)}</div>
             </div>
             <div style="flex:1; display:flex; flex-direction:column; justify-content:flex-end;">
-              <div style="font-size:11px; color:#6c757d; margin-bottom:2px;">Avg Cells</div>
-              <div style="font-size:14px; font-weight:600; color:#495057;">${avgCellCount.toFixed(2)}</div>
+              <div style="font-size:11px; color:#6c757d; margin-bottom:2px;">Avg Vote/Notebook</div>
+              <div style="font-size:14px; font-weight:600; color:#495057;">${avgVoteCount.toFixed(1)}</div>
             </div>
           </div>
         </div>
