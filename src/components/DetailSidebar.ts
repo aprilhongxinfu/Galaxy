@@ -555,7 +555,7 @@ export class DetailSidebar extends Widget {
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M9 11H15M9 15H15M9 7H15M5 3H19C20.1046 3 21 3.89543 21 5V19C21 20.1046 20.1046 21 19 21H5C3.89543 21 3 20.1046 3 19V5C3 3.89543 3.89543 3 5 3Z" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
-            Stage Analysis
+            Workflow Analysis
           </div>
           <div style="background:#fff; border-radius:6px; padding:10px; border:1px solid #e9ecef; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
             <div style="margin-bottom:8px;">
@@ -1591,11 +1591,11 @@ export class DetailSidebar extends Widget {
               <div style="font-size:14px; font-weight:600; color:#495057;">${totalCellCount}</div>
             </div>-->
             <div style="flex:1; display:flex; flex-direction:column; justify-content:flex-end;">
-              <div style="font-size:11px; color:#6c757d; margin-bottom:2px;">Avg Cells/Notebook</div>
+              <div style="font-size:11px; color:#6c757d; margin-bottom:2px;">Avg Cells</div>
               <div style="font-size:14px; font-weight:600; color:#495057;">${avgCellCount.toFixed(2)}</div>
             </div>
             <div style="flex:1; display:flex; flex-direction:column; justify-content:flex-end;">
-              <div style="font-size:11px; color:#6c757d; margin-bottom:2px;">Avg Vote/Notebook</div>
+              <div style="font-size:11px; color:#6c757d; margin-bottom:2px;">Avg Vote</div>
               <div style="font-size:14px; font-weight:600; color:#495057;">${avgVoteCount.toFixed(1)}</div>
             </div>
           </div>
@@ -1606,7 +1606,7 @@ export class DetailSidebar extends Widget {
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M9 11H15M9 15H15M9 7H15M5 3H19C20.1046 3 21 3.89543 21 5V19C21 20.1046 20.1046 21 19 21H5C3.89543 21 3 20.1046 3 19V5C3 3.89543 3.89543 3 5 3Z" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
-            Stage Analysis
+            Workflow Analysis
           </div>
           <div style="background:#fff; border-radius:6px; padding:12px; border:1px solid #e9ecef; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
             <div style="margin-bottom:12px;">

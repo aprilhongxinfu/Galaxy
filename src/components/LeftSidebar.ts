@@ -245,7 +245,7 @@ export class LeftSidebar extends Widget {
         this._eventHandlers['galaxy-cluster-selected'] = (e: any) => {
             const clusterData = e.detail?.notebooks ?? [];
             this.setData(clusterData, this.colorMap);
-            
+
             // 清除stage和flow选中状态
             this.selection = null;
             const tabId = this.getTabId();
@@ -735,7 +735,7 @@ export class LeftSidebar extends Widget {
                             const stage = rect.datum() as StageDatum;
                             const group = STAGE_GROUP_MAP[stage.stage];
                             if (group === 'Data-oriented' || group === 'Model-oriented') {
-                                rect.attr("stroke", "#666666").attr("stroke-width", 3).attr("stroke-dasharray", group === 'Model-oriented' ? "4,2" : "none");
+                                rect.attr("stroke", "#666666").attr("stroke-width", 5).attr("stroke-dasharray", group === 'Model-oriented' ? "8" : "none");
                             } else {
                                 rect.attr("stroke", "none").attr("stroke-width", 0);
                             }
@@ -760,7 +760,7 @@ export class LeftSidebar extends Widget {
                                 const stage = rect.datum() as StageDatum;
                                 const group = STAGE_GROUP_MAP[stage.stage];
                                 if (group === 'Data-oriented' || group === 'Model-oriented') {
-                                    rect.attr("stroke", "#666666").attr("stroke-width", 2).attr("stroke-dasharray", group === 'Model-oriented' ? "4,2" : "none");
+                                    rect.attr("stroke", "#666666").attr("stroke-width", 5).attr("stroke-dasharray", group === 'Model-oriented' ? "8" : "none");
                                 } else {
                                     rect.attr("stroke", "none").attr("stroke-width", 0);
                                 }
@@ -781,7 +781,7 @@ export class LeftSidebar extends Widget {
                                 const stage = rect.datum() as StageDatum;
                                 const group = STAGE_GROUP_MAP[stage.stage];
                                 if (group === 'Data-oriented' || group === 'Model-oriented') {
-                                    rect.attr("stroke", "#666666").attr("stroke-width", 3).attr("stroke-dasharray", group === 'Model-oriented' ? "4,2" : "none");
+                                    rect.attr("stroke", "#666666").attr("stroke-width", 5).attr("stroke-dasharray", group === 'Model-oriented' ? "8" : "none");
                                 } else {
                                     rect.attr("stroke", "none").attr("stroke-width", 0);
                                 }
@@ -844,14 +844,14 @@ export class LeftSidebar extends Widget {
             .attr('stroke-width', (d) => {
                 const group = STAGE_GROUP_MAP[d.stage];
                 if (group === 'Data-oriented' || group === 'Model-oriented') {
-                    return 3; // 加粗边框
+                    return 5; // 更粗的边框
                 }
                 return 0;
             })
             .attr('stroke-dasharray', (d) => {
                 const group = STAGE_GROUP_MAP[d.stage];
                 if (group === 'Model-oriented') {
-                    return '4,2'; // 虚线样式
+                    return '8'; // 虚线样式
                 }
                 return 'none'; // 实线样式
             })
@@ -906,7 +906,7 @@ export class LeftSidebar extends Widget {
                         const stage = rect.datum() as StageDatum;
                         const group = STAGE_GROUP_MAP[stage.stage];
                         if (group === 'Data-oriented' || group === 'Model-oriented') {
-                            rect.attr("stroke", "#666666").attr("stroke-width", 2).attr("stroke-dasharray", group === 'Model-oriented' ? "4,2" : "none");
+                            rect.attr("stroke", "#666666").attr("stroke-width", 5).attr("stroke-dasharray", group === 'Model-oriented' ? "8" : "none");
                         } else {
                             rect.attr("stroke", "none").attr("stroke-width", 0);
                         }
@@ -931,7 +931,7 @@ export class LeftSidebar extends Widget {
                             const stage = rect.datum() as StageDatum;
                             const group = STAGE_GROUP_MAP[stage.stage];
                             if (group === 'Data-oriented' || group === 'Model-oriented') {
-                                rect.attr("stroke", "#666666").attr("stroke-width", 3).attr("stroke-dasharray", group === 'Model-oriented' ? "4,2" : "none");
+                                rect.attr("stroke", "#666666").attr("stroke-width", 5).attr("stroke-dasharray", group === 'Model-oriented' ? "8" : "none");
                             } else {
                                 rect.attr("stroke", "none").attr("stroke-width", 0);
                             }
@@ -952,7 +952,7 @@ export class LeftSidebar extends Widget {
                             const stage = rect.datum() as StageDatum;
                             const group = STAGE_GROUP_MAP[stage.stage];
                             if (group === 'Data-oriented' || group === 'Model-oriented') {
-                                rect.attr("stroke", "#666666").attr("stroke-width", 2).attr("stroke-dasharray", group === 'Model-oriented' ? "4,2" : "none");
+                                rect.attr("stroke", "#666666").attr("stroke-width", 5).attr("stroke-dasharray", group === 'Model-oriented' ? "8" : "none");
                             } else {
                                 rect.attr("stroke", "none").attr("stroke-width", 0);
                             }
@@ -1728,7 +1728,7 @@ export class LeftSidebar extends Widget {
                     const stage = rect.datum() as StageDatum;
                     const group = STAGE_GROUP_MAP[stage.stage];
                     if (group === 'Data-oriented' || group === 'Model-oriented') {
-                        rect.attr("stroke", "#666666").attr("stroke-width", 3).attr("stroke-dasharray", group === 'Model-oriented' ? "4,2" : "none");
+                        rect.attr("stroke", "#666666").attr("stroke-width", 5).attr("stroke-dasharray", group === 'Model-oriented' ? "8" : "none");
                     } else {
                         rect.attr("stroke", "none").attr("stroke-width", 0);
                     }
@@ -1752,7 +1752,7 @@ export class LeftSidebar extends Widget {
                     const stage = rect.datum() as StageDatum;
                     const group = STAGE_GROUP_MAP[stage.stage];
                     if (group === 'Data-oriented' || group === 'Model-oriented') {
-                        rect.attr("stroke", "#666666").attr("stroke-width", 3).attr("stroke-dasharray", group === 'Model-oriented' ? "4,2" : "none");
+                        rect.attr("stroke", "#666666").attr("stroke-width", 5).attr("stroke-dasharray", group === 'Model-oriented' ? "8" : "none");
                     } else {
                         rect.attr("stroke", "none").attr("stroke-width", 0);
                     }
@@ -1765,7 +1765,7 @@ export class LeftSidebar extends Widget {
                 const stage = rect.datum() as StageDatum;
                 const group = STAGE_GROUP_MAP[stage.stage];
                 if (group === 'Data-oriented' || group === 'Model-oriented') {
-                    rect.attr("stroke", "#666666").attr("stroke-width", 3).attr("stroke-dasharray", group === 'Model-oriented' ? "4,2" : "none");
+                    rect.attr("stroke", "#666666").attr("stroke-width", 5).attr("stroke-dasharray", group === 'Model-oriented' ? "8" : "none");
                 } else {
                     rect.attr("stroke", "none").attr("stroke-width", 0);
                 }

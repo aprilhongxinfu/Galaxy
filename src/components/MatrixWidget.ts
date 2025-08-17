@@ -2103,49 +2103,74 @@ export class MatrixWidget extends Widget {
                 </div>
             </div>
             
-            ${clusterDescription ? `
-                <div style="background:#fff; border-radius:6px; padding:8px; margin-bottom:8px; border:1px solid #e9ecef; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
-                    <div style="font-size:11px; color:#6c757d; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">Description</div>
-                    <div style="font-size:13px; color:#222; line-height:1.5; font-weight:400;">${clusterDescription}</div>
-                </div>
-            ` : ''}
-            
-            <div style="background:#f8f9fa; border-radius:6px; padding:8px; margin-bottom:8px; border:1px solid #e9ecef;">
-                <div style="display:flex; flex-direction:row; gap:12px; align-items:center; flex-wrap:wrap;">
-                    <div style="display:flex; align-items:center; gap:6px;">
-                        <span style="font-size:11px; color:#6c757d;">Cells:</span>
-                        <span style="font-size:13px; font-weight:600; color:#222;">${totalCells.toLocaleString()}</span>
-                        <span style="font-size:11px; color:#6c757d;">(avg:</span>
-                        <span style="font-size:13px; font-weight:600; color:#222;">${avgCells.toLocaleString()}</span>
-                        <span style="font-size:11px; color:#6c757d;">)</span>
-                    </div>
-                    <div style="display:flex; align-items:center; gap:6px;">
-                        <span style="font-size:11px; color:#6c757d;">Code Lines:</span>
-                        <span style="font-size:13px; font-weight:600; color:#222;">${totalCodeLines.toLocaleString()}</span>
-                        <span style="font-size:11px; color:#6c757d;">(avg:</span>
-                        <span style="font-size:13px; font-weight:600; color:#222;">${avgCodeLines.toLocaleString()}</span>
-                        <span style="font-size:11px; color:#6c757d;">)</span>
-                    </div>
-                    ${this.voteData && this.voteData.length > 0 ? `
-                        <div style="display:flex; align-items:center; gap:6px;">
-                            <span style="font-size:11px; color:#6c757d;">Votes:</span>
-                            <span style="font-size:13px; font-weight:600; color:#222;">${totalVotes.toLocaleString()}</span>
-                            <span style="font-size:11px; color:#6c757d;">(avg:</span>
-                            <span style="font-size:13px; font-weight:600; color:#222;">${avgVotes.toLocaleString()}</span>
-                            <span style="font-size:11px; color:#6c757d;">)</span>
+            <div style="display:flex; gap:16px; align-items:flex-start;">
+                <!-- 左边：Description + Statistics -->
+                <div style="flex: 1; min-width: 0; display: flex; flex-direction: column;">
+                    ${clusterDescription ? `
+                        <div style="margin-bottom:8px;">
+                            <div style="font-size:14px; font-weight:600; margin-bottom:6px; color:#222; display:flex; align-items:center; gap:6px;">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                    <polyline points="14,2 14,8 20,8" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                    <line x1="16" y1="13" x2="8" y2="13" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                    <line x1="16" y1="17" x2="8" y2="17" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                    <polyline points="10,9 9,9 8,9" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                                Summary
+                            </div>
+                            <div style="background:#fff; border-radius:6px; padding:12px; border:1px solid #e9ecef; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+                                <div style="font-size:13px; color:#222; line-height:1.5; font-weight:400;">${clusterDescription}</div>
+                            </div>
                         </div>
                     ` : ''}
+                    
+                    <div style="flex: 1; display: none; flex-direction: column; justify-content: flex-end;">
+                        <div style="font-size:14px; font-weight:600; margin-bottom:6px; color:#222; display:flex; align-items:center; gap:6px;">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M3 3v18h18" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                <path d="M18 17V9" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                <path d="M13 17V5" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                <path d="M8 17v-3" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            Statistics
+                        </div>
+                        <div style="background:#fff; border-radius:6px; padding:12px; border:1px solid #e9ecef; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+                            <div style="display:flex; flex-direction:row; gap:12px;">
+                                <div style="flex:1; display:flex; flex-direction:column; justify-content:flex-end;">
+                                    <div style="font-size:11px; color:#6c757d; margin-bottom:2px;">Avg Cells/Notebook</div>
+                                    <div style="font-size:13px; font-weight:600; color:#495057;">${avgCells.toLocaleString()}</div>
+                                </div>
+                                <div style="flex:1; display:flex; flex-direction:column; justify-content:flex-end;">
+                                    <div style="font-size:11px; color:#6c757d; margin-bottom:2px;">Avg Code Lines/Notebook</div>
+                                    <div style="font-size:13px; font-weight:600; color:#495057;">${avgCodeLines.toLocaleString()}</div>
+                                </div>
+                                ${this.voteData && this.voteData.length > 0 ? `
+                                    <div style="flex:1; display:flex; flex-direction:column; justify-content:flex-end;">
+                                        <div style="font-size:11px; color:#6c757d; margin-bottom:2px;">Avg Votes/Notebook</div>
+                                        <div style="font-size:13px; font-weight:600; color:#495057;">${avgVotes.toLocaleString()}</div>
+                                    </div>
+                                ` : ''}
+                            </div>
+                        </div>
+                    </div>
                 </div>
-            </div>
-            
-                        ${(topStages && topStages.length > 0) || (topTransitions && topTransitions.length > 0) ? `
-                <div style="background:#f8f9fa; border-radius:6px; padding:8px; margin-bottom:8px; border:1px solid #e9ecef;">
-                    <div style="display:flex; flex-direction:row; gap:12px; align-items:flex-start;">
-                        ${topStages && topStages.length > 0 ? `
-                            <div style="display:flex; flex-direction:column; gap:3px; flex:1;">
-                                <span style="font-size:10px; color:#6c757d; font-weight:600; ">Top Stage(s) <span style="color:#6c757d; margin-left:4px;color:#1976d2">${topStages.length > 0 ? topStages[0][1] : 0} counts</span></span>
-                                <div style="display:flex; flex-direction:row; gap:4px; align-items:center; flex-wrap:wrap;">
-                                    ${topStages.map(([stage, count]) => {
+                
+                <!-- 右边：Top Patterns -->
+                <div style="flex: 1; min-width: 0; display: flex; flex-direction: column;">
+                    <div style="font-size:14px; font-weight:600; margin-bottom:6px; color:#222; display:flex; align-items:center; gap:6px;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M9 11H15M9 15H15M9 7H15M5 3H19C20.1046 3 21 3.89543 21 5V19C21 20.1046 20.1046 21 19 21H5C3.89543 21 3 20.1046 3 19V5C3 3.89543 3.89543 3 5 3Z" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        Workflow Analysis
+                    </div>
+                    <div style="background:#fff; border-radius:6px; padding:12px; border:1px solid #e9ecef; box-shadow:0 1px 3px rgba(0,0,0,0.05); flex: 1; display: flex; flex-direction: column;">
+                        <div style="margin-bottom:0px;">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; color:#495057;">
+                                <span style="font-weight:500; font-size:13px;">Top Stage(s)</span>
+                                <span style="color:#1976d2; font-size:12px; font-weight:600;">${topStages && topStages.length > 0 ? topStages[0][1] : 0} counts</span>
+                            </div>
+                            <div style="display:flex; flex-wrap:wrap; gap:6px;">
+                                ${topStages && topStages.length > 0 ? topStages.map(([stage, count]) => {
             const group = STAGE_GROUP_MAP[stage];
             let borderStyle = 'none';
             let borderWidth = '0px';
@@ -2162,22 +2187,21 @@ export class MatrixWidget extends Widget {
             }
 
             return `
-                                        <div style="display:inline-flex; align-items:center; padding:2px 6px;font-size:11px;">
-                                            <div style="width:8px; height:10px; background-color:${this.colorScale(stage)}; border-radius:2px; margin-right:4px; flex-shrink:0; border:${borderWidth} ${borderStyle} ${borderColor};"></div>
-                                            <span style="color:#222; font-weight:600; font-size:11px; line-height:1;">
-                                                ${typeof LABEL_MAP !== 'undefined' ? (LABEL_MAP[stage] ?? stage) : stage}
-                                            </span>
+                                        <div style="display:inline-flex; align-items:center; margin-right:8px; margin-bottom:4px;">
+                                            <div style="width:10px; height:12px; background-color:${this.colorScale(stage)}; border-radius:2px; margin-right:6px; flex-shrink:0; border:${borderWidth} ${borderStyle} ${borderColor}; align-self:center;"></div>
+                                            <span style="color:#222; font-weight:600; font-size:13px; line-height:12px; display:flex; align-items:center;">${typeof LABEL_MAP !== 'undefined' ? (LABEL_MAP[stage] ?? stage) : stage}</span>
                                         </div>
                                     `;
-        }).join('')}
-                                </div>
+        }).join('') : '<span style="color:#6c757d; font-size:13px; font-style:italic;">None</span>'}
                             </div>
-                        ` : ''}
-                        ${topTransitions && topTransitions.length > 0 ? `
-                            <div style="display:flex; flex-direction:column; gap:3px; flex:1;">
-                                <span style="font-size:10px; color:#6c757d; font-weight:600;">Top Transition(s) <span style="color:#1976d2; margin-left:4px;">${topTransitions.length > 0 ? topTransitions[0][1] : 0} counts</span></span>
-                                <div style="display:flex; flex-direction:row; gap:4px; align-items:center; flex-wrap:wrap;">
-                                    ${topTransitions.map(([transition, count]) => {
+                        </div>
+                        <div style="flex: 1; display: none; flex-direction: column; justify-content: flex-end;">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; color:#495057;">
+                                <span style="font-weight:500; font-size:13px;">Top Transition(s)</span>
+                                <span style="color:#1976d2; font-size:12px; font-weight:600;">${topTransitions && topTransitions.length > 0 ? topTransitions[0][1] : 0} counts</span>
+                            </div>
+                            <div style="display:flex; flex-direction:column; gap:3px;">
+                                ${topTransitions && topTransitions.length > 0 ? topTransitions.map(([transition, count]) => {
             const [fromStage, toStage] = transition.split(' → ');
 
             // 获取from stage的border样式
@@ -2213,29 +2237,22 @@ export class MatrixWidget extends Widget {
             }
 
             return `
-                                            <div style="display:inline-flex; align-items:center; padding:2px 6px;font-size:11px;">
-                                                <div style="display:inline-flex; align-items:center;">
-                                                    <div style="width:8px; height:10px; background-color:${this.colorScale(fromStage)}; border-radius:2px; margin-right:4px; flex-shrink:0; border:${fromBorderWidth} ${fromBorderStyle} ${fromBorderColor};"></div>
-                                                    <span style="color:#222; font-weight:600; font-size:11px; line-height:1;">
-                                                        ${typeof LABEL_MAP !== 'undefined' ? (LABEL_MAP[fromStage] ?? fromStage) : fromStage}
-                                                    </span>
-                                                </div>
-                                                <span style="color:#666; font-size:10px; margin:0 2px;">→</span>
-                                                <div style="display:inline-flex; align-items:center;">
-                                                    <div style="width:8px; height:10px; background-color:${this.colorScale(toStage)}; border-radius:2px; margin-right:4px; flex-shrink:0; border:${toBorderWidth} ${toBorderStyle} ${toBorderColor};"></div>
-                                                    <span style="color:#222; font-weight:600; font-size:11px; line-height:1;">
-                                                        ${typeof LABEL_MAP !== 'undefined' ? (LABEL_MAP[toStage] ?? toStage) : toStage}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        `;
-        }).join('')}
-                                </div>
+                                        <div style="display:inline-flex; align-items:center; margin-right:8px; margin-bottom:4px;">
+                                            <div style="width:10px; height:12px; background-color:${this.colorScale(fromStage)}; border-radius:2px; margin-right:6px; flex-shrink:0; border:${fromBorderWidth} ${fromBorderStyle} ${fromBorderColor}; align-self:center;"></div>
+                                            <span style="color:#222; font-weight:600; font-size:13px; line-height:12px; display:flex; align-items:center;">${typeof LABEL_MAP !== 'undefined' ? (LABEL_MAP[fromStage] ?? fromStage) : fromStage}</span>
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin:0 4px;">
+                                                <path d="M5 12H19M19 12L14 7M19 12L14 17" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                            </svg>
+                                            <div style="width:10px; height:12px; background-color:${this.colorScale(toStage)}; border-radius:2px; margin-right:6px; flex-shrink:0; border:${toBorderWidth} ${toBorderStyle} ${toBorderColor}; align-self:center;"></div>
+                                            <span style="color:#222; font-weight:600; font-size:13px; line-height:12px; display:flex; align-items:center;">${typeof LABEL_MAP !== 'undefined' ? (LABEL_MAP[toStage] ?? toStage) : toStage}</span>
+                                        </div>
+                                    `;
+        }).join('') : '<span style="color:#6c757d; font-size:13px; font-style:italic;">None</span>'}
                             </div>
-                        ` : ''}
+                        </div>
                     </div>
                 </div>
-            ` : ''}
+            </div>
         `;
 
         // 添加事件监听器到按钮
