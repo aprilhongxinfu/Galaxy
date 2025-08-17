@@ -1109,7 +1109,7 @@ export class LeftSidebar extends Widget {
                     // 为Data-oriented和Model-oriented添加border
                     const group = STAGE_GROUP_MAP[d.stage];
                     if (group === 'Data-oriented' || group === 'Model-oriented') {
-                        colorBox.style.border = '1px solid #666666';
+                        colorBox.style.border = '1.5px solid #666666';
                         if (group === 'Model-oriented') {
                             colorBox.style.borderStyle = 'dashed';
                         }
@@ -1169,7 +1169,7 @@ export class LeftSidebar extends Widget {
                     // 为Data-oriented和Model-oriented添加border
                     const group = STAGE_GROUP_MAP[d.stage];
                     if (group === 'Data-oriented' || group === 'Model-oriented') {
-                        colorBox.style.border = '1px solid #666666';
+                        colorBox.style.border = '1.5px solid #666666';
                         if (group === 'Model-oriented') {
                             colorBox.style.borderStyle = 'dashed';
                         }
@@ -1229,7 +1229,7 @@ export class LeftSidebar extends Widget {
                     // 为Data-oriented和Model-oriented添加border
                     const group = STAGE_GROUP_MAP[d.stage];
                     if (group === 'Data-oriented' || group === 'Model-oriented') {
-                        colorBox.style.border = '1px solid #666666';
+                        colorBox.style.border = '1.5px solid #666666';
                         if (group === 'Model-oriented') {
                             colorBox.style.borderStyle = 'dashed';
                         }

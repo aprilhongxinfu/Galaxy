@@ -2178,11 +2178,11 @@ export class MatrixWidget extends Widget {
 
             if (group === 'Data-oriented') {
                 borderStyle = 'solid';
-                borderWidth = '1px';
+                borderWidth = '1.5px';
                 borderColor = '#666666';
             } else if (group === 'Model-oriented') {
                 borderStyle = 'dashed';
-                borderWidth = '1px';
+                borderWidth = '1.5px';
                 borderColor = '#666666';
             }
 
@@ -2212,11 +2212,11 @@ export class MatrixWidget extends Widget {
 
             if (fromGroup === 'Data-oriented') {
                 fromBorderStyle = 'solid';
-                fromBorderWidth = '1px';
+                fromBorderWidth = '1.5px';
                 fromBorderColor = '#666666';
             } else if (fromGroup === 'Model-oriented') {
                 fromBorderStyle = 'dashed';
-                fromBorderWidth = '1px';
+                fromBorderWidth = '1.5px';
                 fromBorderColor = '#666666';
             }
 
@@ -2228,11 +2228,11 @@ export class MatrixWidget extends Widget {
 
             if (toGroup === 'Data-oriented') {
                 toBorderStyle = 'solid';
-                toBorderWidth = '1px';
+                toBorderWidth = '1.5px';
                 toBorderColor = '#666666';
             } else if (toGroup === 'Model-oriented') {
                 toBorderStyle = 'dashed';
-                toBorderWidth = '1px';
+                toBorderWidth = '1.5px';
                 toBorderColor = '#666666';
             }
 
