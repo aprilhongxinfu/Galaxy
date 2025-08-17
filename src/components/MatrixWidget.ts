@@ -2086,7 +2086,7 @@ export class MatrixWidget extends Widget {
                 <div style="display:flex; flex-direction:column; gap:4px; flex:1; min-width:0;">
                     <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
                         <span style="color: #4caf50; word-break:break-word; line-height:1.4;">${clusterTitle}</span>
-                        <span style="color: #6c757d; font-size: 13px; font-weight: 400; white-space:nowrap;">
+                        <span style="color: #6c757d; font-size: 13px; font-weight: 400; white-space:nowrap;display:none;">
                             ${totalNotebooks} notebooks
                         </span>
                     </div>
