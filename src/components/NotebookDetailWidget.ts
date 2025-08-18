@@ -44,12 +44,7 @@ export class NotebookDetailWidget extends Widget {
     return this.id || `notebook_${this.notebook?.kernelVersionId || this.notebook?.index || Date.now()}`;
   }
 
-  // 增加交互计数，用于分屏会话追踪
-  private incrementInteractionCount(): void {
-    if ((this as any)._interactionCount !== undefined) {
-      (this as any)._interactionCount++;
-    }
-  }
+
 
   constructor(notebook: any) {
     super();
@@ -1130,7 +1125,6 @@ export class NotebookDetailWidget extends Widget {
         }
         // 点击选中并显示详情
         r.onclick = () => {
-          this.incrementInteractionCount(); // Track interaction for split screen analysis
           this.selectedCellIdx = i;
           // 使用局部更新而不是全量 render
           this.updateMinimapHighlight();

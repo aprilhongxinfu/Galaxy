@@ -39,18 +39,13 @@ export const POSTHOG_CONFIG = {
     MATRIX_SORT_CHANGED: 'galaxy_matrix_sort_changed', 
     MATRIX_CLUSTER_SELECTED: 'galaxy_matrix_cluster_selected',
     MATRIX_ICON_CLICKED: 'galaxy_matrix_icon_clicked',
-    MATRIX_FILTER_APPLIED: 'galaxy_matrix_filter_applied',
+
     
     // Flowchart widget specific interactions  
     FLOWCHART_STAGE_SELECTED: 'galaxy_flowchart_stage_selected',
-    FLOWCHART_STAGE_HOVERED: 'galaxy_flowchart_stage_hovered',
     FLOWCHART_STAGE_MOVED: 'galaxy_flowchart_stage_moved',
     FLOWCHART_FLOW_SELECTED: 'galaxy_flowchart_flow_selected',
-    FLOWCHART_TRANSITION_HOVERED: 'galaxy_flowchart_transition_hovered',
     FLOWCHART_SELECTION_CLEARED: 'galaxy_flowchart_selection_cleared',
-    
-    // Table of Contents widget interactions
-    TOC_ITEM_CLICKED: 'galaxy_toc_item_clicked',
     
     // Cell detail interactions
     CELL_DETAIL_OPENED: 'galaxy_cell_detail_opened',
@@ -58,8 +53,7 @@ export const POSTHOG_CONFIG = {
     // Split screen / multi-notebook interactions
     SPLIT_SCREEN_ACTIVATED: 'galaxy_split_screen_activated',
     SPLIT_SCREEN_DEACTIVATED: 'galaxy_split_screen_deactivated',
-    MULTI_NOTEBOOK_SESSION_STARTED: 'galaxy_multi_notebook_session_started',
-    MULTI_NOTEBOOK_SESSION_ENDED: 'galaxy_multi_notebook_session_ended',
+
     NOTEBOOK_COMPARISON_VIEWED: 'galaxy_notebook_comparison_viewed'
   }
 };

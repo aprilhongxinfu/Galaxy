@@ -20,7 +20,7 @@ export class PostHogAnalytics {
   private analysisCount: number = 0;
   private sessionEnded: boolean = false;
   private hiddenStartTime: number | null = null;
-  private hoverDebounceMap: Map<string, number> = new Map();
+
   private moveDebounceMap: Map<string, number> = new Map();
   private userIP: string = 'unknown_ip'; // 存储用户IP
 
@@ -270,7 +270,7 @@ export class PostHogAnalytics {
   }
 
   public trackMatrixInteraction(
-    interactionType: 'cell_click' | 'filter_applied' | 'sort_changed' | 'cluster_selected' | 'icon_click',
+    interactionType: 'cell_click' | 'sort_changed' | 'cluster_selected' | 'icon_click',
     additionalData?: any
   ): void {
     if (!this.isInitialized) return;
@@ -289,9 +289,6 @@ export class PostHogAnalytics {
         break;
       case 'icon_click':
         eventName = POSTHOG_CONFIG.EVENTS.MATRIX_ICON_CLICKED;
-        break;
-      case 'filter_applied':
-        eventName = POSTHOG_CONFIG.EVENTS.MATRIX_FILTER_APPLIED;
         break;
       default:
         eventName = POSTHOG_CONFIG.EVENTS.MATRIX_ICON_CLICKED; // fallback
@@ -323,24 +320,12 @@ export class PostHogAnalytics {
   }
 
   public trackFlowChartInteraction(
-    interactionType: 'stage_selected' | 'flow_selected' | 'selection_cleared' | 'stage_hover' | 'transition_hover' | 'stage_move',
+    interactionType: 'stage_selected' | 'flow_selected' | 'selection_cleared' | 'stage_move',
     additionalData?: any
   ): void {
     if (!this.isInitialized) return;
 
-    // Apply debouncing for hover and move events to avoid spam
-    if (interactionType === 'stage_hover' || interactionType === 'transition_hover') {
-      const elementId = additionalData?.elementId || additionalData?.stage || additionalData?.transition || 'unknown';
-      const debounceKey = `${interactionType}_${elementId}`;
-      const lastHoverTime = this.hoverDebounceMap.get(debounceKey) || 0;
-      const now = Date.now();
-      
-      // Debounce hover events to max once per second per element
-      if (now - lastHoverTime < 1000) {
-        return;
-      }
-      this.hoverDebounceMap.set(debounceKey, now);
-    }
+
 
     if (interactionType === 'stage_move') {
       const stageId = additionalData?.stage || additionalData?.stageId || 'unknown';
@@ -366,12 +351,6 @@ export class PostHogAnalytics {
         break;
       case 'selection_cleared':
         eventName = POSTHOG_CONFIG.EVENTS.FLOWCHART_SELECTION_CLEARED;
-        break;
-      case 'stage_hover':
-        eventName = POSTHOG_CONFIG.EVENTS.FLOWCHART_STAGE_HOVERED;
-        break;
-      case 'transition_hover':
-        eventName = POSTHOG_CONFIG.EVENTS.FLOWCHART_TRANSITION_HOVERED;
         break;
       case 'stage_move':
         eventName = POSTHOG_CONFIG.EVENTS.FLOWCHART_STAGE_MOVED;
@@ -578,25 +557,7 @@ export class PostHogAnalytics {
     });
   }
 
-  public trackTOCItemClick(tocData: {
-    cellId: string;
-    kernelVersionId: string;
-    cellIndex: number;
-    notebookName?: string;
-    competitionId?: string;
-  }): void {
-    if (!this.isInitialized) return;
 
-    posthog.capture(POSTHOG_CONFIG.EVENTS.TOC_ITEM_CLICKED, {
-      cellId: tocData.cellId,
-      kernelVersionId: tocData.kernelVersionId,
-      cellIndex: tocData.cellIndex,
-      notebookName: tocData.notebookName,
-      competitionId: tocData.competitionId,
-      sessionTime: Date.now() - this.sessionStartTime,
-      session_id: `session_${this.sessionStartTime}`
-    });
-  }
 
   public trackCellDetailOpened(cellData: {
     cellType: string;
@@ -677,53 +638,7 @@ export class PostHogAnalytics {
     }
   }
 
-  // Specialized tracking methods for flowchart interactions
-  public trackStageHover(stageData: {
-    stage: string;
-    stageLabel?: string;
-    hoverStartTime?: number;
-    mousePosition?: { x: number; y: number };
-    elementId?: string;
-    flowchartContext?: 'overview' | 'notebook_detail';
-  }): void {
-    const hoverDuration = stageData.hoverStartTime ? Date.now() - stageData.hoverStartTime : null;
-    
-    this.trackFlowChartInteraction('stage_hover', {
-      stage: stageData.stage,
-      stageLabel: stageData.stageLabel,
-      elementId: stageData.elementId,
-      hoverDuration: hoverDuration,
-      mousePosition: stageData.mousePosition,
-      flowchartContext: stageData.flowchartContext || 'overview',
-      interaction_context: 'stage_exploration'
-    });
-  }
 
-  public trackTransitionHover(transitionData: {
-    from: string;
-    to: string;
-    fromLabel?: string;
-    toLabel?: string;
-    hoverStartTime?: number;
-    mousePosition?: { x: number; y: number };
-    elementId?: string;
-    flowchartContext?: 'overview' | 'notebook_detail';
-  }): void {
-    const hoverDuration = transitionData.hoverStartTime ? Date.now() - transitionData.hoverStartTime : null;
-    
-    this.trackFlowChartInteraction('transition_hover', {
-      from: transitionData.from,
-      to: transitionData.to,
-      fromLabel: transitionData.fromLabel,
-      toLabel: transitionData.toLabel,
-      transition: `${transitionData.from}_to_${transitionData.to}`,
-      elementId: transitionData.elementId,
-      hoverDuration: hoverDuration,
-      mousePosition: transitionData.mousePosition,
-      flowchartContext: transitionData.flowchartContext || 'overview',
-      interaction_context: 'flow_exploration'
-    });
-  }
 
   public trackStageMove(moveData: {
     stage: string;
@@ -798,45 +713,7 @@ export class PostHogAnalytics {
     });
   }
 
-  public trackMultiNotebookSessionStarted(sessionData: {
-    notebookCount: number;
-    notebookIds: string[];
-    competitionId?: string;
-    initiationMethod: 'matrix_selection' | 'sidebar_selection' | 'search_result';
-  }): void {
-    if (!this.isInitialized) return;
 
-    posthog.capture(POSTHOG_CONFIG.EVENTS.MULTI_NOTEBOOK_SESSION_STARTED, {
-      notebookCount: sessionData.notebookCount,
-      notebookIds: sessionData.notebookIds,
-      competitionId: sessionData.competitionId,
-      initiationMethod: sessionData.initiationMethod,
-      sessionTime: Date.now() - this.sessionStartTime,
-      session_id: `session_${this.sessionStartTime}`,
-      interaction_context: 'comparative_analysis'
-    });
-  }
-
-  public trackMultiNotebookSessionEnded(sessionData: {
-    notebookCount: number;
-    sessionDuration: number;
-    totalInteractions: number;
-    endReason: 'all_notebooks_closed' | 'user_exit' | 'session_timeout';
-  }): void {
-    if (!this.isInitialized) return;
-
-    posthog.capture(POSTHOG_CONFIG.EVENTS.MULTI_NOTEBOOK_SESSION_ENDED, {
-      notebookCount: sessionData.notebookCount,
-      sessionDuration: sessionData.sessionDuration,
-      sessionDurationMinutes: Math.round(sessionData.sessionDuration / 60000 * 100) / 100,
-      totalInteractions: sessionData.totalInteractions,
-      endReason: sessionData.endReason,
-      avgInteractionsPerNotebook: sessionData.notebookCount > 0 ? Math.round(sessionData.totalInteractions / sessionData.notebookCount) : 0,
-      sessionTime: Date.now() - this.sessionStartTime,
-      session_id: `session_${this.sessionStartTime}`,
-      interaction_context: 'comparative_analysis'
-    });
-  }
 
   public trackNotebookComparison(comparisonData: {
     notebookAId: string;

@@ -1061,15 +1061,6 @@ function activate(
           // 找到对应的notebook
           const notebook = result1.find((nb: any) => nb.kernelVersionId === kernelVersionId);
           if (notebook) {
-            // Track TOC item click
-            analytics.trackTOCItemClick({
-              cellId: cellId,
-              kernelVersionId: kernelVersionId,
-              cellIndex: cellIndex,
-              notebookName: notebook.notebook_name,
-              competitionId: competitionIdForMatrix || undefined
-            });
-
             // 使用notebook在result1数组中的索引，而不是globalIndex
             const notebookIndex = result1.indexOf(notebook);
 
@@ -1096,8 +1087,6 @@ function activate(
 
             // Record opening time for session tracking
             (nbDetailWidget as any)._openTime = Date.now();
-            (nbDetailWidget as any)._sessionStartTime = Date.now();
-            (nbDetailWidget as any)._interactionCount = 0;
 
             app.shell.add(nbDetailWidget, 'main');
             app.shell.activateById(nbDetailWidget.id);
@@ -1138,16 +1127,7 @@ function activate(
                 });
               }
 
-              // Check for end of multi-notebook session
-              if (remainingNotebooks === 0) {
-                // All notebooks closed - end of multi-notebook session
-                analytics.trackMultiNotebookSessionEnded({
-                  notebookCount: 1, // At least 1 was open before this close
-                  sessionDuration: Date.now() - (nbDetailWidget as any)._sessionStartTime || 0,
-                  totalInteractions: (nbDetailWidget as any)._interactionCount || 0,
-                  endReason: 'all_notebooks_closed'
-                });
-              }
+              
 
               // 清理滚动同步状态
               updateScrollSync();
@@ -1156,21 +1136,7 @@ function activate(
             // 延迟更新滚动同步状态，避免频繁调用
             setTimeout(() => updateScrollSync(), 100);
 
-            // Check if this is the first time we have multiple notebooks open (start of multi-notebook session)
-            const currentNotebookCount = notebookDetailIds.size;
-            if (currentNotebookCount === 2) { // First time reaching 2 notebooks = start of multi-notebook session
-              const allOpenNotebooks = Array.from(notebookDetailIds).map(id => {
-                const widget = Array.from(app.shell.widgets('main')).find(w => w.id === id) as any;
-                return widget?.title?.label; // Use notebook ID (tab title like "Notebook 1", "Notebook 2")
-              }).filter(Boolean);
-
-              analytics.trackMultiNotebookSessionStarted({
-                notebookCount: currentNotebookCount,
-                notebookIds: allOpenNotebooks,
-                competitionId: competitionIdForMatrix || undefined,
-                initiationMethod: 'matrix_selection' // Most common way to open notebooks
-              });
-            }
+            
 
             // 检查是否有分屏布局
             if (hasSplitLayout()) {
