@@ -703,8 +703,17 @@ function activate(
       }
       if (flowChartWidget && matrixWidget && result1 && detailSidebar) {
         const { mostFreqStage, mostFreqFlow } = flowChartWidget.getMostFrequentStageAndFlow();
+
+
+        // 检查detailSidebar是否已经在右侧
+        const rightWidgets = Array.from(app.shell.widgets('right'));
+        const isAlreadyInRight = rightWidgets.includes(detailSidebar);
+
         detailSidebar.setSummary(result1, mostFreqStage, mostFreqFlow, matrixWidget?.getNotebookOrder?.());
-        app.shell.add(detailSidebar, 'right');
+
+        if (!isAlreadyInRight) {
+          app.shell.add(detailSidebar, 'right');
+        }
         app.shell.activateById(detailSidebar.id);
       }
       return;
@@ -1084,12 +1093,12 @@ function activate(
             const nb = JSON.parse(JSON.stringify(e.detail.notebook));
             const nbDetailWidget = new NotebookDetailWidget(nb);
             nbDetailWidget.id = `notebook-detail-widget-${nb.kernelVersionId || nb.index || Date.now()}`;
-            
+
             // Record opening time for session tracking
             (nbDetailWidget as any)._openTime = Date.now();
             (nbDetailWidget as any)._sessionStartTime = Date.now();
             (nbDetailWidget as any)._interactionCount = 0;
-            
+
             app.shell.add(nbDetailWidget, 'main');
             app.shell.activateById(nbDetailWidget.id);
             notebookDetailIds.add(nbDetailWidget.id);
@@ -1116,7 +1125,7 @@ function activate(
 
               // Remove from tracking set
               notebookDetailIds.delete(nbDetailWidget.id);
-              
+
               // Check for split screen deactivation
               const remainingNotebooks = notebookDetailIds.size;
               if (remainingNotebooks === 1) {
@@ -1128,7 +1137,7 @@ function activate(
                   deactivationReason: 'notebook_closed'
                 });
               }
-              
+
               // Check for end of multi-notebook session
               if (remainingNotebooks === 0) {
                 // All notebooks closed - end of multi-notebook session
@@ -1154,7 +1163,7 @@ function activate(
                 const widget = Array.from(app.shell.widgets('main')).find(w => w.id === id) as any;
                 return widget?.title?.label; // Use notebook ID (tab title like "Notebook 1", "Notebook 2")
               }).filter(Boolean);
-              
+
               analytics.trackMultiNotebookSessionStarted({
                 notebookCount: currentNotebookCount,
                 notebookIds: allOpenNotebooks,
@@ -1170,7 +1179,7 @@ function activate(
                 const widget = Array.from(app.shell.widgets('main')).find(w => w.id === id) as any;
                 return { notebookId: widget?.title?.label, notebook: widget?.notebook };
               }).filter(item => item.notebookId && item.notebook);
-              
+
               // Track split screen activation
               analytics.trackSplitScreenActivated({
                 totalNotebooks: openNotebooks.length + 1, // +1 for the newly opened notebook
