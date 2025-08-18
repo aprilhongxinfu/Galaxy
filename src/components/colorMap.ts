@@ -41,9 +41,9 @@ const palette = [
   '#66C5CC', // 3: EDA (浅蓝色)
   '#C9DB74', // 4: Visualization (薄荷绿色)
   '#87C55F', // 5: Feature_Engineering (浅薰衣草色/紫色)
-  '#FE88B1', // 6: Hyperparam_Tuning (浅橙色/桃色)
+  '#F6CF71', // 6: Hyperparam_Tuning (浅橙色/桃色)
   '#F89C74', // 7: Model_Train (粉色)
-  '#F6CF71', // 8: Model_Evaluation (浅紫色)
+  '#FE88B1', // 8: Model_Evaluation (浅紫色)
   '#DCB0F2', // 9: Data_Export (浅棕色/米色)
   '#B3B3B3', // 10: Commented (浅橙色)
   '#B3B3B3', // 11: Debug (灰色) - 不用于着色
