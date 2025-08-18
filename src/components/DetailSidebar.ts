@@ -1103,14 +1103,27 @@ export class DetailSidebar extends Widget {
     this.filter = selection;
     this._currentSelection = selection; // 更新当前选中状态
 
-    // 设置全局筛选状态，供NotebookDetailWidget使用
+    // 设置全局筛选状态，供NotebookDetailWidget使用（按tab隔离）
+    const tabId = this.getTabId();
+    const flowSelectionKey = `_galaxyFlowSelection_${tabId}`;
+    const stageSelectionKey = `_galaxyStageSelection_${tabId}`;
+    
     if (selection) {
       if (selection.type === 'stage') {
+        (window as any)[stageSelectionKey] = selection.stage;
+        (window as any)[flowSelectionKey] = null;
+        // 保持旧的全局变量兼容性
         (window as any)._galaxyFlowSelection = { type: 'stage', stage: selection.stage };
       } else if (selection.type === 'flow') {
+        (window as any)[flowSelectionKey] = { from: selection.from, to: selection.to };
+        (window as any)[stageSelectionKey] = null;
+        // 保持旧的全局变量兼容性
         (window as any)._galaxyFlowSelection = { type: 'flow', from: selection.from, to: selection.to };
       }
     } else {
+      (window as any)[stageSelectionKey] = null;
+      (window as any)[flowSelectionKey] = null;
+      // 保持旧的全局变量兼容性
       (window as any)._galaxyFlowSelection = null;
     }
 
@@ -1128,16 +1141,13 @@ export class DetailSidebar extends Widget {
       if (selection) {
         if (selection.type === 'stage') {
           // 通知MatrixWidget和flowchart选中stage
-          const tabId = this.getTabId();
           window.dispatchEvent(new CustomEvent('galaxy-stage-selected', { detail: { stage: selection.stage, tabId } }));
         } else if (selection.type === 'flow') {
           // 通知MatrixWidget和flowchart选中flow
-          const tabId = this.getTabId();
           window.dispatchEvent(new CustomEvent('galaxy-flow-selected', { detail: { from: selection.from, to: selection.to, tabId } }));
         }
       } else {
         // 清除选中状态
-        const tabId = this.getTabId();
         window.dispatchEvent(new CustomEvent('galaxy-selection-cleared', { detail: { tabId } }));
       }
     }
@@ -2007,6 +2017,8 @@ export class DetailSidebar extends Widget {
 
     const tabId = this.getTabId();
     const stateKey = `_galaxyDetailSidebarFilterState_${tabId}`;
+    const flowSelectionKey = `_galaxyFlowSelection_${tabId}`;
+    const stageSelectionKey = `_galaxyStageSelection_${tabId}`;
     const savedState = (window as any)[stateKey];
 
     if (savedState) {
@@ -2015,16 +2027,49 @@ export class DetailSidebar extends Widget {
       this._currentTitle = savedState.currentTitle;
       this._currentSelection = savedState.currentSelection;
 
+      // 恢复按tab隔离的全局变量
+      if (this.filter) {
+        if (this.filter.type === 'stage') {
+          (window as any)[stageSelectionKey] = this.filter.stage;
+          (window as any)[flowSelectionKey] = null;
+          // 保持旧的全局变量兼容性
+          (window as any)._galaxyFlowSelection = { type: 'stage', stage: this.filter.stage };
+        } else if (this.filter.type === 'flow') {
+          (window as any)[flowSelectionKey] = { from: this.filter.from, to: this.filter.to };
+          (window as any)[stageSelectionKey] = null;
+          // 保持旧的全局变量兼容性
+          (window as any)._galaxyFlowSelection = { type: 'flow', from: this.filter.from, to: this.filter.to };
+        }
+      } else {
+        (window as any)[stageSelectionKey] = null;
+        (window as any)[flowSelectionKey] = null;
+        // 保持旧的全局变量兼容性
+        (window as any)._galaxyFlowSelection = null;
+      }
+
       // 恢复状态后重新渲染
       if (this.currentNotebook) {
-        // 确保notebook detail视图下没有选中状态
-        this._currentSelection = null;
+        // 在notebook detail模式下，保持选中状态（不清除）
         this.setNotebookDetail(this.currentNotebook, true); // 跳过事件派发，避免循环
       } else if (this.filter) {
         this.setSummary(this._allData, this._mostFreqStage, this._mostFreqFlow, this.notebookOrder);
       } else {
-        this.setSummary(this._allData, this._mostFreqStage, this._mostFreqFlow, this.notebookOrder);
+        this.setDefault();
       }
+    } else {
+      // 如果没有保存的状态，使用默认状态
+      this.filter = null;
+      this._currentSelection = null;
+      this.currentNotebook = null;
+      this._currentTitle = this.competitionInfo ? this.competitionInfo.name : 'Notebook Overview';
+      
+      // 清除按tab隔离的全局变量
+      (window as any)[stageSelectionKey] = null;
+      (window as any)[flowSelectionKey] = null;
+      // 保持旧的全局变量兼容性
+      (window as any)._galaxyFlowSelection = null;
+      
+      this.setDefault();
     }
   }
 

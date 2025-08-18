@@ -20,6 +20,7 @@ import { DetailSidebar } from './components/DetailSidebar';
 import { NotebookDetailWidget } from './components/NotebookDetailWidget';
 import { LabShell } from '@jupyterlab/application';
 import { csvParse } from 'd3-dsv';
+import { analytics } from './analytics/posthog-config';
 
 
 
@@ -586,6 +587,8 @@ function activate(
   }
 
   // ====== handleTabSwitch 放回 activate 内部，直接访问最新 sidebar 变量 ======
+  let previousTabId: string | null = null;
+
   function handleTabSwitch(widget: any) {
     // 新增：如果 widget 为空或不是 galaxy 相关 tab，检查是否需要关闭 sidebar
     if (!widget || !(widget.id && (widget.id === 'matrix-widget' || widget.id.startsWith('notebook-detail-widget-')))) {
@@ -596,6 +599,34 @@ function activate(
       return;
     }
     const tabId = widget.id || '';
+
+    // Track tab switch if we have a previous tab
+    if (previousTabId && previousTabId !== tabId) {
+      let tabType: 'matrix' | 'notebook_detail' | 'other' = 'other';
+      let notebookName: string | undefined;
+      let competitionId: string | undefined;
+
+      if (tabId === 'matrix-widget') {
+        tabType = 'matrix';
+      } else if (tabId.startsWith('notebook-detail-widget-')) {
+        tabType = 'notebook_detail';
+        if (widget.notebook) {
+          notebookName = widget.notebook.notebook_name;
+          competitionId = widget.notebook.competitionId;
+        }
+      }
+
+      analytics.trackTabSwitch({
+        fromTab: previousTabId,
+        toTab: tabId,
+        tabType: tabType,
+        notebookName: notebookName,
+        competitionId: competitionId
+      });
+    }
+
+    // Update previous tab tracking
+    previousTabId = tabId;
 
     // 检查是否有分屏布局
     if (hasSplitLayout()) {
@@ -810,6 +841,13 @@ function activate(
           // 提取competition ID和基础目录
           console.log('Extracting competition ID from path:', selectedItems[0].path);
           const competitionId = extractCompetitionId(selectedItems[0].path);
+
+          // Track analysis started
+          analytics.trackAnalysisStarted({
+            competitionId: competitionId || undefined,
+            totalNotebooks: result1.length,
+            jsonFilePath: selectedItems[0].path
+          });
           const baseDir = extractBaseDir(selectedItems[0].path);
           console.log('Extracted competition ID:', competitionId);
           console.log('Extracted base directory:', baseDir);
@@ -893,7 +931,7 @@ function activate(
         colorMap = colorMapModule; // 确保 colorMap 全局可用
 
 
-        flowChartWidget = new LeftSidebar(result1, colorMap);
+        flowChartWidget = new LeftSidebar(result1, colorMap, true); // Overview mode
         app.shell.add(flowChartWidget, 'left');
         if (typeof (app.shell as any).expandLeftArea === 'function') {
           (app.shell as any).expandLeftArea();
@@ -968,18 +1006,39 @@ function activate(
           currentSelection = { type: 'stage', stage, tabId };
           matrixWidget?.setFilter(currentSelection);
           detailSidebar?.setFilter(currentSelection, true); // 跳过事件派发，避免循环
+          // Track flowchart interaction
+          analytics.trackFlowChartInteraction('stage_selected', {
+            stage: stage,
+            tabId: tabId,
+            flowchartContext: 'overview', // These events come from the main overview
+            interaction_context: 'stage_filter'
+          });
         });
         window.addEventListener('galaxy-flow-selected', (e: any) => {
           const { from, to, tabId } = e.detail;
           currentSelection = { type: 'flow', from, to, tabId };
           matrixWidget?.setFilter(currentSelection);
           detailSidebar?.setFilter(currentSelection, true); // 跳过事件派发，避免循环
+          // Track flowchart interaction
+          analytics.trackFlowChartInteraction('flow_selected', {
+            from: from,
+            to: to,
+            tabId: tabId,
+            flowchartContext: 'overview', // These events come from the main overview
+            interaction_context: 'flow_filter'
+          });
         });
         window.addEventListener('galaxy-selection-cleared', (e: any) => {
           // const tabId = e.detail?.tabId;
           currentSelection = null;
           matrixWidget?.setFilter(null);
           detailSidebar?.setFilter(null, true); // 跳过事件派发，避免循环
+          // Track flowchart interaction
+          analytics.trackFlowChartInteraction('selection_cleared', {
+            tabId: e.detail?.tabId,
+            flowchartContext: 'overview', // These events come from the main overview
+            interaction_context: 'clear_filter'
+          });
         });
 
         // 监听TOC项目点击事件
@@ -993,6 +1052,15 @@ function activate(
           // 找到对应的notebook
           const notebook = result1.find((nb: any) => nb.kernelVersionId === kernelVersionId);
           if (notebook) {
+            // Track TOC item click
+            analytics.trackTOCItemClick({
+              cellId: cellId,
+              kernelVersionId: kernelVersionId,
+              cellIndex: cellIndex,
+              notebookName: notebook.notebook_name,
+              competitionId: competitionIdForMatrix || undefined
+            });
+
             // 使用notebook在result1数组中的索引，而不是globalIndex
             const notebookIndex = result1.indexOf(notebook);
 
@@ -1016,10 +1084,62 @@ function activate(
             const nb = JSON.parse(JSON.stringify(e.detail.notebook));
             const nbDetailWidget = new NotebookDetailWidget(nb);
             nbDetailWidget.id = `notebook-detail-widget-${nb.kernelVersionId || nb.index || Date.now()}`;
+            
+            // Record opening time for session tracking
+            (nbDetailWidget as any)._openTime = Date.now();
+            (nbDetailWidget as any)._sessionStartTime = Date.now();
+            (nbDetailWidget as any)._interactionCount = 0;
+            
             app.shell.add(nbDetailWidget, 'main');
             app.shell.activateById(nbDetailWidget.id);
             notebookDetailIds.add(nbDetailWidget.id);
+
+            // Track notebook opened
+            analytics.trackNotebookOpened({
+              kernelVersionId: nb.kernelVersionId || `nb_${nb.index || Date.now()}`,
+              notebookName: nb.notebook_name,
+              competitionId: competitionIdForMatrix || undefined,
+              totalCells: nb.cells ? nb.cells.length : 0,
+              codeCells: nb.cells ? nb.cells.filter((cell: any) => (cell.cellType + '').toLowerCase() === 'code').length : 0,
+              tabTitle: nbDetailWidget.title.label, // Use actual tab title (e.g., "Notebook 1", "Notebook 2")
+              tabId: nbDetailWidget.id
+            });
             nbDetailWidget.disposed.connect(() => {
+              // Track notebook closed
+              analytics.trackNotebookClosed(
+                nb.kernelVersionId || `nb_${nb.index || Date.now()}`,
+                {
+                  tabTitle: nbDetailWidget.title.label, // Use actual tab title (e.g., "Notebook 1", "Notebook 2")
+                  tabId: nbDetailWidget.id
+                }
+              );
+
+              // Remove from tracking set
+              notebookDetailIds.delete(nbDetailWidget.id);
+              
+              // Check for split screen deactivation
+              const remainingNotebooks = notebookDetailIds.size;
+              if (remainingNotebooks === 1) {
+                // Split screen just ended (went from 2+ to 1 notebook)
+                analytics.trackSplitScreenDeactivated({
+                  previousNotebookCount: remainingNotebooks + 1,
+                  remainingNotebooks: remainingNotebooks,
+                  sessionDuration: Date.now() - (nbDetailWidget as any)._openTime || 0,
+                  deactivationReason: 'notebook_closed'
+                });
+              }
+              
+              // Check for end of multi-notebook session
+              if (remainingNotebooks === 0) {
+                // All notebooks closed - end of multi-notebook session
+                analytics.trackMultiNotebookSessionEnded({
+                  notebookCount: 1, // At least 1 was open before this close
+                  sessionDuration: Date.now() - (nbDetailWidget as any)._sessionStartTime || 0,
+                  totalInteractions: (nbDetailWidget as any)._interactionCount || 0,
+                  endReason: 'all_notebooks_closed'
+                });
+              }
+
               // 清理滚动同步状态
               updateScrollSync();
             });
@@ -1027,8 +1147,39 @@ function activate(
             // 延迟更新滚动同步状态，避免频繁调用
             setTimeout(() => updateScrollSync(), 100);
 
+            // Check if this is the first time we have multiple notebooks open (start of multi-notebook session)
+            const currentNotebookCount = notebookDetailIds.size;
+            if (currentNotebookCount === 2) { // First time reaching 2 notebooks = start of multi-notebook session
+              const allOpenNotebooks = Array.from(notebookDetailIds).map(id => {
+                const widget = Array.from(app.shell.widgets('main')).find(w => w.id === id) as any;
+                return widget?.title?.label; // Use notebook ID (tab title like "Notebook 1", "Notebook 2")
+              }).filter(Boolean);
+              
+              analytics.trackMultiNotebookSessionStarted({
+                notebookCount: currentNotebookCount,
+                notebookIds: allOpenNotebooks,
+                competitionId: competitionIdForMatrix || undefined,
+                initiationMethod: 'matrix_selection' // Most common way to open notebooks
+              });
+            }
+
             // 检查是否有分屏布局
             if (hasSplitLayout()) {
+              // 获取当前打开的notebook列表用于分屏事件追踪
+              const openNotebooks = Array.from(notebookDetailIds).map(id => {
+                const widget = Array.from(app.shell.widgets('main')).find(w => w.id === id) as any;
+                return { notebookId: widget?.title?.label, notebook: widget?.notebook };
+              }).filter(item => item.notebookId && item.notebook);
+              
+              // Track split screen activation
+              analytics.trackSplitScreenActivated({
+                totalNotebooks: openNotebooks.length + 1, // +1 for the newly opened notebook
+                notebookIds: [...openNotebooks.map(item => item.notebookId), nbDetailWidget.title.label].filter(Boolean),
+                notebookNames: [...openNotebooks.map(item => item.notebook.notebook_name), nb.notebook_name].filter(Boolean),
+                competitionId: competitionIdForMatrix || undefined,
+                triggerAction: 'new_notebook_opened'
+              });
+
               // 收缩左右sidebar而不是关闭
               if (typeof (app.shell as any).collapseLeft === 'function') {
                 (app.shell as any).collapseLeft();
@@ -1052,7 +1203,7 @@ function activate(
             });
             // 重新初始化 colorMap 以包含该 notebook 的所有 stage
             initColorMap(singleNotebookStages);
-            const singleLeftSidebar = new LeftSidebar([nb], colorMapModule);
+            const singleLeftSidebar = new LeftSidebar([nb], colorMapModule, false); // Notebook detail mode
             app.shell.add(singleLeftSidebar, 'left');
             setTimeout(() => {
               if (typeof (app.shell as any).expandLeftArea === 'function') {
@@ -1201,7 +1352,7 @@ function activate(
 
             // 重新创建或恢复 flowChartWidget
             if (!flowChartWidget || flowChartWidget.isDisposed) {
-              flowChartWidget = new LeftSidebar(result1, colorMap);
+              flowChartWidget = new LeftSidebar(result1, colorMap, true); // Overview mode
             } else {
               flowChartWidget.setData(result1, colorMap);
             }

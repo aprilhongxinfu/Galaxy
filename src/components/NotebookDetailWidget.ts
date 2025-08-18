@@ -2,6 +2,7 @@ import { Widget } from '@lumino/widgets';
 import { LABEL_MAP } from './labelMap';
 import { colorMap } from './colorMap';
 import { RenderMimeRegistry, standardRendererFactories } from '@jupyterlab/rendermime';
+import { analytics } from '../analytics/posthog-config';
 
 
 // 动态插入 JupyterLab 主题样式（只插入一次）
@@ -41,6 +42,13 @@ export class NotebookDetailWidget extends Widget {
   private getTabId(): string {
     // 使用 widget 的 ID 作为唯一标识
     return this.id || `notebook_${this.notebook?.kernelVersionId || this.notebook?.index || Date.now()}`;
+  }
+
+  // 增加交互计数，用于分屏会话追踪
+  private incrementInteractionCount(): void {
+    if ((this as any)._interactionCount !== undefined) {
+      (this as any)._interactionCount++;
+    }
   }
 
   constructor(notebook: any) {
@@ -1122,6 +1130,7 @@ export class NotebookDetailWidget extends Widget {
         }
         // 点击选中并显示详情
         r.onclick = () => {
+          this.incrementInteractionCount(); // Track interaction for split screen analysis
           this.selectedCellIdx = i;
           // 使用局部更新而不是全量 render
           this.updateMinimapHighlight();
@@ -1140,6 +1149,18 @@ export class NotebookDetailWidget extends Widget {
               }
             }
           }));
+          
+          // Track cell detail opened from notebook detail
+          analytics.trackCellDetailOpened({
+            cellType: cell.cellType,
+            cellIndex: i,
+            notebookIndex: this.notebook.globalIndex || this.notebook.index,
+            notebookId: this.title.label, // Use actual tab title like "Notebook 1"
+            notebookName: this.notebook.notebook_name,
+            kernelVersionId: this.notebook.kernelVersionId,
+            stageLabel: cell["1st-level label"],
+            source: 'notebook_detail'
+          });
           
           setTimeout(() => {
             const cellList = this.node.querySelector('#nbd-cell-list-scroll');
@@ -1185,6 +1206,18 @@ export class NotebookDetailWidget extends Widget {
                 }
               }
             }));
+            
+            // Track cell detail opened from notebook detail
+            analytics.trackCellDetailOpened({
+              cellType: cell.cellType,
+              cellIndex: idx,
+              notebookIndex: this.notebook.globalIndex || this.notebook.index,
+              notebookId: this.title.label, // Use actual tab title like "Notebook 1"
+              notebookName: this.notebook.notebook_name,
+              kernelVersionId: this.notebook.kernelVersionId,
+              stageLabel: cell["1st-level label"],
+              source: 'notebook_detail'
+            });
             
             e.stopPropagation();
           };
@@ -1600,6 +1633,18 @@ export class NotebookDetailWidget extends Widget {
           }
         }));
         
+        // Track cell detail opened from notebook detail (minimap)
+        analytics.trackCellDetailOpened({
+          cellType: cell.cellType,
+          cellIndex: i,
+          notebookIndex: this.notebook.globalIndex || this.notebook.index,
+          notebookId: this.title.label, // Use actual tab title like "Notebook 1"
+          notebookName: this.notebook.notebook_name,
+          kernelVersionId: this.notebook.kernelVersionId,
+          stageLabel: cell["1st-level label"],
+          source: 'notebook_detail'
+        });
+        
         setTimeout(() => {
           const cellList = this.node.querySelector('#nbd-cell-list-scroll');
           if (!cellList) return;
@@ -1645,6 +1690,18 @@ export class NotebookDetailWidget extends Widget {
               }
             }
           }));
+          
+          // Track cell detail opened from notebook detail
+          analytics.trackCellDetailOpened({
+            cellType: cell.cellType,
+            cellIndex: idx,
+            notebookIndex: this.notebook.globalIndex || this.notebook.index,
+            notebookId: this.title.label, // Use actual tab title like "Notebook 1"
+            notebookName: this.notebook.notebook_name,
+            kernelVersionId: this.notebook.kernelVersionId,
+            stageLabel: cell["1st-level label"],
+            source: 'notebook_detail'
+          });
           
           e.stopPropagation();
         };

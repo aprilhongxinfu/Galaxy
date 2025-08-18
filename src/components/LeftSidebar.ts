@@ -2,6 +2,7 @@ import { Widget } from '@lumino/widgets';
 import * as d3 from 'd3';
 import { LABEL_MAP } from './labelMap';
 import { STAGE_GROUP_MAP } from './stage_hierarchy';
+import { analytics } from '../analytics/posthog-config';
 
 type Cell = {
     cellId: number;
@@ -35,8 +36,10 @@ export class LeftSidebar extends Widget {
     private hiddenStages: Set<string> = new Set(); // 隐藏的 stage
     private _renderTimeout: any = null; // 防抖定时器
     private _eventHandlers: { [key: string]: (e: any) => void } = {}; // 事件处理函数引用
+    private hoverStartTimes: Map<string, number> = new Map(); // 追踪hover开始时间
+    private isOverviewMode: boolean = true; // 标识是否为overview模式
 
-    constructor(data: Notebook[], colorMap: Map<string, string>) {
+    constructor(data: Notebook[], colorMap: Map<string, string>, isOverviewMode: boolean = true) {
         super();
         this.id = 'flow-chart-widget';
         this.title.label = 'Workflow';
@@ -44,6 +47,7 @@ export class LeftSidebar extends Widget {
         this.addClass('flow-chart-widget');
         this.data = data;
         this.colorMap = colorMap;
+        this.isOverviewMode = isOverviewMode;
 
         // 默认隐藏 Commented 和 Other
         this.hiddenStages = new Set(['10', '12']);
@@ -595,6 +599,8 @@ export class LeftSidebar extends Widget {
         let dragStartY = 0;
         let draggedElement: d3.Selection<SVGRectElement, StageDatum, any, any> | null = null;
         let animationFrameId: number | null = null;
+        let dragStartTime = 0;
+        let dragStartPosition: { x: number; y: number } | null = null;
 
         const drag = d3.drag<SVGRectElement, StageDatum>()
             .on('start', function (event, d) {
@@ -602,6 +608,10 @@ export class LeftSidebar extends Widget {
                 isDragging = false;
                 draggedElement = d3.select(this);
                 draggedElement.raise();
+
+                // 记录drag开始信息
+                dragStartTime = Date.now();
+                dragStartPosition = { x: event.x, y: event.y };
 
                 // 添加拖拽时的视觉反馈 - 使用CSS类而不是内联样式
                 draggedElement.classed('dragging', true);
@@ -653,6 +663,26 @@ export class LeftSidebar extends Widget {
                 }
 
                 if (isDragging) {
+                    // 追踪stage move事件
+                    if (dragStartPosition && dragStartTime) {
+                        const moveDistance = Math.sqrt(
+                            Math.pow(event.x - dragStartPosition.x, 2) + 
+                            Math.pow(event.y - dragStartPosition.y, 2)
+                        );
+                        const moveDuration = Date.now() - dragStartTime;
+
+                        analytics.trackStageMove({
+                            stage: d.stage,
+                            stageLabel: LABEL_MAP[d.stage] || d.stage,
+                            oldPosition: dragStartPosition,
+                            newPosition: { x: event.x, y: event.y },
+                            moveDistance: moveDistance,
+                            moveDuration: moveDuration,
+                            stageId: `stage-${d.stage}`,
+                            flowchartContext: this.isOverviewMode ? 'overview' : 'notebook_detail'
+                        });
+                    }
+
                     // 拖动才重排
                     let closest = this.stageData[0];
                     let minDist = Math.abs(event.y - (closest.y ?? 0));
@@ -729,6 +759,10 @@ export class LeftSidebar extends Widget {
                     // 在拖拽过程中忽略hover效果
                     if (isDragging) return;
 
+                    // 记录transition hover开始时间
+                    const transitionKey = `transition_${from}_${to}`;
+                    this.hoverStartTimes.set(transitionKey, Date.now());
+
                     // 只有在没有选中状态时才应用hover效果
                     if (!this.selection) {
                         d3.selectAll(".flow-link").attr("opacity", 0.05);
@@ -758,7 +792,24 @@ export class LeftSidebar extends Widget {
                     tooltip!.style.left = event.clientX + 12 + 'px';
                     tooltip!.style.top = event.clientY + 12 + 'px';
                 })
-                .on("mouseout", () => {
+                .on("mouseout", (event) => {
+                    // 追踪transition hover事件
+                    const transitionKey = `transition_${from}_${to}`;
+                    const hoverStartTime = this.hoverStartTimes.get(transitionKey);
+                    if (hoverStartTime) {
+                        analytics.trackTransitionHover({
+                            from: from,
+                            to: to,
+                            fromLabel: LABEL_MAP[from] || from,
+                            toLabel: LABEL_MAP[to] || to,
+                            hoverStartTime: hoverStartTime,
+                            mousePosition: { x: event.clientX, y: event.clientY },
+                            elementId: `transition-${from}-${to}`,
+                            flowchartContext: this.isOverviewMode ? 'overview' : 'notebook_detail'
+                        });
+                        this.hoverStartTimes.delete(transitionKey);
+                    }
+
                     // 只有在没有选中状态时才恢复默认样式
                     if (!this.selection) {
                         d3.selectAll(".flow-link").attr("opacity", 0.7);
@@ -895,6 +946,9 @@ export class LeftSidebar extends Widget {
                 // 在拖拽过程中忽略hover效果
                 if (isDragging) return;
 
+                // 记录hover开始时间
+                this.hoverStartTimes.set(`stage_${stage}`, Date.now());
+
                 // 只有在没有选中状态时才应用hover效果
                 if (!this.selection) {
                     d3.selectAll(".flow-link").attr("opacity", 0.05);
@@ -930,6 +984,22 @@ export class LeftSidebar extends Widget {
                 tooltip!.style.top = event.clientY + 12 + 'px';
             })
             .on("mouseout", (event, d) => {
+                const stage = d.stage;
+                
+                // 追踪stage hover事件
+                const hoverStartTime = this.hoverStartTimes.get(`stage_${stage}`);
+                if (hoverStartTime) {
+                    analytics.trackStageHover({
+                        stage: stage,
+                        stageLabel: LABEL_MAP[stage] || stage,
+                        hoverStartTime: hoverStartTime,
+                        mousePosition: { x: event.clientX, y: event.clientY },
+                        elementId: `stage-${stage}`,
+                        flowchartContext: this.isOverviewMode ? 'overview' : 'notebook_detail'
+                    });
+                    this.hoverStartTimes.delete(`stage_${stage}`);
+                }
+
                 // 只有在没有选中状态时才恢复默认样式
                 if (!this.selection) {
                     d3.selectAll(".flow-link").attr("opacity", 0.7);
