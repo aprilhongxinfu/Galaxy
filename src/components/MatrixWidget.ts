@@ -1307,7 +1307,7 @@ export class MatrixWidget extends Widget {
         container.style.flex = '1 1 auto';
         container.style.overflow = 'auto';
         container.style.height = 'auto';
-        container.style.padding = '0px 8px 4px 8px';
+        container.style.padding = '16px 8px 4px 8px';
 
         // 添加滚动事件监听器来保存滚动位置
         container.addEventListener('scroll', () => {
