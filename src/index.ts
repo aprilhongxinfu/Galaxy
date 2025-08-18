@@ -1014,7 +1014,13 @@ function activate(
           const { stage, tabId } = e.detail;
           currentSelection = { type: 'stage', stage, tabId };
           matrixWidget?.setFilter(currentSelection);
-          detailSidebar?.setFilter(currentSelection, true); // 跳过事件派发，避免循环
+          
+          // 如果有cluster被选中，不要改变右侧sidebar的状态
+          const hasSelectedCluster = matrixWidget && (matrixWidget as any).selectedClusterId && (matrixWidget as any).sortState === 3;
+          if (!hasSelectedCluster) {
+            detailSidebar?.setFilter(currentSelection, true); // 跳过事件派发，避免循环
+          }
+          
           // Track flowchart interaction
           analytics.trackFlowChartInteraction('stage_selected', {
             stage: stage,
@@ -1027,7 +1033,13 @@ function activate(
           const { from, to, tabId } = e.detail;
           currentSelection = { type: 'flow', from, to, tabId };
           matrixWidget?.setFilter(currentSelection);
-          detailSidebar?.setFilter(currentSelection, true); // 跳过事件派发，避免循环
+          
+          // 如果有cluster被选中，不要改变右侧sidebar的状态
+          const hasSelectedCluster = matrixWidget && (matrixWidget as any).selectedClusterId && (matrixWidget as any).sortState === 3;
+          if (!hasSelectedCluster) {
+            detailSidebar?.setFilter(currentSelection, true); // 跳过事件派发，避免循环
+          }
+          
           // Track flowchart interaction
           analytics.trackFlowChartInteraction('flow_selected', {
             from: from,
