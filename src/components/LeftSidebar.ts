@@ -30,6 +30,7 @@ export class LeftSidebar extends Widget {
     private legendDiv: HTMLDivElement;
     private selection: any = null;
     private initialStageOrder: string[] = [];
+    private overviewStageOrder: string[] = []; // 保存overview模式下的stage排序，用作cluster模式下相等位置的fallback
     private _resizeObserver: ResizeObserver | null = null;
     private hiddenStages: Set<string> = new Set(); // 隐藏的 stage
     private _renderTimeout: any = null; // 防抖定时器
@@ -97,6 +98,8 @@ export class LeftSidebar extends Widget {
         
         this.stageData = sortedStages;
         this.initialStageOrder = this.stageData.map(d => d.stage);
+        // 保存overview模式下的stage排序作为fallback参考
+        this.overviewStageOrder = [...this.initialStageOrder];
 
         this.render();
 
@@ -1958,9 +1961,31 @@ export class LeftSidebar extends Widget {
             stageAvgPositions.set(stage, { avgPos, notebookCount: notebookPositions.length });
         });
         
-        // 按平均相对位置排序stages
+        // 按平均相对位置排序stages，当相对位置相等时，参考overview中的排序
         const sortedStages = Array.from(stageAvgPositions.entries())
-            .sort((a, b) => a[1].avgPos - b[1].avgPos)
+            .sort((a, b) => {
+                // 首先按平均相对位置排序
+                const positionDiff = a[1].avgPos - b[1].avgPos;
+                if (Math.abs(positionDiff) > 1e-6) { // 如果位置不相等（允许浮点数精度误差）
+                    return positionDiff;
+                }
+                
+                // 如果位置相等，参考overview中的排序
+                const aIndexInOverview = this.overviewStageOrder.indexOf(a[0]);
+                const bIndexInOverview = this.overviewStageOrder.indexOf(b[0]);
+                
+                // 如果两个stage都在overview排序中，按overview顺序排列
+                if (aIndexInOverview !== -1 && bIndexInOverview !== -1) {
+                    return aIndexInOverview - bIndexInOverview;
+                }
+                
+                // 如果只有一个在overview排序中，已存在的排在前面
+                if (aIndexInOverview !== -1) return -1;
+                if (bIndexInOverview !== -1) return 1;
+                
+                // 如果都不在overview排序中，按字典序排列
+                return a[0].localeCompare(b[0]);
+            })
             .map(([stage, data]) => ({ stage: String(stage), count: 0 }));
         
         this.stageData = sortedStages;
