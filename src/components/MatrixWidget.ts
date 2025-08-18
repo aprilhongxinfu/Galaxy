@@ -1467,7 +1467,7 @@ export class MatrixWidget extends Widget {
                         const notebookTitle = titleFromMap?.title || kernelId || 'Unknown';
 
                         let tooltipContent = `Stage: ${typeof LABEL_MAP !== 'undefined' ? (LABEL_MAP[String(d["1st-level label"] ?? "None")] ?? d["1st-level label"] ?? "None") : (d["1st-level label"] ?? "None")}` +
-                            `<br>Notebook Title: ${notebookTitle}` +
+                            `<br>Title: ${notebookTitle}` +
                             `<br>Lines: ${lineCount}`;
 
                         // 添加投票信息
