@@ -1370,10 +1370,27 @@ function activate(
             app.shell.activateById(flowChartWidget.id);
 
             const { mostFreqStage, mostFreqFlow } = flowChartWidget.getMostFrequentStageAndFlow();
+            
+            // 检查detailSidebar是否已经在右侧
+            const rightWidgets = Array.from(app.shell.widgets('right'));
+            const isAlreadyInRight = rightWidgets.includes(detailSidebar);
+            
+            // 先恢复状态
             detailSidebar.setFilter(null);
             detailSidebar.setSummary(result1, mostFreqStage, mostFreqFlow, matrixWidget.getNotebookOrder());
-            app.shell.add(detailSidebar, 'right');
+            
+            // 如果不在右侧才添加，避免重复触发onAfterAttach
+            if (!isAlreadyInRight) {
+              app.shell.add(detailSidebar, 'right');
+            }
             app.shell.activateById(detailSidebar.id);
+            
+            // 确保overview状态正确显示，延迟调用以覆盖可能的restoreDetailFilterState
+            setTimeout(() => {
+              if (detailSidebar && matrixWidget) {
+                detailSidebar.setSummary(result1, mostFreqStage, mostFreqFlow, matrixWidget.getNotebookOrder());
+              }
+            }, 0);
 
             // 确保matrix widget可见并激活
             if (matrixWidget && !matrixWidget.isVisible) {
