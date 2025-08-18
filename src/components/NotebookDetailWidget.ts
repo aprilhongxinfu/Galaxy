@@ -118,6 +118,43 @@ export class NotebookDetailWidget extends Widget {
         const stageSelectionKey = `_galaxyStageSelection_${tabId}`;
         (window as any)[stageSelectionKey] = detail.stage;
         
+        // 查找第一个匹配该stage的cell并跳转
+        const cells = this.notebook.cells ?? [];
+        let firstStageCell = -1;
+        for (let i = 0; i < cells.length; i++) {
+          const cellStage = String(cells[i]["1st-level label"] ?? 'None');
+          if (cellStage === detail.stage) {
+            firstStageCell = i;
+            break;
+          }
+        }
+        
+        // 如果找到了匹配的cell，自动选中并跳转
+        if (firstStageCell !== -1) {
+          this.selectedCellIdx = firstStageCell;
+          // 使用局部更新
+          this.updateMinimapHighlight();
+          this.updateCellSelection();
+          this.updateNavigationControls();
+          
+          // 跳转到该cell并添加高亮效果
+          setTimeout(() => {
+            const cellList = this.node.querySelector('#nbd-cell-list-scroll');
+            if (!cellList) return;
+            const cellDivs = cellList.querySelectorAll('.nbd-cell');
+            const target = cellDivs[firstStageCell]?.parentElement as HTMLElement;
+            if (target) {
+              target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+              target.style.background = 'linear-gradient(90deg, #f0f8ff 0%, #e6f3ff 100%)';
+              target.style.transition = 'background 0.4s ease';
+              setTimeout(() => {
+                target.style.background = '';
+                target.style.transition = '';
+              }, 1000);
+            }
+          }, 0);
+        }
+        
         // 需要重新渲染以显示导航控件
         this.render();
       }
@@ -147,6 +184,55 @@ export class NotebookDetailWidget extends Widget {
       if (detail && detail.from && detail.to) {
         const flowSelectionKey = `_galaxyFlowSelection_${tabId}`;
         (window as any)[flowSelectionKey] = { from: detail.from, to: detail.to };
+        
+        // 查找第一个匹配该flow transition的cell并跳转
+        const cells = this.notebook.cells ?? [];
+        let firstTransitionCell = -1;
+        
+        // 构建stage序列，忽略markdown cell
+        const stageSeq: { stage: string; cellIndex: number }[] = [];
+        cells.forEach((cell: any, i: number) => {
+          if (cell.cellType === 'code') {
+            const stage = String(cell["1st-level label"] ?? 'None');
+            stageSeq.push({ stage, cellIndex: i });
+          }
+        });
+        
+        // 在stage序列中查找第一个匹配的transition
+        for (let i = 0; i < stageSeq.length - 1; i++) {
+          const currStage = stageSeq[i].stage;
+          const nextStage = stageSeq[i + 1].stage;
+          if (currStage === detail.from && nextStage === detail.to) {
+            firstTransitionCell = stageSeq[i].cellIndex; // 使用transition的第一个cell
+            break;
+          }
+        }
+        
+        // 如果找到了匹配的transition cell，自动选中并跳转
+        if (firstTransitionCell !== -1) {
+          this.selectedCellIdx = firstTransitionCell;
+          // 使用局部更新
+          this.updateMinimapHighlight();
+          this.updateCellSelection();
+          this.updateNavigationControls();
+          
+          // 跳转到该cell并添加高亮效果
+          setTimeout(() => {
+            const cellList = this.node.querySelector('#nbd-cell-list-scroll');
+            if (!cellList) return;
+            const cellDivs = cellList.querySelectorAll('.nbd-cell');
+            const target = cellDivs[firstTransitionCell]?.parentElement as HTMLElement;
+            if (target) {
+              target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+              target.style.background = 'linear-gradient(90deg, #f0f8ff 0%, #e6f3ff 100%)';
+              target.style.transition = 'background 0.4s ease';
+              setTimeout(() => {
+                target.style.background = '';
+                target.style.transition = '';
+              }, 1000);
+            }
+          }, 0);
+        }
         
         // 需要重新渲染以显示导航控件
         this.render();
