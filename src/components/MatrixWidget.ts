@@ -2,6 +2,7 @@ import { Widget } from '@lumino/widgets';
 import * as d3 from 'd3';
 import { LABEL_MAP } from './labelMap';
 import { STAGE_GROUP_MAP } from './stage_hierarchy';
+import { analytics } from '../analytics/posthog-config';
 
 type Cell = {
     cellId: number;
@@ -288,6 +289,16 @@ export class MatrixWidget extends Widget {
             this.sortButton.innerHTML = this.getSortIcon(); // 更新length按钮图标
             this.updateSortButtonState();
 
+            // Track matrix sort change
+            analytics.trackMatrixInteraction('sort_changed', {
+                sortType: 'similarity_clustering',
+                sortState: this.sortState,
+                lengthSortEnabled: this.lengthSortEnabled,
+                clusterMode: this.sortState === 3,
+                selectedClusterId: this.selectedClusterId,
+                interaction_context: 'similarity_clustering'
+            });
+
             this.saveFilterState();
             this.drawMatrix();
 
@@ -365,6 +376,16 @@ export class MatrixWidget extends Widget {
             this.voteSortButton.innerHTML = this.getVoteSortIcon();
             this.sortButton.innerHTML = this.getSortIcon(); // 更新length按钮图标
             this.updateSortButtonState();
+
+            // Track matrix sort change
+            analytics.trackMatrixInteraction('sort_changed', {
+                sortType: 'vote_sort',
+                voteEnabled: this.voteEnabled,
+                sortState: this.sortState,
+                lengthSortEnabled: this.lengthSortEnabled,
+                isClusterMode: this.sortState === 3,
+                interaction_context: 'vote_based_sorting'
+            });
 
             this.saveFilterState();
             this.drawMatrix();
@@ -460,6 +481,16 @@ export class MatrixWidget extends Widget {
             this.voteSortButton.innerHTML = this.getVoteSortIcon(); // 更新vote按钮图标
             this.updateSortButtonState();
 
+            // Track matrix sort change
+            analytics.trackMatrixInteraction('sort_changed', {
+                sortType: 'length_sort',
+                sortState: this.sortState,
+                lengthSortEnabled: this.lengthSortEnabled,
+                clusterSizeSortDirection: this.clusterSizeSortDirection,
+                isClusterMode: this.sortState === 3,
+                interaction_context: 'notebook_length_sorting'
+            });
+
             this.saveFilterState();
             this.drawMatrix();
 
@@ -526,6 +557,15 @@ export class MatrixWidget extends Widget {
             }
             this.cellHeightButton.innerHTML = this.getCellHeightIcon();
             this.updateSortButtonState();
+
+            // Track cell height mode change
+            analytics.trackMatrixInteraction('icon_click', {
+                iconType: 'cell_height',
+                cellHeightMode: this.cellHeightMode,
+                previousMode: this.cellHeightMode === 'fixed' ? 'dynamic' : 'fixed',
+                interaction_context: 'cell_height_toggle'
+            });
+
             this.saveFilterState();
             this.drawMatrix();
 
@@ -572,6 +612,15 @@ export class MatrixWidget extends Widget {
             this.showMarkdown = !this.showMarkdown;
             this.markdownButton.innerHTML = this.getMarkdownIcon();
             this.updateSortButtonState();
+
+            // Track markdown visibility toggle
+            analytics.trackMatrixInteraction('icon_click', {
+                iconType: 'markdown_toggle',
+                showMarkdown: this.showMarkdown,
+                action: this.showMarkdown ? 'show' : 'hide',
+                interaction_context: 'markdown_visibility'
+            });
+
             this.saveFilterState();
             this.drawMatrix();
 
@@ -1548,6 +1597,17 @@ export class MatrixWidget extends Widget {
                         }
                     })
                     .on('click', function (event, d) {
+                        // Track matrix cell click
+                        analytics.trackMatrixInteraction('cell_click', {
+                            cellType: d.cellType,
+                            stageLabel: d["1st-level label"],
+                            notebookIndex: nb.globalIndex,
+                            cellIndex: i,
+                            kernelVersionId: (nb as any).kernelVersionId,
+                            notebookName: (nb as any).notebook_name,
+                            interaction_context: 'cell_navigation'
+                        });
+
                         // 派发 notebook 跳转和 cell 详情事件
                         // 先隐藏 tooltip
                         const tooltip = document.getElementById('galaxy-tooltip');
@@ -1576,6 +1636,18 @@ export class MatrixWidget extends Widget {
                                         cell: { ...d, notebookIndex: nb.globalIndex, cellIndex: originalCellIndex, _notebookDetail: notebookObj }
                                     }
                                 }));
+                                
+                                // Track cell detail opened from matrix
+                                analytics.trackCellDetailOpened({
+                                    cellType: d.cellType,
+                                    cellIndex: originalCellIndex,
+                                    notebookIndex: nb.globalIndex,
+                                    notebookId: `Notebook ${nb.globalIndex}`,
+                                    notebookName: (nb as any).notebook_name,
+                                    kernelVersionId: (nb as any).kernelVersionId,
+                                    stageLabel: d["1st-level label"],
+                                    source: 'matrix'
+                                });
                             }
                         }, 0);
                     });
@@ -2096,6 +2168,14 @@ export class MatrixWidget extends Widget {
         // 重新绘制矩阵以更新高亮状态
         this.drawMatrix();
 
+        // Track cluster selection
+        analytics.trackMatrixInteraction('cluster_selected', {
+            clusterId: this.selectedClusterId,
+            action: this.selectedClusterId ? 'select' : 'deselect',
+            clusterSize: this.selectedClusterId ? this.getClusterFilteredNotebooks().length : 0,
+            interaction_context: 'cluster_filtering'
+        });
+
         // 派发cluster选择事件，通知LeftSidebar更新数据
         const clusterFilteredNotebooks = this.getClusterFilteredNotebooks();
         window.dispatchEvent(new CustomEvent('galaxy-cluster-selected', {
@@ -2446,7 +2526,16 @@ export class MatrixWidget extends Widget {
 
     // 清除cluster选择
     private clearClusterSelection() {
+        const previousClusterId = this.selectedClusterId;
         this.selectedClusterId = null;
+
+        // Track cluster clear action
+        analytics.trackMatrixInteraction('icon_click', {
+            iconType: 'clear_cluster',
+            previousClusterId: previousClusterId,
+            action: 'clear_selection',
+            interaction_context: 'cluster_management'
+        });
 
         // 清除之前的stage或transition选中状态
         (window as any)._galaxyStageSelection = null;
@@ -2467,6 +2556,14 @@ export class MatrixWidget extends Widget {
     // 滚动到选中的cluster位置
     private scrollToCluster() {
         if (!this.selectedClusterId) return;
+
+        // Track scroll to cluster action
+        analytics.trackMatrixInteraction('icon_click', {
+            iconType: 'scroll_to_cluster',
+            clusterId: this.selectedClusterId,
+            action: 'scroll_to_position',
+            interaction_context: 'cluster_navigation'
+        });
 
         const matrixContainer = this.node.querySelector('.matrix-container') as HTMLElement;
         if (!matrixContainer) return;
