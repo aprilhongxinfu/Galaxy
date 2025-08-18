@@ -47,23 +47,55 @@ export class LeftSidebar extends Widget {
         // 默认隐藏 Commented 和 Other
         this.hiddenStages = new Set(['10', '12']);
 
-        // 初始化 stageData 顺序（只做一次）
-        const stageStats = new Map<string, { count: number }>();
+        // 初始化 stageData 顺序：基于在所有notebook中的平均相对位置
+        const stageNotebookPositions = new Map<string, number[]>(); // stage -> array of average positions in each notebook
+        
         this.data.forEach((nb) => {
-            const cells = [...nb.cells]
+            const codeCells = [...nb.cells]
                 .sort((a, b) => a.cellId - b.cellId)
                 .filter((d) => d.cellType === 'code');
-            cells.forEach((cell) => {
+            
+            if (codeCells.length === 0) return;
+            
+            // 计算这个notebook中每个stage的平均相对位置
+            const stagePositionsInThisNotebook = new Map<string, number[]>();
+            codeCells.forEach((cell, index) => {
                 const stage = String(cell["1st-level label"] ?? "None");
-                if (!stageStats.has(stage)) {
-                    stageStats.set(stage, {
-                        count: 0
-                    });
+                if (stage === "None") return;
+                
+                // 计算这个cell在notebook中的相对位置
+                const relativePos = codeCells.length > 1 ? index / (codeCells.length - 1) : 0.5;
+                
+                if (!stagePositionsInThisNotebook.has(stage)) {
+                    stagePositionsInThisNotebook.set(stage, []);
                 }
-                stageStats.get(stage)!.count++;
+                stagePositionsInThisNotebook.get(stage)!.push(relativePos);
+            });
+            
+            // 计算每个stage在这个notebook中的平均位置，并添加到全局记录中
+            stagePositionsInThisNotebook.forEach((positions, stage) => {
+                const avgPosInThisNotebook = positions.reduce((sum, pos) => sum + pos, 0) / positions.length;
+                
+                if (!stageNotebookPositions.has(stage)) {
+                    stageNotebookPositions.set(stage, []);
+                }
+                stageNotebookPositions.get(stage)!.push(avgPosInThisNotebook);
             });
         });
-        this.stageData = Array.from(stageStats.keys()).map(stage => ({ stage: String(stage), count: 0 }));
+        
+        // 计算每个stage在所有包含它的notebook中的最终平均相对位置
+        const stageAvgPositions = new Map<string, { avgPos: number, notebookCount: number }>();
+        stageNotebookPositions.forEach((notebookPositions, stage) => {
+            const avgPos = notebookPositions.reduce((sum, pos) => sum + pos, 0) / notebookPositions.length;
+            stageAvgPositions.set(stage, { avgPos, notebookCount: notebookPositions.length });
+        });
+        
+        // 按平均相对位置排序stages
+        const sortedStages = Array.from(stageAvgPositions.entries())
+            .sort((a, b) => a[1].avgPos - b[1].avgPos)
+            .map(([stage, data]) => ({ stage: String(stage), count: 0 }));
+        
+        this.stageData = sortedStages;
         this.initialStageOrder = this.stageData.map(d => d.stage);
 
         this.render();
@@ -1883,23 +1915,55 @@ export class LeftSidebar extends Widget {
 
         // 保持当前的selection状态，不清除
         // this.selection = null;
-        // 重新初始化 stageData 和 initialStageOrder
-        const stageStats = new Map<string, { count: number }>();
+        // 重新初始化 stageData 和 initialStageOrder：基于在所有notebook中的平均相对位置
+        const stageNotebookPositions = new Map<string, number[]>(); // stage -> array of average positions in each notebook
+        
         this.data.forEach((nb) => {
-            const cells = [...nb.cells]
+            const codeCells = [...nb.cells]
                 .sort((a, b) => a.cellId - b.cellId)
                 .filter((d) => d.cellType === 'code');
-            cells.forEach((cell) => {
+            
+            if (codeCells.length === 0) return;
+            
+            // 计算这个notebook中每个stage的平均相对位置
+            const stagePositionsInThisNotebook = new Map<string, number[]>();
+            codeCells.forEach((cell, index) => {
                 const stage = String(cell["1st-level label"] ?? "None");
-                if (!stageStats.has(stage)) {
-                    stageStats.set(stage, {
-                        count: 0
-                    });
+                if (stage === "None") return;
+                
+                // 计算这个cell在notebook中的相对位置
+                const relativePos = codeCells.length > 1 ? index / (codeCells.length - 1) : 0.5;
+                
+                if (!stagePositionsInThisNotebook.has(stage)) {
+                    stagePositionsInThisNotebook.set(stage, []);
                 }
-                stageStats.get(stage)!.count++;
+                stagePositionsInThisNotebook.get(stage)!.push(relativePos);
+            });
+            
+            // 计算每个stage在这个notebook中的平均位置，并添加到全局记录中
+            stagePositionsInThisNotebook.forEach((positions, stage) => {
+                const avgPosInThisNotebook = positions.reduce((sum, pos) => sum + pos, 0) / positions.length;
+                
+                if (!stageNotebookPositions.has(stage)) {
+                    stageNotebookPositions.set(stage, []);
+                }
+                stageNotebookPositions.get(stage)!.push(avgPosInThisNotebook);
             });
         });
-        this.stageData = Array.from(stageStats.keys()).map(stage => ({ stage: String(stage), count: 0 }));
+        
+        // 计算每个stage在所有包含它的notebook中的最终平均相对位置
+        const stageAvgPositions = new Map<string, { avgPos: number, notebookCount: number }>();
+        stageNotebookPositions.forEach((notebookPositions, stage) => {
+            const avgPos = notebookPositions.reduce((sum, pos) => sum + pos, 0) / notebookPositions.length;
+            stageAvgPositions.set(stage, { avgPos, notebookCount: notebookPositions.length });
+        });
+        
+        // 按平均相对位置排序stages
+        const sortedStages = Array.from(stageAvgPositions.entries())
+            .sort((a, b) => a[1].avgPos - b[1].avgPos)
+            .map(([stage, data]) => ({ stage: String(stage), count: 0 }));
+        
+        this.stageData = sortedStages;
         this.initialStageOrder = this.stageData.map(d => d.stage);
 
 
