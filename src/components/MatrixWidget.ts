@@ -122,9 +122,10 @@ export class MatrixWidget extends Widget {
 
         // Listen for changes
         assignmentSelect.onchange = () => {
-            // 保存当前的高亮状态
+            // 保存当前的高亮状态和cluster选择状态
             const currentStageSelection = (window as any)._galaxyStageSelection;
             const currentFlowSelection = (window as any)._galaxyFlowSelection;
+            const currentSelectedCluster = this.selectedClusterId;
 
             (this as any)._assignmentFilter = assignmentSelect.value;
             this.saveFilterState();
@@ -142,15 +143,35 @@ export class MatrixWidget extends Widget {
                 } else if (currentFlowSelection) {
                     this.applyFlowHighlight(currentFlowSelection.from, currentFlowSelection.to);
                 }
+                
+                // 如果有选中的cluster且在cluster模式下，滚动到cluster位置
+                if (currentSelectedCluster && this.sortState === 3) {
+                    setTimeout(() => {
+                        this.scrollToCluster();
+                    }, 200); // 给足够时间让DOM更新
+                }
             }, 100);
 
+            // 派发筛选事件和cluster选择事件
             const filteredNotebooks = this.getFilteredNotebooks();
             window.dispatchEvent(new CustomEvent('galaxy-matrix-filtered', { detail: { notebooks: filteredNotebooks } }));
+            
+            // 如果在cluster模式下，派发cluster选择事件以更新左边的flowchart
+            if (this.sortState === 3) {
+                const clusterFilteredNotebooks = this.getClusterFilteredNotebooks();
+                window.dispatchEvent(new CustomEvent('galaxy-cluster-selected', {
+                    detail: {
+                        clusterId: this.selectedClusterId,
+                        notebooks: clusterFilteredNotebooks
+                    }
+                }));
+            }
         };
         studentSelect.onchange = () => {
-            // 保存当前的高亮状态
+            // 保存当前的高亮状态和cluster选择状态
             const currentStageSelection = (window as any)._galaxyStageSelection;
             const currentFlowSelection = (window as any)._galaxyFlowSelection;
+            const currentSelectedCluster = this.selectedClusterId;
 
             (this as any)._studentFilter = studentSelect.value;
             this.saveFilterState();
@@ -168,10 +189,29 @@ export class MatrixWidget extends Widget {
                 } else if (currentFlowSelection) {
                     this.applyFlowHighlight(currentFlowSelection.from, currentFlowSelection.to);
                 }
+                
+                // 如果有选中的cluster且在cluster模式下，滚动到cluster位置
+                if (currentSelectedCluster && this.sortState === 3) {
+                    setTimeout(() => {
+                        this.scrollToCluster();
+                    }, 200); // 给足够时间让DOM更新
+                }
             }, 100);
 
+            // 派发筛选事件和cluster选择事件
             const filteredNotebooks = this.getFilteredNotebooks();
             window.dispatchEvent(new CustomEvent('galaxy-matrix-filtered', { detail: { notebooks: filteredNotebooks } }));
+            
+            // 如果在cluster模式下，派发cluster选择事件以更新左边的flowchart
+            if (this.sortState === 3) {
+                const clusterFilteredNotebooks = this.getClusterFilteredNotebooks();
+                window.dispatchEvent(new CustomEvent('galaxy-cluster-selected', {
+                    detail: {
+                        clusterId: this.selectedClusterId,
+                        notebooks: clusterFilteredNotebooks
+                    }
+                }));
+            }
         };
 
         // 排序按钮区域
@@ -212,13 +252,14 @@ export class MatrixWidget extends Widget {
         this.similaritySortButton.innerHTML = this.getSimilaritySortIcon();
         this.addTooltipToButton(this.similaritySortButton, () => 'Toggle clustering');
         this.similaritySortButton.onclick = () => {
-            // 保存当前的高亮状态
+            // 保存当前的高亮状态和cluster选择状态
             const currentStageSelection = (window as any)._galaxyStageSelection;
             const currentFlowSelection = (window as any)._galaxyFlowSelection;
 
             if (this.sortState === 3) {
-                // 取消cluster时，重置length排序状态
+                // 取消cluster时，重置length排序状态，但清除cluster选择
                 this.sortState = 0;
+                this.selectedClusterId = null; // 关闭cluster模式时清除选择
                 this.similaritySortButton.classList.remove('active');
                 if (!this.voteEnabled) {
                     // vote未激活时，length应该为默认状态的激活状态
@@ -264,8 +305,18 @@ export class MatrixWidget extends Widget {
                 }
             }, 100);
 
+            // 派发筛选事件和cluster选择事件
             const filteredNotebooks = this.getFilteredNotebooks();
             window.dispatchEvent(new CustomEvent('galaxy-matrix-filtered', { detail: { notebooks: filteredNotebooks } }));
+            
+            // 派发cluster选择事件以更新左边的flowchart
+            const clusterFilteredNotebooks = this.getClusterFilteredNotebooks();
+            window.dispatchEvent(new CustomEvent('galaxy-cluster-selected', {
+                detail: {
+                    clusterId: this.selectedClusterId,
+                    notebooks: clusterFilteredNotebooks
+                }
+            }));
         };
         leftSortButtons.appendChild(this.similaritySortButton);
 
@@ -281,9 +332,10 @@ export class MatrixWidget extends Widget {
         this.voteSortButton.innerHTML = this.getVoteSortIcon();
         this.addTooltipToButton(this.voteSortButton, () => this.voteEnabled ? 'Sorted by votes' : 'Sort by votes');
         this.voteSortButton.onclick = () => {
-            // 保存当前的高亮状态
+            // 保存当前的高亮状态和cluster选择状态
             const currentStageSelection = (window as any)._galaxyStageSelection;
             const currentFlowSelection = (window as any)._galaxyFlowSelection;
+            const currentSelectedCluster = this.selectedClusterId;
 
             this.voteEnabled = !this.voteEnabled;
             if (this.voteEnabled) {
@@ -329,10 +381,29 @@ export class MatrixWidget extends Widget {
                 } else if (currentFlowSelection) {
                     this.applyFlowHighlight(currentFlowSelection.from, currentFlowSelection.to);
                 }
+                
+                // 如果有选中的cluster且在cluster模式下，滚动到cluster位置
+                if (currentSelectedCluster && this.sortState === 3) {
+                    setTimeout(() => {
+                        this.scrollToCluster();
+                    }, 200); // 给足够时间让DOM更新
+                }
             }, 100);
 
+            // 派发筛选事件和cluster选择事件
             const filteredNotebooks = this.getFilteredNotebooks();
             window.dispatchEvent(new CustomEvent('galaxy-matrix-filtered', { detail: { notebooks: filteredNotebooks } }));
+            
+            // 如果在cluster模式下，派发cluster选择事件以更新左边的flowchart
+            if (this.sortState === 3) {
+                const clusterFilteredNotebooks = this.getClusterFilteredNotebooks();
+                window.dispatchEvent(new CustomEvent('galaxy-cluster-selected', {
+                    detail: {
+                        clusterId: this.selectedClusterId,
+                        notebooks: clusterFilteredNotebooks
+                    }
+                }));
+            }
         };
         leftSortButtons.appendChild(this.voteSortButton);
 
@@ -348,9 +419,10 @@ export class MatrixWidget extends Widget {
         this.sortButton.innerHTML = this.getSortIcon();
         this.addTooltipToButton(this.sortButton, () => this.getSortButtonTooltip());
         this.sortButton.onclick = () => {
-            // 保存当前的高亮状态
+            // 保存当前的高亮状态和cluster选择状态
             const currentStageSelection = (window as any)._galaxyStageSelection;
             const currentFlowSelection = (window as any)._galaxyFlowSelection;
+            const currentSelectedCluster = this.selectedClusterId;
 
             // 切换length排序状态
             if (this.sortState === 3) {
@@ -403,10 +475,29 @@ export class MatrixWidget extends Widget {
                 } else if (currentFlowSelection) {
                     this.applyFlowHighlight(currentFlowSelection.from, currentFlowSelection.to);
                 }
+                
+                // 如果有选中的cluster且在cluster模式下，滚动到cluster位置
+                if (currentSelectedCluster && this.sortState === 3) {
+                    setTimeout(() => {
+                        this.scrollToCluster();
+                    }, 200); // 给足够时间让DOM更新
+                }
             }, 100);
 
+            // 派发筛选事件和cluster选择事件
             const filteredNotebooks = this.getFilteredNotebooks();
             window.dispatchEvent(new CustomEvent('galaxy-matrix-filtered', { detail: { notebooks: filteredNotebooks } }));
+            
+            // 如果在cluster模式下，派发cluster选择事件以更新左边的flowchart
+            if (this.sortState === 3) {
+                const clusterFilteredNotebooks = this.getClusterFilteredNotebooks();
+                window.dispatchEvent(new CustomEvent('galaxy-cluster-selected', {
+                    detail: {
+                        clusterId: this.selectedClusterId,
+                        notebooks: clusterFilteredNotebooks
+                    }
+                }));
+            }
         };
         leftSortButtons.appendChild(this.sortButton);
 
@@ -422,9 +513,10 @@ export class MatrixWidget extends Widget {
         this.cellHeightButton.innerHTML = this.getCellHeightIcon();
         this.addTooltipToButton(this.cellHeightButton, () => this.cellHeightMode === 'fixed' ? 'Fixed height' : 'Dynamic height');
         this.cellHeightButton.onclick = () => {
-            // 保存当前的高亮状态
+            // 保存当前的高亮状态和cluster选择状态
             const currentStageSelection = (window as any)._galaxyStageSelection;
             const currentFlowSelection = (window as any)._galaxyFlowSelection;
+            const currentSelectedCluster = this.selectedClusterId;
 
             // 在两种模式之间切换：fixed -> dynamic -> fixed
             if (this.cellHeightMode === 'fixed') {
@@ -449,6 +541,13 @@ export class MatrixWidget extends Widget {
                 } else if (currentFlowSelection) {
                     this.applyFlowHighlight(currentFlowSelection.from, currentFlowSelection.to);
                 }
+                
+                // 如果有选中的cluster且在cluster模式下，滚动到cluster位置
+                if (currentSelectedCluster && this.sortState === 3) {
+                    setTimeout(() => {
+                        this.scrollToCluster();
+                    }, 200); // 给足够时间让DOM更新
+                }
             }, 100);
         };
         rightButtons.appendChild(this.cellHeightButton);
@@ -465,9 +564,10 @@ export class MatrixWidget extends Widget {
         this.markdownButton.innerHTML = this.getMarkdownIcon();
         this.addTooltipToButton(this.markdownButton, () => 'Toggle markdown');
         this.markdownButton.onclick = () => {
-            // 保存当前的高亮状态
+            // 保存当前的高亮状态和cluster选择状态
             const currentStageSelection = (window as any)._galaxyStageSelection;
             const currentFlowSelection = (window as any)._galaxyFlowSelection;
+            const currentSelectedCluster = this.selectedClusterId;
 
             this.showMarkdown = !this.showMarkdown;
             this.markdownButton.innerHTML = this.getMarkdownIcon();
@@ -486,6 +586,13 @@ export class MatrixWidget extends Widget {
                         .classed('matrix-dim', false);
                 } else if (currentFlowSelection) {
                     this.applyFlowHighlight(currentFlowSelection.from, currentFlowSelection.to);
+                }
+                
+                // 如果有选中的cluster且在cluster模式下，滚动到cluster位置
+                if (currentSelectedCluster && this.sortState === 3) {
+                    setTimeout(() => {
+                        this.scrollToCluster();
+                    }, 200); // 给足够时间让DOM更新
                 }
             }, 100);
         };
