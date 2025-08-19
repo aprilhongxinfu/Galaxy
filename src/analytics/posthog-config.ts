@@ -36,27 +36,24 @@ export class PostHogAnalytics {
       // 使用一个简单可靠的IP服务
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000); // 5秒超时
-      
-      const response = await fetch('https://api.ipify.org?format=json', { 
+
+      const response = await fetch('https://api.ipify.org?format=json', {
         method: 'GET',
         signal: controller.signal
       });
-      
+
       clearTimeout(timeoutId);
-      
+
       if (response.ok) {
         const data = await response.json();
         if (data.ip) {
-          console.log(`🌐 User IP detected: ${data.ip}`);
           return data.ip;
         }
       }
-      
+
       // 如果服务失败，返回fallback
-      console.warn('IP service failed, using fallback identifier');
       return 'unknown_ip';
     } catch (error) {
-      console.warn('Failed to get user IP:', error);
       return 'unknown_ip';
     }
   }
@@ -72,8 +69,6 @@ export class PostHogAnalytics {
     return `galaxy_user_${ip}`;
   }
 
-
-
   public static getInstance(): PostHogAnalytics {
     if (!PostHogAnalytics.instance) {
       PostHogAnalytics.instance = new PostHogAnalytics();
@@ -85,12 +80,9 @@ export class PostHogAnalytics {
     try {
       // Check if PostHog is properly configured
       if (!isPostHogConfigured()) {
-        console.warn('🔧 PostHog Analytics: Not configured. Please set your API key in src/analytics/config.ts');
-        console.warn('📊 To get your API key: 1) Visit https://app.posthog.com 2) Create a project 3) Copy the API key');
+        console.warn('PostHog Analytics: Not configured. Please set your API key in src/analytics/config.ts');
         return;
       }
-
-      console.log('🚀 Initializing PostHog Analytics...');
 
       // Initialize PostHog with official configuration
       posthog.init(
@@ -99,15 +91,11 @@ export class PostHogAnalytics {
           api_host: POSTHOG_CONFIG.API_HOST,
           defaults: '2025-05-24', // Official defaults parameter
           loaded: async (posthog) => {
-            console.log('✅ PostHog Analytics initialized successfully');
-            
             // Get user IP and generate identifier
             const userIP = await this.getUserIP();
             this.userIP = userIP; // 存储IP供后续使用
             const userIdentifier = this.generateUserIdentifier(userIP);
-            
-            console.log(`🆔 Identifying user with IP-based identifier: ${userIdentifier}`);
-            
+
             // Identify user with IP-based identifier
             posthog.identify(userIdentifier, {
               user_ip: userIP,
@@ -116,7 +104,7 @@ export class PostHogAnalytics {
               user_agent: navigator.userAgent,
               platform: navigator.platform
             });
-            
+
             this.isInitialized = true;
             this.trackSessionStart();
           },
@@ -125,19 +113,17 @@ export class PostHogAnalytics {
           persistence: 'localStorage',
           autocapture: false, // Disable automatic event capture as specified in official config
           on_request_error: (error) => {
-            console.error('❌ PostHog API Error:', error);
-            console.warn('💡 Check network connectivity and PostHog service status');
+            console.error('PostHog API Error:', error);
           },
           // Session Recording Configuration
           disable_session_recording: !POSTHOG_CONFIG.ENABLE_SESSION_RECORDING,
-          
+
           // Additional settings for better performance  
           disable_web_experiments: true,
         }
       );
     } catch (error) {
-      console.error('❌ Failed to initialize PostHog:', error);
-      console.warn('💡 Please check your API key configuration in src/analytics/config.ts');
+      console.error('Failed to initialize PostHog:', error);
     }
   }
 
@@ -162,7 +148,7 @@ export class PostHogAnalytics {
     if (this.userIP === 'unknown_ip') {
       return 'unknown';
     }
-    
+
     // 简单的IP地址类型判断
     if (this.userIP.startsWith('192.168.') || this.userIP.startsWith('10.') || this.userIP.startsWith('172.')) {
       return 'local_network';
@@ -192,7 +178,6 @@ export class PostHogAnalytics {
     tabId?: string;
   }): void {
     if (!this.isInitialized) {
-      console.debug('📊 PostHog not initialized, skipping notebook opened tracking');
       return;
     }
 
@@ -211,41 +196,66 @@ export class PostHogAnalytics {
       totalCells: notebookData.totalCells,
       codeCells: notebookData.codeCells,
       tabTitle: notebookData.tabTitle || notebookData.notebookName || 'Unknown Tab',
-      
+
       // 会话信息
       sessionTime: Date.now() - this.sessionStartTime,
       session_id: `session_${this.sessionStartTime}`,
       notebooks_opened_count: this.openedNotebooks.size
     });
 
-    console.log('Tracked notebook opened:', notebookData.kernelVersionId);
+    // Notebook opened tracked
   }
 
   public trackNotebookClosed(kernelVersionId: string, additionalData?: { tabTitle?: string; tabId?: string }): void {
-    if (!this.isInitialized) return;
+    if (!this.isInitialized) {
+      return;
+    }
 
     const notebookData = this.openedNotebooks.get(kernelVersionId);
     if (notebookData) {
       const viewDuration = Date.now() - notebookData.openedAt;
-      
+
       posthog.capture(POSTHOG_CONFIG.EVENTS.NOTEBOOK_CLOSED, {
         // 核心数据
         kernelVersionId,
         notebookName: notebookData.notebookName,
         competitionId: notebookData.competitionId,
         tabTitle: additionalData?.tabTitle || notebookData.notebookName || 'Unknown Tab',
-        
+
         // 查看行为
         viewDuration,
         viewDurationMinutes: Math.round(viewDuration / 60000 * 100) / 100,
         viewDurationCategory: this.categorizeViewDuration(viewDuration),
-        
+
         // 会话信息
         sessionTime: Date.now() - this.sessionStartTime,
         session_id: `session_${this.sessionStartTime}`
       });
 
       this.openedNotebooks.delete(kernelVersionId);
+    } else {
+      // Even if notebook wasn't tracked in openedNotebooks, still send the close event
+
+      posthog.capture(POSTHOG_CONFIG.EVENTS.NOTEBOOK_CLOSED, {
+        // 核心数据
+        kernelVersionId,
+        notebookName: 'Unknown',
+        competitionId: undefined,
+        tabTitle: additionalData?.tabTitle || 'Unknown Tab',
+        tabId: additionalData?.tabId,
+
+        // 查看行为 - 无法计算，因为没有打开时间
+        viewDuration: 0,
+        viewDurationMinutes: 0,
+        viewDurationCategory: 'unknown',
+
+        // 会话信息
+        sessionTime: Date.now() - this.sessionStartTime,
+        session_id: `session_${this.sessionStartTime}`,
+
+        // 标记这是一个未跟踪的关闭事件
+        untracked_close: true
+      });
     }
   }
 
@@ -256,12 +266,12 @@ export class PostHogAnalytics {
   }): void {
     if (!this.isInitialized) return;
 
-        posthog.capture(POSTHOG_CONFIG.EVENTS.ANALYSIS_STARTED, {
+    posthog.capture(POSTHOG_CONFIG.EVENTS.ANALYSIS_STARTED, {
       // 分析数据
       competitionId: analysisData.competitionId,
       totalNotebooks: analysisData.totalNotebooks,
       fileName: analysisData.jsonFilePath.split('/').pop(),
-      
+
       // 会话信息  
       sessionTime: Date.now() - this.sessionStartTime,
       session_id: `session_${this.sessionStartTime}`,
@@ -298,21 +308,21 @@ export class PostHogAnalytics {
       // Interaction details
       interactionType,
       ...additionalData,
-      
+
       // Session context
       sessionTime: Date.now() - this.sessionStartTime,
       session_id: `session_${this.sessionStartTime}`,
       notebooks_currently_open: this.openedNotebooks.size,
-      
+
       // Timing
       timestamp: Date.now(),
       local_time: new Date().toLocaleString(),
-      
+
       // User context
       window_focused: document.hasFocus(),
       tab_visible: !document.hidden,
       viewport_size: `${window.innerWidth}x${window.innerHeight}`,
-      
+
       // Browser state
       current_url: window.location.href,
       online_status: navigator.onLine
@@ -332,7 +342,7 @@ export class PostHogAnalytics {
       const debounceKey = `move_${stageId}`;
       const lastMoveTime = this.moveDebounceMap.get(debounceKey) || 0;
       const now = Date.now();
-      
+
       // Debounce move events to max once per 500ms per stage
       if (now - lastMoveTime < 500) {
         return;
@@ -363,7 +373,7 @@ export class PostHogAnalytics {
       // 交互类型和核心数据
       interactionType,
       ...additionalData,
-      
+
       // 会话信息
       sessionTime: Date.now() - this.sessionStartTime,
       session_id: `session_${this.sessionStartTime}`
@@ -386,10 +396,10 @@ export class PostHogAnalytics {
       if (document.visibilityState === 'hidden') {
         // Start tracking how long the tab is hidden
         this.hiddenStartTime = Date.now();
-                 // Tab became hidden - could add tracking here if needed
-       } else if (document.visibilityState === 'visible') {
-         // Tab became visible again
-        
+        // Tab became hidden - could add tracking here if needed
+      } else if (document.visibilityState === 'visible') {
+        // Tab became visible again
+
         // If tab was hidden for more than 30 minutes, consider it a session end
         if (this.hiddenStartTime && (Date.now() - this.hiddenStartTime) > 30 * 60 * 1000) {
           this.trackSessionEnd('long_inactivity');
@@ -410,25 +420,22 @@ export class PostHogAnalytics {
 
   private trackSessionEnd(reason: string = 'unknown'): void {
     if (!this.isInitialized || this.sessionEnded) return;
-    
+
     this.sessionEnded = true; // Prevent multiple session end events
 
     const sessionDuration = Date.now() - this.sessionStartTime;
     const openedNotebooksArray = Array.from(this.openedNotebooks.values());
-    
+
     // Calculate statistics
     const totalNotebooksOpened = openedNotebooksArray.length;
     const competitionIds = [...new Set(openedNotebooksArray.map(nb => nb.competitionId).filter(Boolean))];
-    const avgViewTime = totalNotebooksOpened > 0 
-      ? openedNotebooksArray.reduce((sum, nb) => sum + (Date.now() - nb.openedAt), 0) / totalNotebooksOpened 
+    const avgViewTime = totalNotebooksOpened > 0
+      ? openedNotebooksArray.reduce((sum, nb) => sum + (Date.now() - nb.openedAt), 0) / totalNotebooksOpened
       : 0;
 
     // Calculate detailed session statistics
-    // const totalCells = openedNotebooksArray.reduce((sum, nb) => sum + (nb.totalCells || 0), 0);
-    // const totalCodeCells = openedNotebooksArray.reduce((sum, nb) => sum + (nb.codeCells || 0), 0);
     const sessionDurationMinutes = Math.round(sessionDuration / 60000 * 100) / 100;
-    // const sessionCategory = this.categorizeSessionDuration(sessionDuration);
-    
+
     // Send final tracking event with key data
     posthog.capture(POSTHOG_CONFIG.EVENTS.SESSION_ENDED, {
       // 会话概览
@@ -436,18 +443,18 @@ export class PostHogAnalytics {
       sessionDuration,
       sessionDurationMinutes,
       session_end_reason: reason,
-      
+
       // 核心统计
       totalNotebooksOpened,
       uniqueCompetitions: competitionIds.length,
       competitionIds,
       avgNotebookViewTimeMinutes: Math.round(avgViewTime / 60000 * 100) / 100,
       totalAnalysesPerformed: this.analysisCount,
-      
+
       // 用户行为
       most_viewed_competition: this.getMostViewedCompetition(openedNotebooksArray),
       engagement_score: this.calculateEngagementScore(sessionDuration, totalNotebooksOpened, avgViewTime),
-      
+
       // 打开的notebook列表 (简化版)
       notebookList: openedNotebooksArray.map(nb => ({
         kernelVersionId: nb.kernelVersionId,
@@ -462,15 +469,7 @@ export class PostHogAnalytics {
       (posthog as any).flush();
     }
 
-    console.log(`Session ended - Total notebooks opened: ${totalNotebooksOpened}, Session duration: ${sessionDuration}ms`);
-  }
-
-  public getSessionStats() {
-    return {
-      sessionDuration: Date.now() - this.sessionStartTime,
-      totalNotebooksOpened: this.openedNotebooks.size,
-      currentlyOpen: Array.from(this.openedNotebooks.keys())
-    };
+    // Session ended
   }
 
   private categorizeViewDuration(duration: number): string {
@@ -489,7 +488,7 @@ export class PostHogAnalytics {
         competitionCounts.set(nb.competitionId, (competitionCounts.get(nb.competitionId) || 0) + 1);
       }
     });
-    
+
     let mostViewed = 'none';
     let maxCount = 0;
     competitionCounts.forEach((count, competition) => {
@@ -498,7 +497,7 @@ export class PostHogAnalytics {
         mostViewed = competition;
       }
     });
-    
+
     return mostViewed;
   }
 
@@ -509,23 +508,23 @@ export class PostHogAnalytics {
     // Scale: 0-100
     const sessionMinutes = sessionDuration / 60000;
     const avgViewMinutes = avgViewTime / 60000;
-    
+
     let score = 0;
-    
+
     // Session duration factor (0-30 points)
     if (sessionMinutes > 60) score += 30;
     else if (sessionMinutes > 30) score += 25;
     else if (sessionMinutes > 15) score += 20;
     else if (sessionMinutes > 5) score += 15;
     else score += 5;
-    
+
     // Notebooks opened factor (0-40 points)
     if (notebooksOpened > 10) score += 40;
     else if (notebooksOpened > 5) score += 30;
     else if (notebooksOpened > 3) score += 20;
     else if (notebooksOpened > 1) score += 15;
     else if (notebooksOpened === 1) score += 10;
-    
+
     // Average view time factor (0-30 points)
     if (avgViewMinutes > 30) score += 30;
     else if (avgViewMinutes > 15) score += 25;
@@ -533,7 +532,7 @@ export class PostHogAnalytics {
     else if (avgViewMinutes > 2) score += 15;
     else if (avgViewMinutes > 1) score += 10;
     else score += 5;
-    
+
     return Math.min(score, 100);
   }
 
@@ -577,68 +576,32 @@ export class PostHogAnalytics {
       cellType: cellData.cellType,
       cellIndex: cellData.cellIndex,
       stageLabel: cellData.stageLabel,
-      
+
       // Notebook information
       notebookIndex: cellData.notebookIndex,
       notebookId: cellData.notebookId,
       notebookName: cellData.notebookName,
       kernelVersionId: cellData.kernelVersionId,
-      
+
       // Source context
       source: cellData.source,
       competitionId: cellData.competitionId,
-      
+
       // Session information
       sessionTime: Date.now() - this.sessionStartTime,
       session_id: `session_${this.sessionStartTime}`,
       notebooks_currently_open: this.openedNotebooks.size,
-      
+
       // Timing
       timestamp: Date.now(),
       local_time: new Date().toLocaleString(),
-      
+
       // User context
       window_focused: document.hasFocus(),
       tab_visible: !document.hidden,
       interaction_context: 'cell_exploration'
     });
   }
-
-  // Session Recording Control Methods
-  public startSessionRecording(): void {
-    if (!this.isInitialized || !POSTHOG_CONFIG.ENABLE_SESSION_RECORDING) return;
-    
-    try {
-      posthog.startSessionRecording();
-      console.log('📹 Session recording started');
-    } catch (error) {
-      console.error('❌ Failed to start session recording:', error);
-    }
-  }
-
-  public stopSessionRecording(): void {
-    if (!this.isInitialized) return;
-    
-    try {
-      posthog.stopSessionRecording();
-      console.log('⏹️ Session recording stopped');
-    } catch (error) {
-      console.error('❌ Failed to stop session recording:', error);
-    }
-  }
-
-  public getSessionRecordingUrl(): string | null {
-    if (!this.isInitialized) return null;
-    
-    try {
-      return posthog.get_session_replay_url() || null;
-    } catch (error) {
-      console.error('❌ Failed to get session recording URL:', error);
-      return null;
-    }
-  }
-
-
 
   public trackStageMove(moveData: {
     stage: string;
@@ -651,11 +614,11 @@ export class PostHogAnalytics {
     flowchartContext?: 'overview' | 'notebook_detail';
   }): void {
     const distance = moveData.moveDistance || (
-      moveData.oldPosition ? 
-      Math.sqrt(
-        Math.pow(moveData.newPosition.x - moveData.oldPosition.x, 2) + 
-        Math.pow(moveData.newPosition.y - moveData.oldPosition.y, 2)
-      ) : null
+      moveData.oldPosition ?
+        Math.sqrt(
+          Math.pow(moveData.newPosition.x - moveData.oldPosition.x, 2) +
+          Math.pow(moveData.newPosition.y - moveData.oldPosition.y, 2)
+        ) : null
     );
 
     this.trackFlowChartInteraction('stage_move', {
@@ -710,34 +673,6 @@ export class PostHogAnalytics {
       sessionTime: Date.now() - this.sessionStartTime,
       session_id: `session_${this.sessionStartTime}`,
       interaction_context: 'multi_notebook_analysis'
-    });
-  }
-
-
-
-  public trackNotebookComparison(comparisonData: {
-    notebookAId: string;
-    notebookBId: string;
-    notebookAName?: string;
-    notebookBName?: string;
-    comparisonType: 'side_by_side' | 'sequential_view' | 'tab_switching';
-    viewDuration?: number;
-    cellInteractions?: number;
-  }): void {
-    if (!this.isInitialized) return;
-
-    posthog.capture(POSTHOG_CONFIG.EVENTS.NOTEBOOK_COMPARISON_VIEWED, {
-      notebookAId: comparisonData.notebookAId,
-      notebookBId: comparisonData.notebookBId,
-      notebookAName: comparisonData.notebookAName,
-      notebookBName: comparisonData.notebookBName,
-      comparisonType: comparisonData.comparisonType,
-      viewDuration: comparisonData.viewDuration,
-      viewDurationMinutes: comparisonData.viewDuration ? Math.round(comparisonData.viewDuration / 60000 * 100) / 100 : undefined,
-      cellInteractions: comparisonData.cellInteractions,
-      sessionTime: Date.now() - this.sessionStartTime,
-      session_id: `session_${this.sessionStartTime}`,
-      interaction_context: 'notebook_comparison'
     });
   }
 }

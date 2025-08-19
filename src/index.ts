@@ -20,8 +20,10 @@ import { DetailSidebar } from './components/DetailSidebar';
 import { NotebookDetailWidget } from './components/NotebookDetailWidget';
 import { LabShell } from '@jupyterlab/application';
 import { csvParse } from 'd3-dsv';
-import { analytics } from './analytics/posthog-config';
+import { PostHogAnalytics } from './analytics/posthog-config';
 
+// Get analytics instance
+const analytics = PostHogAnalytics.getInstance();
 
 
 // 从JSON文件名中提取competition编号
@@ -65,52 +67,37 @@ function extractBaseDir(jsonPath: string): string | null {
 async function loadTocData(competitionId: string, baseDir: string): Promise<any[]> {
   try {
     if (!baseDir) {
-      console.log('No base directory provided for TOC data loading');
-      return [];
+              return [];
     }
 
     const tocPath = `${baseDir}/toc_data/${competitionId}_toc.json`;
-    console.log('TOC path:', tocPath);
+            // 尝试不同的路径格式
+        const alternativePaths = [
+          tocPath,
+          `./${baseDir}/toc_data/${competitionId}_toc.json`,
+          `/${baseDir}/toc_data/${competitionId}_toc.json`,
+          `${baseDir}/toc_data/${competitionId}_toc.json`
+        ];
+        const contentsManager = app?.serviceManager?.contents;
 
-    // 尝试不同的路径格式
-    const alternativePaths = [
-      tocPath,
-      `./${baseDir}/toc_data/${competitionId}_toc.json`,
-      `/${baseDir}/toc_data/${competitionId}_toc.json`,
-      `${baseDir}/toc_data/${competitionId}_toc.json`
-    ];
-    const contentsManager = app?.serviceManager?.contents;
-
-    if (!contentsManager) {
-      console.warn('Contents manager not available for TOC loading');
-      return [];
-    }
-
-    console.log(`Loading TOC data from: ${tocPath}`);
-    console.log('Available contents manager:', !!contentsManager);
+        if (!contentsManager) {
+          console.warn('Contents manager not available for TOC loading');
+          return [];
+        }
 
     // 尝试多个路径格式
     for (const path of alternativePaths) {
       try {
-        console.log(`Trying path: ${path}`);
         const model = await contentsManager.get(path, { type: 'file', format: 'text', content: true });
-        // console.log('File loaded successfully, content length:', (model.content as string).length);
-
         const tocData = JSON.parse(model.content as string);
-        // console.log(`TOC data loaded successfully for competition ${competitionId}, entries: ${tocData.length}`);
-        // console.log('First few TOC entries:', tocData.slice(0, 3));
         return tocData;
       } catch (fileError) {
-        console.log(`Failed to load from ${path}:`, (fileError as Error).message);
         continue;
       }
     }
-
-    console.log('TOC data file not found for competition:', competitionId);
     return [];
   } catch (error) {
-    console.log(`TOC data file not found for competition ${competitionId}: ${baseDir}/toc_data/${competitionId}_toc.json`);
-    return [];
+            return [];
   }
 }
 
@@ -118,51 +105,37 @@ async function loadTocData(competitionId: string, baseDir: string): Promise<any[
 async function loadSummaryData(competitionId: string, baseDir: string): Promise<any> {
   try {
     if (!baseDir) {
-      console.log('No base directory provided for Summary data loading');
-      return null;
+              return null;
     }
 
     const summaryPath = `${baseDir}/summary_data/${competitionId}_summarized.json`;
-    console.log('Summary path:', summaryPath);
+            // 尝试不同的路径格式
+        const alternativePaths = [
+          summaryPath,
+          `./${baseDir}/summary_data/${competitionId}_summarized.json`,
+          `/${baseDir}/summary_data/${competitionId}_summarized.json`,
+          `${baseDir}/summary_data/${competitionId}_summarized.json`
+        ];
+        const contentsManager = app?.serviceManager?.contents;
 
-    // 尝试不同的路径格式
-    const alternativePaths = [
-      summaryPath,
-      `./${baseDir}/summary_data/${competitionId}_summarized.json`,
-      `/${baseDir}/summary_data/${competitionId}_summarized.json`,
-      `${baseDir}/summary_data/${competitionId}_summarized.json`
-    ];
-    const contentsManager = app?.serviceManager?.contents;
-
-    if (!contentsManager) {
-      console.warn('Contents manager not available for Summary loading');
-      return null;
-    }
-
-    console.log(`Loading Summary data from: ${summaryPath}`);
-    console.log('Available contents manager:', !!contentsManager);
+        if (!contentsManager) {
+          console.warn('Contents manager not available for Summary loading');
+          return null;
+        }
 
     // 尝试多个路径格式
     for (const path of alternativePaths) {
       try {
-        console.log(`Trying path: ${path}`);
         const model = await contentsManager.get(path, { type: 'file', format: 'text', content: true });
-        console.log('Summary file loaded successfully, content length:', (model.content as string).length);
-
         const summaryData = JSON.parse(model.content as string);
-        console.log(`Summary data loaded successfully for competition ${competitionId}`);
         return summaryData;
       } catch (fileError) {
-        console.log(`Failed to load from ${path}:`, (fileError as Error).message);
         continue;
       }
     }
-
-    console.log('Summary data file not found for competition:', competitionId);
     return null;
   } catch (error) {
-    console.log(`Summary data file not found for competition ${competitionId}: ${baseDir}/summary_data/${competitionId}_summarized.json`);
-    return null;
+            return null;
   }
 }
 
@@ -173,21 +146,12 @@ function mergeTocData(notebooks: any[], tocData: any[]): any[] {
     tocMap.set(item.kernelVersionId, item.toc);
   });
 
-  // console.log('TOC data sample:', tocData.slice(0, 3));
-  // console.log('Notebooks sample:', notebooks.slice(0, 3).map(nb => ({
-  //   kernelVersionId: nb.kernelVersionId,
-  //   index: nb.index,
-  //   globalIndex: nb.globalIndex,
-  //   notebook_name: nb.notebook_name
-  // })));
-
   return notebooks.map(notebook => {
     const toc = tocMap.get(notebook.kernelVersionId);
     if (toc) {
-      // console.log(`Found TOC for notebook ${notebook.kernelVersionId}:`, toc.length, 'items');
       return { ...notebook, toc };
     } else {
-      console.log(`No TOC found for notebook ${notebook.kernelVersionId}`);
+              // No TOC found for notebook
     }
     return notebook;
   });
@@ -197,8 +161,7 @@ function mergeTocData(notebooks: any[], tocData: any[]): any[] {
 async function createKernelTitleMap(competitionId: string, baseDir: string): Promise<Map<string, { title: string; creationDate: string; totalLines: number; displayname?: string; url?: string }>> {
   try {
     if (!baseDir) {
-      console.log('No base directory provided for kernel data loading');
-      return new Map();
+              return new Map();
     }
 
     // 动态加载CSV文件
@@ -206,16 +169,11 @@ async function createKernelTitleMap(competitionId: string, baseDir: string): Pro
     const contentsManager = app?.serviceManager?.contents;
 
     if (!contentsManager) {
-      console.warn('Contents manager not available');
-      return new Map();
+              return new Map();
     }
 
-    console.log(`Attempting to load CSV from: ${csvPath}`);
-    const model = await contentsManager.get(csvPath, { type: 'file', format: 'text', content: true });
-    console.log(`CSV loaded successfully, content length: ${(model.content as string).length}`);
-
+            const model = await contentsManager.get(csvPath, { type: 'file', format: 'text', content: true });
     const csvData = csvParse(model.content as string);
-    // console.log(`CSV parsed, rows: ${csvData.length}, sample row:`, csvData[0]);
 
     const titleMap = new Map<string, { title: string; creationDate: string; totalLines: number; displayname?: string; url?: string }>();
     csvData.forEach((row: any) => {
@@ -230,12 +188,9 @@ async function createKernelTitleMap(competitionId: string, baseDir: string): Pro
       }
     });
 
-    console.log(`Created title map for competition ${competitionId} with ${titleMap.size} entries`);
-    // console.log(`Sample entries:`, Array.from(titleMap.entries()).slice(0, 3));
     return titleMap;
   } catch (error) {
-    console.log(`Kernel data file not found for competition ${competitionId}: ${baseDir}/kernel_data/competition_${competitionId}.csv`);
-    return new Map();
+            return new Map();
   }
 }
 
@@ -281,6 +236,7 @@ let matrixWidget: MatrixWidget | null = null;
 
 let notebookDetailIds = new Set<string>();
 let colorMap: any = null;
+let isInitializing = false; // 添加初始化标志
 
 // 添加滚动同步相关的全局变量
 let scrollSyncEnabled = false;
@@ -296,7 +252,7 @@ function activate(
   browserFactory: IFileBrowserFactory,
   restorer: ILayoutRestorer | null
 ) {
-  console.log('✅ JupyterLab extension galaxy is now!');
+  // Extension activated
 
   const command = 'galaxy:analyze';
 
@@ -314,25 +270,18 @@ function activate(
       const mainArea = layout.mainArea;
 
       // 添加调试信息
-      // console.log('Layout structure:', layout);
-      // console.log('Main area:', mainArea);
-
       // 递归检查是否分屏
       function isSplitScreen(area: any): boolean {
         if (!area) return false;
 
-        // console.log('Checking area:', area);
-
         // 检查是否有 dock.main 结构
         if (area.dock && area.dock.main) {
-          // console.log('Found dock.main, checking:', area.dock.main);
           return isSplitScreen(area.dock.main);
         }
 
         if (area.type === 'split-area') {
           // 并行多个子区域（不是单个 tab-area）
           if (area.children && area.children.length > 1) {
-            // console.log('Found split-area with multiple children:', area.children.length);
             return true;
           }
         }
@@ -344,7 +293,6 @@ function activate(
 
         // 如果是 tab-area, 不代表分屏
         if (area.type === 'tab-area') {
-          // console.log('Found tab-area:', area);
           return false;
         }
 
@@ -352,11 +300,10 @@ function activate(
       }
 
       const split = isSplitScreen(mainArea);
-      // console.log('当前是否分屏:', split);
 
       return split;
     } catch (error) {
-      console.error('检测分屏布局时出错:', error);
+              console.error('Error detecting split layout:', error);
 
       // 降级到之前的DOM检测方法
       const mainWidgets = Array.from(app.shell.widgets('main'));
@@ -378,15 +325,6 @@ function activate(
         const mainAreaChildren = mainArea.children;
         const hasMultipleChildren = mainAreaChildren.length > 1;
 
-        console.log('[hasSplitLayout fallback]', {
-          mainWidgetCount: mainWidgets.length,
-          parentCount: parents.size,
-          hasVisualSplit,
-          hasMultipleTabBars,
-          hasMultipleActiveTabs,
-          hasMultipleChildren
-        });
-
         if (hasVisualSplit || hasMultipleTabBars || hasMultipleActiveTabs || hasMultipleChildren || parents.size > 1) {
           return true;
         }
@@ -402,11 +340,6 @@ function activate(
     const notebookDetailWidgets = mainWidgets.filter(w =>
       w.id && w.id.startsWith('notebook-detail-widget-')
     );
-
-    // 调试输出
-    // console.log('[Widget Debug] All main widgets:', mainWidgets.map(w => w.id));
-    // console.log('[Widget Debug] Notebook detail widgets:', notebookDetailWidgets.map(w => w.id));
-    // console.log('[Widget Debug] Count:', notebookDetailWidgets.length);
 
     return notebookDetailWidgets.length > 1;
   }
@@ -438,7 +371,6 @@ function activate(
     // 检查是否需要启用滚动同步
     const shouldEnable = shouldEnableScrollSync();
 
-    // 只在状态真正改变时才输出日志
     const currentState = { hasMultiple: hasMultipleNotebookDetailWidgets() };
     const stateChanged = currentState.hasMultiple !== lastScrollSyncState.hasMultiple;
 
@@ -458,11 +390,6 @@ function activate(
           scrollSyncWidgets.add(widget.id);
         }
       });
-
-      // 只在状态真正改变时才输出日志
-      if (stateChanged) {
-        // 状态已更新
-      }
 
       // 为每个widget的滚动容器绑定事件监听器
       scrollSyncWidgets.forEach(widgetId => {
@@ -497,8 +424,6 @@ function activate(
               const scrollPercentage = maxScrollTop > 0 ? scrollTop / maxScrollTop : 0;
 
               // 只在调试模式下输出滚动日志
-              // console.log('[Scroll Sync] Widget', sourceWidgetId, 'scrolled to:', scrollTop, 'percentage:', scrollPercentage);
-
               // 临时禁用滚动同步，避免循环触发
               scrollSyncEnabled = false;
 
@@ -519,7 +444,6 @@ function activate(
 
                       // 只有当目标位置与当前位置不同时才设置
                       if (Math.abs(otherCellList.scrollTop - targetScrollTop) > 1) {
-                        // console.log('[Scroll Sync] Syncing widget', otherWidgetId, 'to percentage:', scrollPercentage, 'position:', targetScrollTop);
                         otherCellList.scrollTop = targetScrollTop;
                       }
                     }
@@ -535,10 +459,6 @@ function activate(
             cellList.addEventListener('scroll', scrollHandler);
             scrollSyncHandlers.set(widgetId, scrollHandler);
 
-            // 添加调试信息
-            if (stateChanged) {
-              // 滚动处理器已绑定
-            }
           } else {
             console.warn('[Scroll Sync] No cell list found for widget:', widgetId);
           }
@@ -567,10 +487,6 @@ function activate(
 
       scrollSyncWidgets.clear();
       scrollSyncHandlers.clear();
-      // 只在状态真正改变时才输出日志
-      if (stateChanged) {
-        // 滚动同步已禁用
-      }
     }
   }
 
@@ -630,7 +546,6 @@ function activate(
 
     // 检查是否有分屏布局
     if (hasSplitLayout()) {
-      // console.log('[tab switch] Split layout detected, collapsing sidebars');
       // 收缩左右sidebar而不是关闭
       if (typeof (app.shell as any).collapseLeft === 'function') {
         (app.shell as any).collapseLeft();
@@ -719,18 +634,21 @@ function activate(
       return;
     }
     // 其它 tab 不更新 sidebar，但也不关闭sidebar
-    // console.log('[tab switch] no flowchart action for tab:', tabId);
   }
 
   // ====== closeSidebarsIfNoMainWidgets 也放到 activate 内部，能访问 handleTabSwitch ======
   function closeSidebarsIfNoMainWidgets(app: JupyterFrontEnd) {
+    // 在初始化过程中不关闭sidebar
+    if (isInitializing) {
+      return;
+    }
+
     const mainWidgets = Array.from(app.shell.widgets('main'));
     const hasMatrix = mainWidgets.some(w => w.id === 'matrix-widget');
     const hasDetail = mainWidgets.some(w => w.id && w.id.startsWith('notebook-detail-widget-'));
 
     // 检查是否有分屏布局
     if (hasSplitLayout()) {
-      // console.log('[closeSidebarsIfNoMainWidgets] Split layout detected, collapsing sidebars');
       // 收缩左右sidebar而不是关闭
       if (typeof (app.shell as any).collapseLeft === 'function') {
         (app.shell as any).collapseLeft();
@@ -741,22 +659,21 @@ function activate(
       return;
     }
 
-    // 只有当确实没有galaxy相关tab，且用户主动切换到其他应用时才关闭sidebar
+    // 当没有galaxy相关tab时关闭sidebar
     if (!hasMatrix && !hasDetail) {
-      // 检查是否有其他galaxy相关的widget（比如正在分析中）
-      const hasGalaxyAnalysis = result1 && result1.length > 0;
-
-      if (!hasGalaxyAnalysis) {
-        // 没有 galaxy 相关 tab，关闭 sidebar
-        // 关闭左侧 flowchart
-        const oldLeft = app.shell.widgets('left');
-        for (const w of oldLeft) {
-          if (w.id === 'flow-chart-widget') w.close();
+      // 关闭sidebar，不管是否有分析数据
+      // 关闭左侧 flowchart
+      const oldLeft = app.shell.widgets('left');
+      for (const w of oldLeft) {
+        if (w.id === 'flow-chart-widget') {
+          w.close();
         }
-        // 关闭右侧 detail sidebar
-        const oldRight = app.shell.widgets('right');
-        for (const w of oldRight) {
-          if (w.id === 'galaxy-detail-sidebar') w.close();
+      }
+      // 关闭右侧 detail sidebar
+      const oldRight = app.shell.widgets('right');
+      for (const w of oldRight) {
+        if (w.id === 'galaxy-detail-sidebar') {
+          w.close();
         }
       }
     }
@@ -803,9 +720,11 @@ function activate(
   app.commands.addCommand(command, {
     label: 'Analyze Selected Notebooks',
     execute: async () => {
+      isInitializing = true; // 设置初始化标志
+
       const fileBrowserWidget = browserFactory.tracker.currentWidget;
       if (!fileBrowserWidget) {
-        console.warn('⚠️ No active file browser');
+        console.warn('No active file browser');
         return;
       }
 
@@ -824,7 +743,22 @@ function activate(
         }
         const oldMain = app.shell.widgets('main');
         for (const w of oldMain) {
-          if (w.id === 'matrix-widget' || (w.id && w.id.startsWith('notebook-detail-widget-'))) w.close();
+          if (w.id === 'matrix-widget' || (w.id && w.id.startsWith('notebook-detail-widget-'))) {
+            // Track notebook closing before closing
+            if (w.id && w.id.startsWith('notebook-detail-widget-')) {
+              const notebookData = (w as any).notebook;
+              if (notebookData) {
+                analytics.trackNotebookClosed(
+                  notebookData.kernelVersionId || `nb_${notebookData.index || Date.now()}`,
+                  {
+                    tabTitle: w.title?.label,
+                    tabId: w.id
+                  }
+                );
+              }
+            }
+            w.close();
+          }
         }
         const oldRight = app.shell.widgets('right');
         for (const w of oldRight) {
@@ -845,10 +779,9 @@ function activate(
           const contentsManager = app.serviceManager.contents;
           const model = await contentsManager.get(selectedItems[0].path, { type: 'file', format: 'text', content: true });
           result1 = JSON.parse(model.content as string);
-          // console.log('Loaded JSON:', result1);
+
 
           // 提取competition ID和基础目录
-          console.log('Extracting competition ID from path:', selectedItems[0].path);
           const competitionId = extractCompetitionId(selectedItems[0].path);
 
           // Track analysis started
@@ -858,16 +791,13 @@ function activate(
             jsonFilePath: selectedItems[0].path
           });
           const baseDir = extractBaseDir(selectedItems[0].path);
-          console.log('Extracted competition ID:', competitionId);
-          console.log('Extracted base directory:', baseDir);
 
           if (competitionId && baseDir) {
             try {
               const titleMap = await createKernelTitleMap(competitionId, baseDir);
               result1 = replaceKernelVersionIdWithTitle(result1, titleMap);
-              console.log('Applied title mapping for competition:', competitionId);
             } catch (e) {
-              console.log(`无法加载kernel数据: competition_${competitionId}.csv`);
+              // Kernel data not available
             }
 
             // 加载并合并TOC数据（如果存在）
@@ -875,24 +805,18 @@ function activate(
               try {
                 const tocData = await loadTocData(competitionId, baseDir);
                 result1 = mergeTocData(result1, tocData);
-                console.log('Applied TOC data for competition:', competitionId);
               } catch (e) {
-                console.log(`TOC数据不存在，跳过: ${competitionId}_toc.json`);
+                // TOC data not available
               }
-            } else {
-              console.log('No base directory available for TOC data loading');
             }
 
             // 加载Summary数据（如果存在）
             if (baseDir) {
               try {
                 summaryData = await loadSummaryData(competitionId, baseDir);
-                console.log('Applied Summary data for competition:', competitionId);
               } catch (e) {
-                console.log(`Summary数据不存在，跳过: ${competitionId}_summarized.json`);
+                // Summary data not available
               }
-            } else {
-              console.log('No base directory available for Summary data loading');
             }
 
             // 读取对应的 CSV 文件（如果存在）
@@ -900,9 +824,7 @@ function activate(
               const csvPath = `${baseDir}/cluster_data/${competitionId}_sorted.csv`;
               const csvModel = await contentsManager.get(csvPath, { type: 'file', format: 'text', content: true });
               similarityGroups = csvParse(csvModel.content as string);
-              console.log(`成功加载聚类数据: ${competitionId}_sorted.csv`);
             } catch (e) {
-              console.log(`聚类文件不存在，跳过: ${competitionId}_sorted.csv`);
               similarityGroups = [];
             }
 
@@ -911,18 +833,13 @@ function activate(
               const votePath = `${baseDir}/cluster_data/${competitionId}_sorted.csv`;
               const voteModel = await contentsManager.get(votePath, { type: 'file', format: 'text', content: true });
               voteData = csvParse(voteModel.content as string);
-              console.log(`成功加载投票数据: ${competitionId}_sorted.csv`);
             } catch (e) {
-              console.log(`投票数据文件不存在，跳过: ${competitionId}_sorted.csv`);
               voteData = [];
             }
-          } else {
-            console.log('No competition ID extracted from path');
           }
-
         } else {
           // 只支持JSON文件分析
-          console.warn('⚠️ Please select a single JSON file for analysis');
+          console.warn('Please select a single JSON file for analysis');
           return;
         }
 
@@ -942,11 +859,12 @@ function activate(
 
         flowChartWidget = new LeftSidebar(result1, colorMap, true); // Overview mode
         app.shell.add(flowChartWidget, 'left');
+
         if (typeof (app.shell as any).expandLeftArea === 'function') {
           (app.shell as any).expandLeftArea();
         }
+
         app.shell.activateById(flowChartWidget.id);
-        console.log('LeftSidebar added, expanded, and activated');
         // 保存原始 sidebar 和数据，便于 notebook 详情切换回来
         // let originalLeftSidebar = flowChartWidget;
 
@@ -965,15 +883,7 @@ function activate(
         }
 
         if (competitionIdForMatrix && baseDirForMatrix) {
-          console.log('Creating kernelTitleMap for MatrixWidget with competitionId:', competitionIdForMatrix);
           kernelTitleMap = await createKernelTitleMap(competitionIdForMatrix, baseDirForMatrix);
-          // console.log('Created kernelTitleMap for MatrixWidget:', {
-          //   competitionId: competitionIdForMatrix,
-          //   mapSize: kernelTitleMap.size,
-          //   sampleEntries: Array.from(kernelTitleMap.entries()).slice(0, 3)
-          // });
-        } else {
-          console.log('No competitionId or baseDir found for MatrixWidget');
         }
 
         matrixWidget = new MatrixWidget(result1, colorScale, similarityGroups, kernelTitleMap, voteData, summaryData);
@@ -1001,10 +911,14 @@ function activate(
           (app.shell as any).expandRightArea();
         }
         app.shell.activateById(detailSidebar.id);
-        console.log('DetailSidebar added, expanded, and activated');
+
+        // 确保左侧sidebar保持可见
+        if (flowChartWidget && !flowChartWidget.isDisposed) {
+          app.shell.activateById(flowChartWidget.id);
+        }
+
         // 监听 notebook 排序变化，实时同步 sidebar
         window.addEventListener('galaxy-notebook-order-changed', (e: any) => {
-          // console.log('[index.ts] Global notebook order changed event:', e.detail?.notebookOrder);
           detailSidebar?.setSummary(result1, mostFreqStage, mostFreqFlow, e.detail?.notebookOrder);
         });
 
@@ -1014,13 +928,13 @@ function activate(
           const { stage, tabId } = e.detail;
           currentSelection = { type: 'stage', stage, tabId };
           matrixWidget?.setFilter(currentSelection);
-          
+
           // 如果有cluster被选中，不要改变右侧sidebar的状态
           const hasSelectedCluster = matrixWidget && (matrixWidget as any).selectedClusterId && (matrixWidget as any).sortState === 3;
           if (!hasSelectedCluster) {
             detailSidebar?.setFilter(currentSelection, true); // 跳过事件派发，避免循环
           }
-          
+
           // Track flowchart interaction
           analytics.trackFlowChartInteraction('stage_selected', {
             stage: stage,
@@ -1033,13 +947,13 @@ function activate(
           const { from, to, tabId } = e.detail;
           currentSelection = { type: 'flow', from, to, tabId };
           matrixWidget?.setFilter(currentSelection);
-          
+
           // 如果有cluster被选中，不要改变右侧sidebar的状态
           const hasSelectedCluster = matrixWidget && (matrixWidget as any).selectedClusterId && (matrixWidget as any).sortState === 3;
           if (!hasSelectedCluster) {
             detailSidebar?.setFilter(currentSelection, true); // 跳过事件派发，避免循环
           }
-          
+
           // Track flowchart interaction
           analytics.trackFlowChartInteraction('flow_selected', {
             from: from,
@@ -1051,15 +965,19 @@ function activate(
         });
         window.addEventListener('galaxy-selection-cleared', (e: any) => {
           // const tabId = e.detail?.tabId;
+          // Only track analytics if there was actually a selection to clear
+          const hadSelection = currentSelection !== null;
           currentSelection = null;
           matrixWidget?.setFilter(null);
           detailSidebar?.setFilter(null, true); // 跳过事件派发，避免循环
-          // Track flowchart interaction
-          analytics.trackFlowChartInteraction('selection_cleared', {
-            tabId: e.detail?.tabId,
-            flowchartContext: 'overview', // These events come from the main overview
-            interaction_context: 'clear_filter'
-          });
+          // Track flowchart interaction only when there was a selection to clear
+          if (hadSelection) {
+            analytics.trackFlowChartInteraction('selection_cleared', {
+              tabId: e.detail?.tabId,
+              flowchartContext: 'overview', // These events come from the main overview
+              interaction_context: 'clear_filter'
+            });
+          }
         });
 
         // 监听TOC项目点击事件
@@ -1085,7 +1003,7 @@ function activate(
               }
             }));
           } else {
-            console.warn('Notebook not found for kernelVersionId:', kernelVersionId);
+            // Notebook not found
           }
         });
 
@@ -1139,7 +1057,7 @@ function activate(
                 });
               }
 
-              
+
 
               // 清理滚动同步状态
               updateScrollSync();
@@ -1148,7 +1066,7 @@ function activate(
             // 延迟更新滚动同步状态，避免频繁调用
             setTimeout(() => updateScrollSync(), 100);
 
-            
+
 
             // 检查是否有分屏布局
             if (hasSplitLayout()) {
@@ -1227,7 +1145,20 @@ function activate(
               // 关闭 notebook 详情
               const mainWidgets = app.shell.widgets('main');
               for (const w of mainWidgets) {
-                if (w.id === 'notebook-detail-widget') w.close();
+                if (w.id === 'notebook-detail-widget') {
+                  // Track notebook closing before closing
+                  const notebookData = (w as any).notebook;
+                  if (notebookData) {
+                    analytics.trackNotebookClosed(
+                      notebookData.kernelVersionId || `nb_${notebookData.index || Date.now()}`,
+                      {
+                        tabTitle: w.title?.label,
+                        tabId: w.id
+                      }
+                    );
+                  }
+                  w.close();
+                }
               }
               // 关闭当前 flow-chart-widget
               const leftWidgets = app.shell.widgets('left');
@@ -1263,8 +1194,10 @@ function activate(
           }
         }
       } catch (err) {
-        alert('不是合法的 JSON 文件或分析失败');
-        console.error('❌ Failed to analyze notebooks:', err);
+
+        console.error('Failed to analyze notebooks:', err);
+      } finally {
+        isInitializing = false; // 清除初始化标志
       }
     }
   });
@@ -1286,17 +1219,17 @@ function activate(
           app.commands.execute(command);
         }
       });
-      
+
       // 给按钮添加自定义样式，让图标更显眼
       analyzeButton.addClass('galaxy-analyze-button');
-      
+
       // 直接设置样式确保颜色生效
       setTimeout(() => {
         const iconElement = analyzeButton.node.querySelector('svg');
         if (iconElement) {
           iconElement.style.fill = '#FF6B35';
           iconElement.style.transition = 'all 0.2s ease';
-          
+
           // 添加悬停效果
           analyzeButton.node.addEventListener('mouseenter', () => {
             if (iconElement) {
@@ -1304,21 +1237,21 @@ function activate(
               iconElement.style.transform = 'scale(1.1)';
             }
           });
-          
+
           analyzeButton.node.addEventListener('mouseleave', () => {
             if (iconElement) {
               iconElement.style.fill = '#FF6B35';
               iconElement.style.transform = 'scale(1)';
             }
           });
-          
+
           analyzeButton.node.addEventListener('mousedown', () => {
             if (iconElement) {
               iconElement.style.fill = '#FF0000';
               iconElement.style.transform = 'scale(0.95)';
             }
           });
-          
+
           analyzeButton.node.addEventListener('mouseup', () => {
             if (iconElement) {
               iconElement.style.fill = '#FF4500';
@@ -1365,8 +1298,38 @@ function activate(
       // 检查是否有 detail tab 被关闭，如果有则恢复 overview sidebar
       for (const oldId of notebookDetailIds) {
         if (!currentDetailIds.has(oldId)) {
-          console.log('[galaxy] Notebook detail widget no longer in main:', oldId);
+          // Track notebook closing immediately when we detect the closure
 
+          // Try to find the widget before it's completely removed
+          const allWidgets = [
+            ...Array.from(app.shell.widgets('main')),
+            ...Array.from(app.shell.widgets('left')),
+            ...Array.from(app.shell.widgets('right'))
+          ];
+          const closedWidget = allWidgets.find(w => w.id === oldId);
+
+          if (closedWidget) {
+            const notebookData = (closedWidget as any).notebook;
+            if (notebookData) {
+              analytics.trackNotebookClosed(
+                notebookData.kernelVersionId || `nb_${notebookData.index || Date.now()}`,
+                {
+                  tabTitle: closedWidget.title?.label,
+                  tabId: closedWidget.id
+                }
+              );
+            }
+          } else {
+            // Widget has been completely removed, which is expected behavior
+            // Even if widget is removed, try to track the closure using the ID
+            analytics.trackNotebookClosed(
+              oldId.replace('notebook-detail-widget-', ''),
+              {
+                tabTitle: oldId,
+                tabId: oldId
+              }
+            );
+          }
 
 
           // 当 notebook detail widget 被关闭时，立即恢复 overview sidebar
@@ -1389,21 +1352,21 @@ function activate(
             app.shell.activateById(flowChartWidget.id);
 
             const { mostFreqStage, mostFreqFlow } = flowChartWidget.getMostFrequentStageAndFlow();
-            
+
             // 检查detailSidebar是否已经在右侧
             const rightWidgets = Array.from(app.shell.widgets('right'));
             const isAlreadyInRight = rightWidgets.includes(detailSidebar);
-            
+
             // 先恢复状态
             detailSidebar.setFilter(null);
             detailSidebar.setSummary(result1, mostFreqStage, mostFreqFlow, matrixWidget.getNotebookOrder());
-            
+
             // 如果不在右侧才添加，避免重复触发onAfterAttach
             if (!isAlreadyInRight) {
               app.shell.add(detailSidebar, 'right');
             }
             app.shell.activateById(detailSidebar.id);
-            
+
             // 确保overview状态正确显示，延迟调用以覆盖可能的restoreDetailFilterState
             setTimeout(() => {
               if (detailSidebar && matrixWidget) {
@@ -1430,8 +1393,6 @@ function activate(
     }
     // 只在 layoutModified 里检测，不在 currentChanged/activeChanged 里检测
     app.shell.layoutModified.connect(() => {
-
-
       checkNotebookDetailWidgetStatus();
       // 检查是否有分屏布局
       if (hasSplitLayout()) {
@@ -1457,8 +1418,7 @@ function activate(
             }
             if (target && target.classList.contains('lm-TabBar-tab')) {
               const dataId = target.getAttribute('data-id');
-              // console.log('[tab click-delegate] data-id:', dataId);
-              // 通过 data-id 找到 widget
+                      // 通过 data-id 找到 widget
               const allWidgets = [
                 ...Array.from(app.shell.widgets('main')),
                 ...Array.from(app.shell.widgets('left')),
@@ -1483,11 +1443,9 @@ function activate(
       document.querySelectorAll('.lm-TabBar-content').forEach(tabBar => {
         if (!(tabBar as any).__galaxyCloseBound) {
           tabBar.addEventListener('mousedown', (e) => {
-            // console.log('[galaxy] mousedown event:', e.target, (e.target as HTMLElement)?.outerHTML);
-          });
-          tabBar.addEventListener('click', (e) => {
-            // console.log('[galaxy] click event:', e.target, (e.target as HTMLElement)?.outerHTML);
-          });
+                  });
+      tabBar.addEventListener('click', (e) => {
+      });
           (tabBar as any).__galaxyCloseBound = true;
         }
       });
@@ -1499,12 +1457,24 @@ function activate(
     // 监听 main 区域 widget 的 disposed 事件，主要用于日志记录
     function monitorMainWidgetDisposed() {
       const mainWidgets = Array.from(app.shell.widgets('main'));
+
       for (const w of mainWidgets) {
         if (!(w as any).__galaxyDisposedBound) {
           w.disposed.connect(() => {
-
-
+            // Track notebook closing if it's a notebook detail widget
             if (w.id && w.id.startsWith('notebook-detail-widget-')) {
+              // Get notebook data for analytics tracking
+              const notebookData = (w as any).notebook;
+              if (notebookData) {
+                analytics.trackNotebookClosed(
+                  notebookData.kernelVersionId || `nb_${notebookData.index || Date.now()}`,
+                  {
+                    tabTitle: w.title?.label,
+                    tabId: w.id
+                  }
+                );
+              }
+
               // 对于notebook detail widget的关闭，延迟处理以确保状态稳定
               setTimeout(() => {
                 const widget = getActiveGalaxyWidget();
@@ -1514,6 +1484,13 @@ function activate(
                   closeSidebarsIfNoMainWidgets(app);
                 }
               }, 200); // 增加延迟时间，确保状态稳定
+            } else if (w.id === 'matrix-widget') {
+              // Matrix widget (overview) was closed
+
+              // Close sidebars when overview is closed
+              setTimeout(() => {
+                closeSidebarsIfNoMainWidgets(app);
+              }, 100);
             } else {
               setTimeout(() => {
                 const widget = getActiveGalaxyWidget();
