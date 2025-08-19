@@ -2158,8 +2158,7 @@ export class DetailSidebar extends Widget {
         <th style="padding:${padding}; text-align:center; font-weight:600; color:#495057; width:80px;">Cluster</th>
         <th style="padding:${padding}; text-align:left; font-weight:600; color:#495057;">Notebook</th>
         <th style="padding:${padding}; text-align:right; font-weight:600; color:#495057;">Occurrences</th>
-      `
-      : `
+      `      : `
         <th style="padding:${padding}; text-align:center; font-weight:600; color:#495057; width:40px;">#</th>
         <th style="padding:${padding}; text-align:center; font-weight:600; color:#495057; width:70px;">Cluster</th>
         <th style="padding:${padding}; text-align:left; font-weight:600; color:#495057;">Notebook</th>

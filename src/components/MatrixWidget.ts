@@ -58,6 +58,17 @@ export class MatrixWidget extends Widget {
         return `Cluster ${clusterId}`;
     }
 
+    // 检查notebook是否属于选中的cluster
+    private isNotebookInSelectedCluster(notebook: any): boolean {
+        if (!this.selectedClusterId || this.sortState !== 3 || !this.similarityGroups || this.similarityGroups.length === 0) {
+            return true; // 如果没有选中cluster，返回true表示所有notebook都应该被考虑
+        }
+        
+        const kernelId = notebook?.kernelVersionId?.toString();
+        const simRow = kernelId ? this.similarityGroups.find((row: any) => row.kernelVersionId === kernelId) : null;
+        return simRow && simRow.cluster_id === this.selectedClusterId;
+    }
+
     constructor(data: Notebook[], colorScale: (label: string) => string, similarityGroups?: any[], kernelTitleMap?: Map<string, { title: string; creationDate: string; totalLines: number; displayname?: string; url?: string }>, voteData?: any[], summaryData?: any) {
         super();
         this.data = data.map((nb, i) => ({ ...nb, globalIndex: i + 1 }));
@@ -241,7 +252,7 @@ export class MatrixWidget extends Widget {
         // 初始化notebookOrder
         this.notebookOrder = this.data.map((_, i) => i);
 
-        // 1. Cluster按钮 (第一个)
+        // 1. Cluster按钮 (移到右边)
         this.similaritySortButton = document.createElement('button');
         this.similaritySortButton.style.background = 'none';
         this.similaritySortButton.style.border = 'none';
@@ -329,7 +340,6 @@ export class MatrixWidget extends Widget {
                 }
             }));
         };
-        leftSortButtons.appendChild(this.similaritySortButton);
 
         // 2. Vote按钮 (第二个)
         this.voteSortButton = document.createElement('button');
@@ -542,7 +552,7 @@ export class MatrixWidget extends Widget {
         this.cellHeightButton.style.alignItems = 'center';
         this.cellHeightButton.style.justifyContent = 'center';
         this.cellHeightButton.innerHTML = this.getCellHeightIcon();
-        this.addTooltipToButton(this.cellHeightButton, () => this.cellHeightMode === 'fixed' ? 'Fixed height' : 'Dynamic height');
+        this.addTooltipToButton(this.cellHeightButton, () => 'Toggle height');
         this.cellHeightButton.onclick = () => {
             // 保存当前的高亮状态和cluster选择状态
             const currentStageSelection = (window as any)._galaxyStageSelection;
@@ -646,6 +656,9 @@ export class MatrixWidget extends Widget {
             }, 100);
         };
         rightButtons.appendChild(this.markdownButton);
+
+        // 添加clustering按钮到右侧最左边 (第一个位置)
+        rightButtons.insertBefore(this.similaritySortButton, rightButtons.firstChild);
 
         // 将左右容器添加到主容器
         sortBar.appendChild(leftSortButtons);
@@ -765,10 +778,10 @@ export class MatrixWidget extends Widget {
         // markdown显示/隐藏icon：使用"Md"文本，显示时绿色，隐藏时灰色
         if (this.showMarkdown) {
             // 显示markdown：绿色"Md"文本
-            return `<span style="color: #4caf50; font-weight: 600; font-size: 12px; line-height: 1; display: inline-block; vertical-align: middle;">Md</span>`;
+            return `<span style="color: #4caf50; font-weight: 600; font-size: 12px; line-height: 1; display: inline-block; vertical-align: middle;">Markdown</span>`;
         } else {
             // 隐藏markdown：灰色"Md"文本
-            return `<span style="color: #555; font-weight: 600; font-size: 12px; line-height: 1; display: inline-block; vertical-align: middle;">Md</span>`;
+            return `<span style="color: #555; font-weight: 600; font-size: 12px; line-height: 1; display: inline-block; vertical-align: middle;">Markdown</span>`;
         }
     }
 
@@ -804,13 +817,28 @@ export class MatrixWidget extends Widget {
     // 通用的tooltip处理函数
     private addTooltipToButton(button: HTMLButtonElement, getTooltipText: () => string): void {
         button.onmouseenter = (e) => {
-            const tooltip = (window as any)._galaxyTooltip;
-            if (tooltip) {
-                tooltip.innerHTML = getTooltipText();
-                tooltip.style.display = 'block';
-                tooltip.style.left = e.clientX + 12 + 'px';
-                tooltip.style.top = e.clientY + 12 + 'px';
+            // 使用缓存的tooltip元素或创建新的
+            let tooltip = (window as any)._galaxyTooltip;
+            if (!tooltip) {
+                tooltip = document.createElement('div');
+                tooltip.id = 'galaxy-tooltip';
+                tooltip.style.position = 'fixed';
+                tooltip.style.display = 'none';
+                tooltip.style.pointerEvents = 'none';
+                tooltip.style.background = 'rgba(0,0,0,0.75)';
+                tooltip.style.color = '#fff';
+                tooltip.style.padding = '6px 10px';
+                tooltip.style.borderRadius = '4px';
+                tooltip.style.fontSize = '12px';
+                tooltip.style.zIndex = '9999';
+                document.body.appendChild(tooltip);
+                (window as any)._galaxyTooltip = tooltip;
             }
+            
+            tooltip.innerHTML = getTooltipText();
+            tooltip.style.display = 'block';
+            tooltip.style.left = e.clientX + 12 + 'px';
+            tooltip.style.top = e.clientY + 12 + 'px';
         };
         button.onmousemove = (e) => {
             const tooltip = (window as any)._galaxyTooltip;
@@ -1064,12 +1092,8 @@ export class MatrixWidget extends Widget {
 
         // 清理按钮的事件监听器
         const clearBtn = this.clusterInfoContainer?.querySelector('#clear-cluster-selection-btn') as HTMLButtonElement;
-        const scrollBtn = this.clusterInfoContainer?.querySelector('#scroll-to-cluster-btn') as HTMLButtonElement;
         if (clearBtn) {
             clearBtn.removeEventListener('click', this.clearClusterSelection);
-        }
-        if (scrollBtn) {
-            scrollBtn.removeEventListener('click', this.scrollToCluster);
         }
     }
 
@@ -1084,9 +1108,23 @@ export class MatrixWidget extends Widget {
             d3.selectAll('.matrix-cell')
                 .classed('matrix-highlight', false)
                 .classed('matrix-dim', true);
-            d3.selectAll(`.matrix-cell-${stage}`)
-                .classed('matrix-highlight', true)
-                .classed('matrix-dim', false);
+            
+            // 如果有选中的cluster，只高亮该cluster内的cells
+            if (this.selectedClusterId) {
+                this.notebookOrder.forEach((row, colIdx) => {
+                    const nb = this.data[row];
+                    if (this.isNotebookInSelectedCluster(nb)) {
+                        d3.selectAll(`.matrix-cell-${stage}[data-row="${row}"]`)
+                            .classed('matrix-highlight', true)
+                            .classed('matrix-dim', false);
+                    }
+                });
+            } else {
+                // 没有选中cluster时，高亮所有匹配的cells
+                d3.selectAll(`.matrix-cell-${stage}`)
+                    .classed('matrix-highlight', true)
+                    .classed('matrix-dim', false);
+            }
         }, 100); // 延迟应用高亮，确保matrix已重新绘制
     }
 
@@ -1131,9 +1169,23 @@ export class MatrixWidget extends Widget {
                 d3.selectAll('.matrix-cell')
                     .classed('matrix-highlight', false)
                     .classed('matrix-dim', true);
-                d3.selectAll(`.matrix-cell-${stage}`)
-                    .classed('matrix-highlight', true)
-                    .classed('matrix-dim', false);
+                
+                // 如果有选中的cluster，只高亮该cluster内的cells
+                if (this.selectedClusterId) {
+                    this.notebookOrder.forEach((row, colIdx) => {
+                        const nb = this.data[row];
+                        if (this.isNotebookInSelectedCluster(nb)) {
+                            d3.selectAll(`.matrix-cell-${stage}[data-row="${row}"]`)
+                                .classed('matrix-highlight', true)
+                                .classed('matrix-dim', false);
+                        }
+                    });
+                } else {
+                    // 没有选中cluster时，高亮所有匹配的cells
+                    d3.selectAll(`.matrix-cell-${stage}`)
+                        .classed('matrix-highlight', true)
+                        .classed('matrix-dim', false);
+                }
             }
         } else {
             // 如果有选中状态，hover时临时显示hover效果，但保持选中状态的高亮
@@ -1143,17 +1195,45 @@ export class MatrixWidget extends Widget {
                 d3.selectAll('.matrix-cell')
                     .classed('matrix-highlight', false)
                     .classed('matrix-dim', true);
-                d3.selectAll(`.matrix-cell-${selectedStage}`)
-                    .classed('matrix-highlight', true)
-                    .classed('matrix-dim', false);
+                
+                // 如果有选中的cluster，只高亮该cluster内的cells
+                if (this.selectedClusterId) {
+                    this.notebookOrder.forEach((row, colIdx) => {
+                        const nb = this.data[row];
+                        if (this.isNotebookInSelectedCluster(nb)) {
+                            d3.selectAll(`.matrix-cell-${selectedStage}[data-row="${row}"]`)
+                                .classed('matrix-highlight', true)
+                                .classed('matrix-dim', false);
+                        }
+                    });
+                } else {
+                    // 没有选中cluster时，高亮所有匹配的cells
+                    d3.selectAll(`.matrix-cell-${selectedStage}`)
+                        .classed('matrix-highlight', true)
+                        .classed('matrix-dim', false);
+                }
             } else {
                 // 临时显示hover效果
                 d3.selectAll('.matrix-cell')
                     .classed('matrix-highlight', false)
                     .classed('matrix-dim', true);
-                d3.selectAll(`.matrix-cell-${stage}`)
-                    .classed('matrix-highlight', true)
-                    .classed('matrix-dim', false);
+                
+                // 如果有选中的cluster，只高亮该cluster内的cells
+                if (this.selectedClusterId) {
+                    this.notebookOrder.forEach((row, colIdx) => {
+                        const nb = this.data[row];
+                        if (this.isNotebookInSelectedCluster(nb)) {
+                            d3.selectAll(`.matrix-cell-${stage}[data-row="${row}"]`)
+                                .classed('matrix-highlight', true)
+                                .classed('matrix-dim', false);
+                        }
+                    });
+                } else {
+                    // 没有选中cluster时，高亮所有匹配的cells
+                    d3.selectAll(`.matrix-cell-${stage}`)
+                        .classed('matrix-highlight', true)
+                        .classed('matrix-dim', false);
+                }
             }
         }
     }
@@ -1168,6 +1248,12 @@ export class MatrixWidget extends Widget {
         // 遍历所有 notebook
         this.notebookOrder.forEach((row, colIdx) => {
             const nb = this.data[row];
+            
+            // 如果有选中的cluster，只处理该cluster内的notebooks
+            if (this.selectedClusterId && !this.isNotebookInSelectedCluster(nb)) {
+                return; // 跳过不在选中cluster内的notebook
+            }
+            
             const sortedCells = nb.cells.sort((a, b) => a.cellId - b.cellId);
 
             // 过滤可见cells（与drawMatrix中的逻辑保持一致）
@@ -1586,9 +1672,23 @@ export class MatrixWidget extends Widget {
                                     d3.selectAll('.matrix-cell')
                                         .classed('matrix-highlight', false)
                                         .classed('matrix-dim', true);
-                                    d3.selectAll(`.matrix-cell-${hasStageSelection}`)
-                                        .classed('matrix-highlight', true)
-                                        .classed('matrix-dim', false);
+                                    
+                                    // 如果有选中的cluster，只高亮该cluster内的cells
+                                    if (self.selectedClusterId) {
+                                        self.notebookOrder.forEach((row, colIdx) => {
+                                            const notebook = self.data[row];
+                                            if (self.isNotebookInSelectedCluster(notebook)) {
+                                                d3.selectAll(`.matrix-cell-${hasStageSelection}[data-row="${row}"]`)
+                                                    .classed('matrix-highlight', true)
+                                                    .classed('matrix-dim', false);
+                                            }
+                                        });
+                                    } else {
+                                        // 没有选中cluster时，高亮所有匹配的cells
+                                        d3.selectAll(`.matrix-cell-${hasStageSelection}`)
+                                            .classed('matrix-highlight', true)
+                                            .classed('matrix-dim', false);
+                                    }
                                 } else if (hasFlowSelection) {
                                     // 恢复flow选中状态的高亮
                                     self.applyFlowHighlight(hasFlowSelection.from, hasFlowSelection.to);
@@ -1939,9 +2039,23 @@ export class MatrixWidget extends Widget {
                 d3.selectAll('.matrix-cell')
                     .classed('matrix-highlight', false)
                     .classed('matrix-dim', true);
-                d3.selectAll(`.matrix-cell-${selection.stage}`)
-                    .classed('matrix-highlight', true)
-                    .classed('matrix-dim', false);
+                
+                // 如果有选中的cluster，只高亮该cluster内的cells
+                if (this.selectedClusterId) {
+                    this.notebookOrder.forEach((row, colIdx) => {
+                        const nb = this.data[row];
+                        if (this.isNotebookInSelectedCluster(nb)) {
+                            d3.selectAll(`.matrix-cell-${selection.stage}[data-row="${row}"]`)
+                                .classed('matrix-highlight', true)
+                                .classed('matrix-dim', false);
+                        }
+                    });
+                } else {
+                    // 没有选中cluster时，高亮所有匹配的cells
+                    d3.selectAll(`.matrix-cell-${selection.stage}`)
+                        .classed('matrix-highlight', true)
+                        .classed('matrix-dim', false);
+                }
             }, 100);
         } else if (selection && selection.type === 'flow') {
             setTimeout(() => {
@@ -2272,17 +2386,13 @@ export class MatrixWidget extends Widget {
             <div style="font-size:16px; font-weight:700; margin-bottom:12px; line-height:1.3; padding-bottom:8px; border-bottom:1px solid #e9ecef; display:flex; justify-content:space-between; align-items:flex-start; gap:12px;">
                 <div style="display:flex; flex-direction:column; gap:4px; flex:1; min-width:0;">
                     <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                        <span style="color: #4caf50; word-break:break-word; line-height:1.4;">${clusterTitle}</span>
+                        <span id="cluster-title-btn" style="color: #4caf50; word-break:break-word; line-height:1.4; text-decoration: underline; cursor: pointer;">${clusterTitle}</span>
                         <span style="color: #6c757d; font-size: 13px; font-weight: 400; white-space:nowrap;display:none;">
                             ${totalNotebooks} notebooks
                         </span>
                     </div>
                 </div>
                 <div style="display:flex; gap:8px; flex-shrink:0;">
-                    <button id="scroll-to-cluster-btn" 
-                            style="background: #4caf50; border: 1px solid #4caf50; border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 12px; color: white; transition: background-color 0.2s; font-weight: 500; white-space:nowrap;">
-                        Back to selection
-                    </button>
                     <button id="clear-cluster-selection-btn" 
                             style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 12px; color: #6c757d; transition: background-color 0.2s; font-weight: 500; white-space:nowrap;">
                         ✕ Clear Selection
@@ -2445,7 +2555,7 @@ export class MatrixWidget extends Widget {
         // 添加事件监听器到按钮
         setTimeout(() => {
             const clearBtn = this.clusterInfoContainer?.querySelector('#clear-cluster-selection-btn') as HTMLButtonElement;
-            const scrollBtn = this.clusterInfoContainer?.querySelector('#scroll-to-cluster-btn') as HTMLButtonElement;
+            const titleBtn = this.clusterInfoContainer?.querySelector('#cluster-title-btn') as HTMLElement;
 
             if (clearBtn) {
                 // 移除之前的事件监听器（如果有的话）
@@ -2454,11 +2564,9 @@ export class MatrixWidget extends Widget {
                 clearBtn.addEventListener('click', () => this.clearClusterSelection());
             }
 
-            if (scrollBtn) {
-                // 移除之前的事件监听器（如果有的话）
-                scrollBtn.removeEventListener('click', this.scrollToCluster);
-                // 添加新的事件监听器
-                scrollBtn.addEventListener('click', () => this.scrollToCluster());
+            if (titleBtn) {
+                // 添加cluster title的点击事件监听器
+                titleBtn.addEventListener('click', () => this.scrollToCluster());
             }
         }, 0);
     }

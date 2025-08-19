@@ -36,7 +36,7 @@ export class LeftSidebar extends Widget {
     private hiddenStages: Set<string> = new Set(); // 隐藏的 stage
     private _renderTimeout: any = null; // 防抖定时器
     private _eventHandlers: { [key: string]: (e: any) => void } = {}; // 事件处理函数引用
-    private hoverStartTimes: Map<string, number> = new Map(); // 追踪hover开始时间
+  
     private isOverviewMode: boolean = true; // 标识是否为overview模式
 
     constructor(data: Notebook[], colorMap: Map<string, string>, isOverviewMode: boolean = true) {
@@ -755,13 +755,9 @@ export class LeftSidebar extends Widget {
                 .attr("fill", "none")
                 .attr("opacity", 0.7)
                 .attr("class", (d) => `flow-link link-from-${from} link-to-${to}`)
-                .on("mouseover", (event) => {
+                .on("mouseover", (event, d) => {
                     // 在拖拽过程中忽略hover效果
                     if (isDragging) return;
-
-                    // 记录transition hover开始时间
-                    const transitionKey = `transition_${from}_${to}`;
-                    this.hoverStartTimes.set(transitionKey, Date.now());
 
                     // 只有在没有选中状态时才应用hover效果
                     if (!this.selection) {
@@ -793,23 +789,6 @@ export class LeftSidebar extends Widget {
                     tooltip!.style.top = event.clientY + 12 + 'px';
                 })
                 .on("mouseout", (event) => {
-                    // 追踪transition hover事件
-                    const transitionKey = `transition_${from}_${to}`;
-                    const hoverStartTime = this.hoverStartTimes.get(transitionKey);
-                    if (hoverStartTime) {
-                        analytics.trackTransitionHover({
-                            from: from,
-                            to: to,
-                            fromLabel: LABEL_MAP[from] || from,
-                            toLabel: LABEL_MAP[to] || to,
-                            hoverStartTime: hoverStartTime,
-                            mousePosition: { x: event.clientX, y: event.clientY },
-                            elementId: `transition-${from}-${to}`,
-                            flowchartContext: this.isOverviewMode ? 'overview' : 'notebook_detail'
-                        });
-                        this.hoverStartTimes.delete(transitionKey);
-                    }
-
                     // 只有在没有选中状态时才恢复默认样式
                     if (!this.selection) {
                         d3.selectAll(".flow-link").attr("opacity", 0.7);
@@ -946,9 +925,6 @@ export class LeftSidebar extends Widget {
                 // 在拖拽过程中忽略hover效果
                 if (isDragging) return;
 
-                // 记录hover开始时间
-                this.hoverStartTimes.set(`stage_${stage}`, Date.now());
-
                 // 只有在没有选中状态时才应用hover效果
                 if (!this.selection) {
                     d3.selectAll(".flow-link").attr("opacity", 0.05);
@@ -984,22 +960,8 @@ export class LeftSidebar extends Widget {
                 tooltip!.style.top = event.clientY + 12 + 'px';
             })
             .on("mouseout", (event, d) => {
-                const stage = d.stage;
+                // const stage = d.stage;
                 
-                // 追踪stage hover事件
-                const hoverStartTime = this.hoverStartTimes.get(`stage_${stage}`);
-                if (hoverStartTime) {
-                    analytics.trackStageHover({
-                        stage: stage,
-                        stageLabel: LABEL_MAP[stage] || stage,
-                        hoverStartTime: hoverStartTime,
-                        mousePosition: { x: event.clientX, y: event.clientY },
-                        elementId: `stage-${stage}`,
-                        flowchartContext: this.isOverviewMode ? 'overview' : 'notebook_detail'
-                    });
-                    this.hoverStartTimes.delete(`stage_${stage}`);
-                }
-
                 // 只有在没有选中状态时才恢复默认样式
                 if (!this.selection) {
                     d3.selectAll(".flow-link").attr("opacity", 0.7);
