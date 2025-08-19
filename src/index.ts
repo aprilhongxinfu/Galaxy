@@ -1286,6 +1286,47 @@ function activate(
           app.commands.execute(command);
         }
       });
+      
+      // 给按钮添加自定义样式，让图标更显眼
+      analyzeButton.addClass('galaxy-analyze-button');
+      
+      // 直接设置样式确保颜色生效
+      setTimeout(() => {
+        const iconElement = analyzeButton.node.querySelector('svg');
+        if (iconElement) {
+          iconElement.style.fill = '#FF6B35';
+          iconElement.style.transition = 'all 0.2s ease';
+          
+          // 添加悬停效果
+          analyzeButton.node.addEventListener('mouseenter', () => {
+            if (iconElement) {
+              iconElement.style.fill = '#FF4500';
+              iconElement.style.transform = 'scale(1.1)';
+            }
+          });
+          
+          analyzeButton.node.addEventListener('mouseleave', () => {
+            if (iconElement) {
+              iconElement.style.fill = '#FF6B35';
+              iconElement.style.transform = 'scale(1)';
+            }
+          });
+          
+          analyzeButton.node.addEventListener('mousedown', () => {
+            if (iconElement) {
+              iconElement.style.fill = '#FF0000';
+              iconElement.style.transform = 'scale(0.95)';
+            }
+          });
+          
+          analyzeButton.node.addEventListener('mouseup', () => {
+            if (iconElement) {
+              iconElement.style.fill = '#FF4500';
+              iconElement.style.transform = 'scale(1.1)';
+            }
+          });
+        }
+      }, 100);
       fbWidget.toolbar.insertItem(5, 'analyzeNotebooks', analyzeButton);
     }
   })
