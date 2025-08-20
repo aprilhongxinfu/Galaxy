@@ -16,7 +16,6 @@ import { SimpleNotebookDetailWidget } from './components/SimpleNotebookDetailWid
 import { SimpleInfoSidebar } from './components/SimpleInfoSidebar';
 
 import { runIcon } from '@jupyterlab/ui-components';
-import { detailedAnalysisIcon } from './components/DetailedAnalysisIcon';
 import { colorMap as colorMapModule, initColorMap } from './components/colorMap';
 import { MatrixWidget } from './components/MatrixWidget';
 import { DetailSidebar } from './components/DetailSidebar';
@@ -1565,7 +1564,7 @@ function activate(
     const fbWidget = browserFactory.tracker.currentWidget;
     if (fbWidget && fbWidget instanceof FileBrowser) {
       const analyzeButton = new ToolbarButton({
-        icon: detailedAnalysisIcon,
+        icon: runIcon,
         tooltip: 'Condition B',
         onClick: () => {
           app.commands.execute(command);
@@ -1579,38 +1578,34 @@ function activate(
       setTimeout(() => {
         const iconElement = analyzeButton.node.querySelector('svg');
         if (iconElement) {
-          // 设置自定义图标的颜色
-          const pathElement = iconElement.querySelector('path');
-          if (pathElement) {
-            pathElement.style.fill = '#FF6B35';
-            pathElement.style.transition = 'all 0.2s ease';
-          }
+          iconElement.style.fill = '#FF6B35';
+          iconElement.style.transition = 'all 0.2s ease';
 
           // 添加悬停效果
           analyzeButton.node.addEventListener('mouseenter', () => {
-            if (pathElement) {
-              pathElement.style.fill = '#FF4500';
+            if (iconElement) {
+              iconElement.style.fill = '#FF4500';
               iconElement.style.transform = 'scale(1.1)';
             }
           });
 
           analyzeButton.node.addEventListener('mouseleave', () => {
-            if (pathElement) {
-              pathElement.style.fill = '#FF6B35';
+            if (iconElement) {
+              iconElement.style.fill = '#FF6B35';
               iconElement.style.transform = 'scale(1)';
             }
           });
 
           analyzeButton.node.addEventListener('mousedown', () => {
-            if (pathElement) {
-              pathElement.style.fill = '#FF0000';
+            if (iconElement) {
+              iconElement.style.fill = '#FF0000';
               iconElement.style.transform = 'scale(0.95)';
             }
           });
 
           analyzeButton.node.addEventListener('mouseup', () => {
-            if (pathElement) {
-              pathElement.style.fill = '#FF4500';
+            if (iconElement) {
+              iconElement.style.fill = '#FF4500';
               iconElement.style.transform = 'scale(1.1)';
             }
           });
