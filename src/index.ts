@@ -35,25 +35,91 @@ function extractCompetitionId(jsonPath: string): string | null {
   return match ? match[1] : null;
 }
 
-// 根据competition ID获取competition信息
-function getCompetitionInfo(competitionId: string): { id: string; name: string; url: string } | null {
-  const competitionMap: { [key: string]: { name: string; url: string } } = {
-    '18599': {
-      name: 'M5 forecasting accuracy',
-      url: 'https://www.kaggle.com/competitions/m5-forecasting-accuracy'
-    },
-    '50160': {
-      name: 'Home Credit - Credit Risk Model Stability',
-      url: 'https://www.kaggle.com/competitions/home-credit-credit-risk-model-stability'
-    },
-    '35332': {
-      name: 'American Express',
-      url: 'https://www.kaggle.com/competitions/amex-default-prediction'
+// 加载competition信息
+async function loadCompetitionsData(): Promise<{ [key: string]: { id: string; name: string; url: string; description?: string; category?: string; evaluation?: string; startDate?: string; endDate?: string } }> {
+  try {
+    const contentsManager = app?.serviceManager?.contents;
+    if (!contentsManager) {
+      console.warn('Contents manager not available for competitions loading');
+      return {};
     }
-  };
 
-  const info = competitionMap[competitionId];
-  return info ? { id: competitionId, ...info } : null;
+    // 首先尝试加载JSON文件
+    const jsonPaths = [
+      './test-notebooks/competition_data/competitions.json',
+      './test-notebooks/competitions.json',
+      '/test-notebooks/competitions.json',
+      'competitions.json',
+      './competitions.json',
+      '/competitions.json'
+    ];
+
+    for (const path of jsonPaths) {
+      try {
+        const model = await contentsManager.get(path, { type: 'file', format: 'text', content: true });
+        const competitionsData = JSON.parse(model.content as string);
+        
+        // 转换为映射格式
+        const competitionMap: { [key: string]: any } = {};
+        competitionsData.forEach((comp: any) => {
+          competitionMap[comp.id] = {
+            id: comp.id,
+            name: comp.name,
+            url: comp.url,
+            description: comp.description,
+            category: comp.category,
+            evaluation: comp.evaluation,
+            startDate: comp.startDate,
+            endDate: comp.endDate
+          };
+        });
+        
+        return competitionMap;
+      } catch (fileError) {
+        continue;
+      }
+    }
+
+    console.warn('Could not load competitions.json, falling back to hardcoded data');
+    return {};
+  } catch (error) {
+    console.warn('Error loading competitions data:', error);
+    return {};
+  }
+}
+
+// 根据competition ID获取competition信息
+async function getCompetitionInfo(competitionId: string): Promise<{ id: string; name: string; url: string; description?: string; category?: string; evaluation?: string; startDate?: string; endDate?: string } | null> {
+  try {
+    const competitionMap = await loadCompetitionsData();
+    const info = competitionMap[competitionId];
+    
+    if (info) {
+      return info;
+    }
+    
+    // 如果从文件加载失败，使用硬编码的fallback数据
+    const fallbackMap: { [key: string]: { name: string; url: string } } = {
+      '18599': {
+        name: 'M5 forecasting accuracy',
+        url: 'https://www.kaggle.com/competitions/m5-forecasting-accuracy'
+      },
+      '50160': {
+        name: 'Home Credit - Credit Risk Model Stability',
+        url: 'https://www.kaggle.com/competitions/home-credit-credit-risk-model-stability'
+      },
+      '35332': {
+        name: 'American Express',
+        url: 'https://www.kaggle.com/competitions/amex-default-prediction'
+      }
+    };
+
+    const fallbackInfo = fallbackMap[competitionId];
+    return fallbackInfo ? { id: competitionId, ...fallbackInfo } : null;
+  } catch (error) {
+    console.warn('Error getting competition info:', error);
+    return null;
+  }
 }
 
 // 从JSON文件路径中提取基础目录
@@ -349,6 +415,16 @@ function activate(
     return notebookDetailWidgets.length > 1;
   }
 
+  // ====== 检测是否有多个simple notebook detail widget（简化分析模式分屏检测） ======
+  function hasMultipleSimpleNotebookDetailWidgets(): boolean {
+    const mainWidgets = Array.from(app.shell.widgets('main'));
+    const simpleNotebookDetailWidgets = mainWidgets.filter(w =>
+      w.id && w.id.startsWith('simple-notebook-detail-widget-')
+    );
+
+    return simpleNotebookDetailWidgets.length > 1;
+  }
+
   // ====== 检测是否需要滚动同步（有多个notebook detail widget在分屏中） ======
   function shouldEnableScrollSync(): boolean {
     const hasMultipleNotebookDetails = hasMultipleNotebookDetailWidgets();
@@ -534,7 +610,7 @@ function activate(
     }
     
     // 新增：如果 widget 为空或不是 galaxy 相关 tab，检查是否需要关闭 sidebar
-    if (!widget || !(widget.id && (widget.id === 'matrix-widget' || widget.id.startsWith('notebook-detail-widget-')))) {
+    if (!widget || !(widget.id && (widget.id === 'matrix-widget' || widget.id.startsWith('notebook-detail-widget-') || widget.id === 'simple-notebook-list-widget' || widget.id.startsWith('simple-notebook-detail-widget-')))) {
       // 只有在没有galaxy分析数据时才关闭sidebar
       if (!result1 || result1.length === 0) {
         closeSidebarsIfNoMainWidgets(app);
@@ -573,12 +649,19 @@ function activate(
 
     // 检查是否有分屏布局
     if (hasSplitLayout()) {
-      // 收缩左右sidebar而不是关闭
-      if (typeof (app.shell as any).collapseLeft === 'function') {
-        (app.shell as any).collapseLeft();
-      }
-      if (typeof (app.shell as any).collapseRight === 'function') {
-        (app.shell as any).collapseRight();
+      // 只有在详细分析模式下才收缩sidebar，简化分析模式下保持sidebar展开
+      const mainWidgets = Array.from(app.shell.widgets('main'));
+      const hasSimpleList = mainWidgets.some(w => w.id === 'simple-notebook-list-widget');
+      const hasSimpleDetail = mainWidgets.some(w => w.id && w.id.startsWith('simple-notebook-detail-widget-'));
+      
+      if (!hasSimpleList && !hasSimpleDetail) {
+        // 收缩左右sidebar而不是关闭
+        if (typeof (app.shell as any).collapseLeft === 'function') {
+          (app.shell as any).collapseLeft();
+        }
+        if (typeof (app.shell as any).collapseRight === 'function') {
+          (app.shell as any).collapseRight();
+        }
       }
       // 在分屏布局下也需要更新滚动同步
       setTimeout(() => updateScrollSync(), 100);
@@ -673,21 +756,27 @@ function activate(
     const mainWidgets = Array.from(app.shell.widgets('main'));
     const hasMatrix = mainWidgets.some(w => w.id === 'matrix-widget');
     const hasDetail = mainWidgets.some(w => w.id && w.id.startsWith('notebook-detail-widget-'));
+    // 检查是否有简化分析模式的widget
+    const hasSimpleList = mainWidgets.some(w => w.id === 'simple-notebook-list-widget');
+    const hasSimpleDetail = mainWidgets.some(w => w.id && w.id.startsWith('simple-notebook-detail-widget-'));
 
     // 检查是否有分屏布局
     if (hasSplitLayout()) {
-      // 收缩左右sidebar而不是关闭
-      if (typeof (app.shell as any).collapseLeft === 'function') {
-        (app.shell as any).collapseLeft();
-      }
-      if (typeof (app.shell as any).collapseRight === 'function') {
-        (app.shell as any).collapseRight();
+      // 只有在详细分析模式下才收缩sidebar，简化分析模式下保持sidebar展开
+      if (!hasSimpleList && !hasSimpleDetail) {
+        // 收缩左右sidebar而不是关闭
+        if (typeof (app.shell as any).collapseLeft === 'function') {
+          (app.shell as any).collapseLeft();
+        }
+        if (typeof (app.shell as any).collapseRight === 'function') {
+          (app.shell as any).collapseRight();
+        }
       }
       return;
     }
 
-    // 当没有galaxy相关tab时关闭sidebar
-    if (!hasMatrix && !hasDetail) {
+    // 当没有galaxy相关tab时关闭sidebar（包括简化分析模式）
+    if (!hasMatrix && !hasDetail && !hasSimpleList && !hasSimpleDetail) {
       // 关闭sidebar，不管是否有分析数据
       // 关闭左侧 flowchart
       const oldLeft = app.shell.widgets('left');
@@ -699,7 +788,7 @@ function activate(
       // 关闭右侧 detail sidebar
       const oldRight = app.shell.widgets('right');
       for (const w of oldRight) {
-        if (w.id === 'galaxy-detail-sidebar') {
+        if (w.id === 'galaxy-detail-sidebar' || w.id === 'simple-info-sidebar') {
           w.close();
         }
       }
@@ -718,7 +807,7 @@ function activate(
     return widget.isVisible;
   }
 
-  // 恢复：获取主区域第一个 galaxy 相关 widget（优先 notebook-detail-widget，其次 matrix-widget）
+  // 恢复：获取主区域第一个 galaxy 相关 widget（优先 notebook-detail-widget，其次 matrix-widget，最后简化分析模式）
   function getActiveGalaxyWidget() {
     const mainWidgets = Array.from(app.shell.widgets('main'));
 
@@ -726,7 +815,9 @@ function activate(
     const visibleGalaxyWidgets = mainWidgets.filter(w =>
       w.isVisible && (
         (w.id && w.id.startsWith('notebook-detail-widget-')) ||
-        (w.id && w.id === 'matrix-widget')
+        (w.id && w.id === 'matrix-widget') ||
+        (w.id && w.id.startsWith('simple-notebook-detail-widget-')) ||
+        (w.id && w.id === 'simple-notebook-list-widget')
       )
     );
 
@@ -739,6 +830,12 @@ function activate(
     let widget = mainWidgets.find(w => w.id && w.id.startsWith('notebook-detail-widget-'));
     if (!widget) {
       widget = mainWidgets.find(w => w.id && w.id === 'matrix-widget');
+    }
+    if (!widget) {
+      widget = mainWidgets.find(w => w.id && w.id.startsWith('simple-notebook-detail-widget-'));
+    }
+    if (!widget) {
+      widget = mainWidgets.find(w => w.id && w.id === 'simple-notebook-list-widget');
     }
 
     return widget || null;
@@ -954,19 +1051,19 @@ function activate(
           kernelTitleMap = await createKernelTitleMap(competitionIdForMatrix, baseDirForMatrix);
         }
 
-        matrixWidget = new MatrixWidget(result1, colorScale, similarityGroups, kernelTitleMap, voteData, summaryData);
+        // 获取competition信息
+        let competitionInfo: { id: string; name: string; url: string; description?: string; category?: string; evaluation?: string; startDate?: string; endDate?: string } | undefined = undefined;
+        if (competitionIdForMatrix) {
+          competitionInfo = await getCompetitionInfo(competitionIdForMatrix) || undefined;
+        }
+
+        matrixWidget = new MatrixWidget(result1, colorScale, similarityGroups, kernelTitleMap, voteData, summaryData, competitionInfo);
         app.shell.add(matrixWidget, 'main');
         app.shell.activateById(matrixWidget.id);
         matrixWidget.disposed.connect(() => {
           closeSidebarsIfNoMainWidgets(app);
         });
         const notebookOrder = matrixWidget.getNotebookOrder();
-
-        // 获取competition信息
-        let competitionInfo: { id: string; name: string; url: string } | undefined = undefined;
-        if (competitionIdForMatrix) {
-          competitionInfo = getCompetitionInfo(competitionIdForMatrix) || undefined;
-        }
 
         const detailSidebarInstance = new DetailSidebar(colorMapModule, notebookOrder, undefined, similarityGroups, voteData, competitionInfo);
         detailSidebar = detailSidebarInstance;
@@ -1404,9 +1501,9 @@ function activate(
           });
 
           // 获取competition信息
-          let competitionInfo: { id: string; name: string; url: string } | undefined = undefined;
+          let competitionInfo: { id: string; name: string; url: string; description?: string; category?: string; evaluation?: string; startDate?: string; endDate?: string } | undefined = undefined;
           if (competitionId) {
-            competitionInfo = getCompetitionInfo(competitionId) || undefined;
+            competitionInfo = await getCompetitionInfo(competitionId) || undefined;
           }
 
           // 创建kernelTitleMap
@@ -1445,7 +1542,7 @@ function activate(
           app.shell.activateById(simpleListWidget.id);
 
           // 创建简化的信息侧边栏
-          const simpleInfoSidebar = new SimpleInfoSidebar(competitionInfo, result1);
+          const simpleInfoSidebar = new SimpleInfoSidebar(competitionInfo);
           app.shell.add(simpleInfoSidebar, 'right');
           if (typeof (app.shell as any).expandRightArea === 'function') {
             (app.shell as any).expandRightArea();
@@ -1454,6 +1551,40 @@ function activate(
 
           // 注册 simple notebook detail 事件监听器（合并处理）
           handleSimpleNotebookSelected = (e: any) => {
+            // 检查是否已经有simple notebook detail widget - 在简化分析模式下禁用分屏
+            if (hasMultipleSimpleNotebookDetailWidgets()) {
+              // 在简化分析模式下，如果已经有notebook detail widget，不创建新的
+              console.warn('Split screen is disabled in simple analysis mode. Please close the existing notebook detail first.');
+              
+              // 显示用户友好的提示
+              const notification = document.createElement('div');
+              notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: #ff6b35;
+                color: white;
+                padding: 12px 16px;
+                border-radius: 6px;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                font-size: 14px;
+                z-index: 10000;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                max-width: 300px;
+              `;
+              notification.textContent = 'Split screen is disabled in simple analysis mode. Please close the existing notebook detail first.';
+              document.body.appendChild(notification);
+              
+              // 3秒后自动移除提示
+              setTimeout(() => {
+                if (notification.parentNode) {
+                  notification.parentNode.removeChild(notification);
+                }
+              }, 3000);
+              
+              return;
+            }
+            
             // 新建并显示 simple notebook 详情，深拷贝 notebook 数据
             const nb = JSON.parse(JSON.stringify(e.detail.notebook));
             const simpleDetailWidget = new SimpleNotebookDetailWidget(nb);
@@ -1732,12 +1863,19 @@ function activate(
       checkNotebookDetailWidgetStatus();
       // 检查是否有分屏布局
       if (hasSplitLayout()) {
-        // 收缩左右sidebar而不是关闭
-        if (typeof (app.shell as any).collapseLeft === 'function') {
-          (app.shell as any).collapseLeft();
-        }
-        if (typeof (app.shell as any).collapseRight === 'function') {
-          (app.shell as any).collapseRight();
+        // 只有在详细分析模式下才收缩sidebar，简化分析模式下保持sidebar展开
+        const mainWidgets = Array.from(app.shell.widgets('main'));
+        const hasSimpleList = mainWidgets.some(w => w.id === 'simple-notebook-list-widget');
+        const hasSimpleDetail = mainWidgets.some(w => w.id && w.id.startsWith('simple-notebook-detail-widget-'));
+        
+        if (!hasSimpleList && !hasSimpleDetail) {
+          // 收缩左右sidebar而不是关闭
+          if (typeof (app.shell as any).collapseLeft === 'function') {
+            (app.shell as any).collapseLeft();
+          }
+          if (typeof (app.shell as any).collapseRight === 'function') {
+            (app.shell as any).collapseRight();
+          }
         }
       }
       // 在布局变化时更新滚动同步状态
@@ -1778,10 +1916,19 @@ function activate(
     function bindTabCloseDelegates() {
       document.querySelectorAll('.lm-TabBar-content').forEach(tabBar => {
         if (!(tabBar as any).__galaxyCloseBound) {
-          tabBar.addEventListener('mousedown', (e) => {
-                  });
-      tabBar.addEventListener('click', (e) => {
-      });
+          tabBar.addEventListener('click', (e) => {
+            const target = e.target as HTMLElement;
+            if (target && target.classList.contains('lm-TabBar-tabCloseIcon')) {
+              const tabElement = target.closest('.lm-TabBar-tab');
+              if (tabElement) {
+                const dataId = tabElement.getAttribute('data-id');
+                if (dataId && dataId.startsWith('simple-notebook-detail-widget-')) {
+                  // 触发事件通知SimpleInfoSidebar清除notebook信息
+                  window.dispatchEvent(new CustomEvent('galaxy-simple-notebook-detail-closed'));
+                }
+              }
+            }
+          });
           (tabBar as any).__galaxyCloseBound = true;
         }
       });
@@ -1820,6 +1967,29 @@ function activate(
                   closeSidebarsIfNoMainWidgets(app);
                 }
               }, 200); // 增加延迟时间，确保状态稳定
+            } else if (w.id && w.id.startsWith('simple-notebook-detail-widget-')) {
+              // Simple notebook detail widget was closed
+              // 触发事件通知SimpleInfoSidebar清除notebook信息
+              window.dispatchEvent(new CustomEvent('galaxy-simple-notebook-detail-closed'));
+              
+              // 延迟处理以确保状态稳定
+              setTimeout(() => {
+                const widget = getActiveGalaxyWidget();
+                if (widget) {
+                  handleTabSwitch(widget);
+                }
+              }, 100);
+            } else if (w.id === 'simple-notebook-list-widget') {
+              // Simple notebook list widget was closed
+              // 延迟处理以确保状态稳定
+              setTimeout(() => {
+                const widget = getActiveGalaxyWidget();
+                if (widget) {
+                  handleTabSwitch(widget);
+                } else {
+                  closeSidebarsIfNoMainWidgets(app);
+                }
+              }, 100);
             } else if (w.id === 'matrix-widget') {
               // Matrix widget (overview) was closed
 

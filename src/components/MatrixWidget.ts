@@ -41,6 +41,7 @@ export class MatrixWidget extends Widget {
     private topStats: { topStages?: [string, number][], topTransitions?: [string, number][] } = {}; // 存储top stages和top transitions
     private _topStatsHandler: (e: any) => void; // 事件处理函数引用
     private summaryData: any = null; // 存储summary数据
+    private competitionInfo: { id: string; name: string; url: string; description?: string; category?: string; evaluation?: string; startDate?: string; endDate?: string } | null = null; // 存储competition信息
     private stageHoverTimeout: number | null = null; // stage hover防抖定时器
     private transitionHoverTimeout: number | null = null; // transition hover防抖定时器
 
@@ -71,7 +72,7 @@ export class MatrixWidget extends Widget {
         return simRow && simRow.cluster_id === this.selectedClusterId;
     }
 
-    constructor(data: Notebook[], colorScale: (label: string) => string, similarityGroups?: any[], kernelTitleMap?: Map<string, { title: string; creationDate: string; totalLines: number; displayname?: string; url?: string }>, voteData?: any[], summaryData?: any) {
+    constructor(data: Notebook[], colorScale: (label: string) => string, similarityGroups?: any[], kernelTitleMap?: Map<string, { title: string; creationDate: string; totalLines: number; displayname?: string; url?: string }>, voteData?: any[], summaryData?: any, competitionInfo?: { id: string; name: string; url: string; description?: string; category?: string; evaluation?: string; startDate?: string; endDate?: string }) {
         super();
         this.data = data.map((nb, i) => ({ ...nb, globalIndex: i + 1 }));
         this.colorScale = colorScale;
@@ -79,6 +80,7 @@ export class MatrixWidget extends Widget {
         this.voteData = voteData || [];
         this.kernelTitleMap = kernelTitleMap || new Map();
         this.summaryData = summaryData || null;
+        this.competitionInfo = competitionInfo || null;
 
 
 
@@ -720,7 +722,15 @@ export class MatrixWidget extends Widget {
 
     // 通用的tooltip处理函数
     private addTooltipToButton(button: HTMLButtonElement, getTooltipText: () => string): void {
+        let tooltipTimeout: number | null = null;
+        
         button.onmouseenter = (e) => {
+            // 清除之前的超时
+            if (tooltipTimeout) {
+                clearTimeout(tooltipTimeout);
+                tooltipTimeout = null;
+            }
+            
             // 使用缓存的tooltip元素或创建新的
             let tooltip = (window as any)._galaxyTooltip;
             if (!tooltip) {
@@ -735,15 +745,18 @@ export class MatrixWidget extends Widget {
                 tooltip.style.borderRadius = '4px';
                 tooltip.style.fontSize = '12px';
                 tooltip.style.zIndex = '9999';
+                tooltip.style.transition = 'opacity 0.2s ease-in-out';
                 document.body.appendChild(tooltip);
                 (window as any)._galaxyTooltip = tooltip;
             }
             
             tooltip.innerHTML = getTooltipText();
             tooltip.style.display = 'block';
+            tooltip.style.opacity = '1';
             tooltip.style.left = e.clientX + 12 + 'px';
             tooltip.style.top = e.clientY + 12 + 'px';
         };
+        
         button.onmousemove = (e) => {
             const tooltip = (window as any)._galaxyTooltip;
             if (tooltip && tooltip.style.display === 'block') {
@@ -751,10 +764,34 @@ export class MatrixWidget extends Widget {
                 tooltip.style.top = e.clientY + 12 + 'px';
             }
         };
+        
         button.onmouseleave = () => {
             const tooltip = (window as any)._galaxyTooltip;
             if (tooltip) {
-                tooltip.style.display = 'none';
+                // 立即隐藏tooltip
+                tooltip.style.opacity = '0';
+                tooltipTimeout = setTimeout(() => {
+                    if (tooltip && tooltip.style.opacity === '0') {
+                        tooltip.style.display = 'none';
+                    }
+                }, 200) as any;
+            }
+        };
+        
+        // 添加点击事件来立即隐藏tooltip
+        button.onclick = () => {
+            const tooltip = (window as any)._galaxyTooltip;
+            if (tooltip) {
+                tooltip.style.opacity = '0';
+                if (tooltipTimeout) {
+                    clearTimeout(tooltipTimeout);
+                    tooltipTimeout = null;
+                }
+                setTimeout(() => {
+                    if (tooltip && tooltip.style.opacity === '0') {
+                        tooltip.style.display = 'none';
+                    }
+                }, 200);
             }
         };
     }
@@ -1796,11 +1833,10 @@ export class MatrixWidget extends Widget {
 
     // 重置MatrixWidget状态，用于切换competition时
     resetState(): void {
-        // 如果有similarityGroups数据，默认激活cluster，否则使用原始顺序
-        const hasSimilarityData = this.similarityGroups && this.similarityGroups.length > 0;
-        this.sortState = hasSimilarityData ? 3 : 0;
+        // 默认使用非cluster模式（原始顺序）
+        this.sortState = 0;
         this.voteEnabled = false;
-        this.lengthSortEnabled = hasSimilarityData; // cluster激活时默认启用length排序
+        this.lengthSortEnabled = false; // 非cluster模式下默认不启用length排序
         this.clusterSizeSortDirection = 'asc'; // 默认升序
         this.notebookOrder = this.data.map((_, i) => i);
         (this as any)._assignmentFilter = '';
@@ -1808,6 +1844,7 @@ export class MatrixWidget extends Widget {
         this.cellHeightMode = 'fixed';
         this.showMarkdown = false; // 默认不显示markdown
         this.selectedClusterId = null; // 重置cluster选择状态
+        // 注意：competitionInfo不需要重置，因为它由构造函数设置
 
         // 只有在DOM元素已经创建时才更新按钮状态
         if (this.sortButton) {
@@ -1815,12 +1852,8 @@ export class MatrixWidget extends Widget {
         }
         if (this.similaritySortButton) {
             this.similaritySortButton.innerHTML = this.getSimilaritySortIcon();
-            // 只有在有similarityGroups数据时才激活cluster按钮
-            if (this.similarityGroups && this.similarityGroups.length > 0) {
-                this.similaritySortButton.classList.add('active');
-            } else {
-                this.similaritySortButton.classList.remove('active');
-            }
+            // 默认不激活cluster按钮
+            this.similaritySortButton.classList.remove('active');
         }
         if (this.cellHeightButton) {
             this.cellHeightButton.innerHTML = this.getCellHeightIcon();
@@ -1929,6 +1962,7 @@ export class MatrixWidget extends Widget {
             cellHeightMode: this.cellHeightMode,
             showMarkdown: this.showMarkdown,
             selectedClusterId: this.selectedClusterId,
+            competitionInfo: this.competitionInfo, // 保存competition信息
             scrollLeft: finalScrollLeft,
             scrollTop: finalScrollTop
         };
@@ -1939,7 +1973,12 @@ export class MatrixWidget extends Widget {
         // 隐藏galaxy-tooltip
         const galaxyTooltip = (window as any)._galaxyTooltip;
         if (galaxyTooltip) {
-            galaxyTooltip.style.display = 'none';
+            galaxyTooltip.style.opacity = '0';
+            setTimeout(() => {
+                if (galaxyTooltip && galaxyTooltip.style.opacity === '0') {
+                    galaxyTooltip.style.display = 'none';
+                }
+            }, 200);
         }
         // 隐藏tooltip
         const tooltip = document.getElementById('tooltip');
@@ -1968,6 +2007,7 @@ export class MatrixWidget extends Widget {
             this.cellHeightMode = savedState.cellHeightMode || 'fixed';
             this.showMarkdown = savedState.showMarkdown !== undefined ? savedState.showMarkdown : false; // 恢复markdown显示状态
             this.selectedClusterId = savedState.selectedClusterId || null; // 恢复cluster选择状态
+            this.competitionInfo = savedState.competitionInfo || null; // 恢复competition信息
 
             // 更新按钮状态
             this.sortButton.innerHTML = this.getSortIcon();
@@ -2010,10 +2050,10 @@ export class MatrixWidget extends Widget {
             }
         } else {
             // 如果没有保存的状态，使用默认状态
-            // 如果有similarityGroups数据，默认激活cluster，否则使用原始顺序
-            this.sortState = (this.similarityGroups && this.similarityGroups.length > 0) ? 3 : 0;
+            // 默认使用非cluster模式（原始顺序）
+            this.sortState = 0;
             this.voteEnabled = false;
-            this.lengthSortEnabled = (this.similarityGroups && this.similarityGroups.length > 0); // cluster激活时默认启用length排序
+            this.lengthSortEnabled = false; // 非cluster模式下默认不启用length排序
             this.clusterSizeSortDirection = 'asc'; // 默认升序
             this.notebookOrder = this.data.map((_, i) => i);
             (this as any)._assignmentFilter = '';
@@ -2021,6 +2061,7 @@ export class MatrixWidget extends Widget {
             this.cellHeightMode = 'fixed';
             this.showMarkdown = false; // 默认不显示markdown
             this.selectedClusterId = null; // 重置cluster选择状态
+            // competitionInfo保持构造函数设置的值，不需要重置
 
             // 更新按钮状态
             this.sortButton.innerHTML = this.getSortIcon();
@@ -2031,12 +2072,8 @@ export class MatrixWidget extends Widget {
 
             // 重置vote按钮的active状态
             this.voteSortButton.classList.remove('active');
-            // 只有在有similarityGroups数据时才激活cluster按钮
-            if (this.similarityGroups && this.similarityGroups.length > 0) {
-                this.similaritySortButton.classList.add('active');
-            } else {
-                this.similaritySortButton.classList.remove('active');
-            }
+            // 默认不激活cluster按钮
+            this.similaritySortButton.classList.remove('active');
 
             this.updateSortButtonState();
 
@@ -2112,6 +2149,10 @@ export class MatrixWidget extends Widget {
                 // 显示cluster概览信息
                 this.showClusterOverview();
             }
+        } else if (this.competitionInfo) {
+            // 不聚类时显示competition信息
+            this.clusterInfoContainer.style.display = 'block';
+            this.showCompetitionInfo();
         } else {
             this.clusterInfoContainer.style.display = 'none';
         }
@@ -2369,6 +2410,29 @@ export class MatrixWidget extends Widget {
         }, 0);
     }
 
+    // 显示competition信息
+    private showCompetitionInfo() {
+        if (!this.clusterInfoContainer || !this.competitionInfo) return;
+
+        const { description } = this.competitionInfo;
+
+        if (!description) {
+            this.clusterInfoContainer.style.display = 'none';
+            return;
+        }
+
+        this.clusterInfoContainer.innerHTML = `
+            <div style="font-size:16px; font-weight:700; margin-bottom:12px; line-height:1.3; padding-bottom:8px; border-bottom:1px solid #e9ecef;">
+                <span style="color: #222;">Competition Description</span>
+            </div>
+            <div style="background:#f8f9fa; border-radius:6px; padding:12px; margin-bottom:8px; border:1px solid #e9ecef; max-height: 200px; overflow-y: auto;">
+                <div style="font-size:13px; color:#222; line-height:1.5; font-weight:400;">
+                    ${description}
+                </div>
+            </div>
+        `;
+    }
+
     // 显示cluster概览信息
     private showClusterOverview() {
         if (!this.clusterInfoContainer) return;
@@ -2623,6 +2687,13 @@ export class MatrixWidget extends Widget {
         }
         if (this.transitionHoverTimeout) {
             clearTimeout(this.transitionHoverTimeout);
+        }
+        
+        // 隐藏tooltip
+        const tooltip = (window as any)._galaxyTooltip;
+        if (tooltip) {
+            tooltip.style.display = 'none';
+            tooltip.style.opacity = '0';
         }
         
         // 移除事件监听器

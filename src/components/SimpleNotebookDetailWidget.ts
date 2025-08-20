@@ -73,20 +73,32 @@ export class SimpleNotebookDetailWidget extends Widget {
             }
         }));
 
-        // 监听widget关闭事件
-        this.disposed.connect(() => {
-            // 触发事件通知SimpleInfoSidebar清除notebook信息
-            window.dispatchEvent(new CustomEvent('galaxy-simple-notebook-detail-closed'));
-        });
-
         // 监听TOC点击事件
         this.tocClickHandler = this.handleTocClick.bind(this);
         window.addEventListener('galaxy-simple-toc-item-clicked', this.tocClickHandler);
 
-        // 确保在widget销毁时移除事件监听器
+        // 监听widget关闭事件 - 合并所有disposed事件处理
         this.disposed.connect(() => {
+            // 触发事件通知SimpleInfoSidebar清除notebook信息
+            window.dispatchEvent(new CustomEvent('galaxy-simple-notebook-detail-closed'));
+            // 移除事件监听器
             window.removeEventListener('galaxy-simple-toc-item-clicked', this.tocClickHandler);
         });
+
+        // 监听tab标题变化，作为额外的关闭检测
+        this.title.changed.connect(() => {
+            if (this.isDisposed) {
+                window.dispatchEvent(new CustomEvent('galaxy-simple-notebook-detail-closed'));
+            }
+        });
+
+        // 监听tab关闭按钮点击事件
+        setTimeout(() => {
+            this.bindTabCloseListener();
+        }, 100);
+
+        // 监听DOM变化，检测tab是否被移除
+        this.observeTabRemoval();
 
         this.render();
     }
@@ -515,5 +527,56 @@ export class SimpleNotebookDetailWidget extends Widget {
             }
         }
         return -1;
+    }
+
+    private bindTabCloseListener(): void {
+        // 查找当前widget对应的tab关闭按钮
+        const tabCloseButton = document.querySelector(`[data-id="${this.id}"] .lm-TabBar-tabCloseIcon`);
+        if (tabCloseButton) {
+            tabCloseButton.addEventListener('click', (e) => {
+                e.stopPropagation(); // 阻止事件冒泡
+                window.dispatchEvent(new CustomEvent('galaxy-simple-notebook-detail-closed'));
+            });
+        } else {
+            // 尝试延迟查找
+            setTimeout(() => {
+                const delayedTabCloseButton = document.querySelector(`[data-id="${this.id}"] .lm-TabBar-tabCloseIcon`);
+                if (delayedTabCloseButton) {
+                    delayedTabCloseButton.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        window.dispatchEvent(new CustomEvent('galaxy-simple-notebook-detail-closed'));
+                    });
+                }
+            }, 500);
+        }
+    }
+
+    private observeTabRemoval(): void {
+        // 监听DOM变化，检测tab是否被移除
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.type === 'childList') {
+                    mutation.removedNodes.forEach((node) => {
+                        if (node.nodeType === Node.ELEMENT_NODE) {
+                            const element = node as Element;
+                            if (element.getAttribute('data-id') === this.id) {
+                                window.dispatchEvent(new CustomEvent('galaxy-simple-notebook-detail-closed'));
+                            }
+                        }
+                    });
+                }
+            });
+        });
+
+        // 监听所有tab bar的变化
+        const tabBars = document.querySelectorAll('.lm-TabBar-content');
+        tabBars.forEach(tabBar => {
+            observer.observe(tabBar, { childList: true, subtree: true });
+        });
+
+        // 在widget销毁时停止观察
+        this.disposed.connect(() => {
+            observer.disconnect();
+        });
     }
 } 

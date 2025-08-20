@@ -20,14 +20,12 @@ type TOCItem = {
 
 export class SimpleInfoSidebar extends Widget {
     private currentNotebook: Notebook | null = null;
-    private competitionInfo?: { id: string; name: string; url: string };
-    private allNotebooks: Notebook[] = [];
+    private competitionInfo?: { id: string; name: string; url: string; description?: string };
     private eventHandler: (event: Event) => void;
 
-    constructor(competitionInfo?: { id: string; name: string; url: string }, allNotebooks?: Notebook[]) {
+    constructor(competitionInfo?: { id: string; name: string; url: string; description?: string }) {
         super();
         this.competitionInfo = competitionInfo;
-        this.allNotebooks = allNotebooks || [];
 
         this.id = 'simple-info-sidebar';
         this.title.label = 'Info';
@@ -147,14 +145,63 @@ export class SimpleInfoSidebar extends Widget {
             flex-direction: column;
         `;
 
-        // 添加总体统计信息
-        const overallStats = this.createOverallStats();
-        content.appendChild(overallStats);
-
+        // 添加competition description到content中，占满剩余高度
+        if (this.competitionInfo?.description) {
+            const descriptionDiv = document.createElement('div');
+            descriptionDiv.style.cssText = `
+                flex: 1;
+                min-height: 0;
+                display: flex;
+                flex-direction: column;
+                margin-top: 12px;
+            `;
+            
+            const descriptionText = document.createElement('div');
+            descriptionText.className = 'description-scroll';
+            descriptionText.style.cssText = `
+                font-size: 13px;
+                line-height: 1.5;
+                color: #495057;
+                background: #f8f9fa;
+                border-radius: 6px;
+                padding: 12px;
+                border: 1px solid #e9ecef;
+                word-break: break-word;
+                flex: 1;
+                min-height: 0;
+                overflow-y: auto;
+                overflow-x: hidden;
+            `;
+            descriptionText.innerHTML = this.competitionInfo.description;
+            
+            descriptionDiv.appendChild(descriptionText);
+            content.appendChild(descriptionDiv);
+        }
 
         container.appendChild(header);
         container.appendChild(content);
         this.node.appendChild(container);
+
+        // 添加滚动条样式
+        const style = document.createElement('style');
+        style.textContent = `
+            .simple-info-sidebar .description-scroll::-webkit-scrollbar {
+                width: 6px;
+            }
+            .simple-info-sidebar .description-scroll::-webkit-scrollbar-track {
+                background: #f8f9fa;
+                border-radius: 3px;
+            }
+            .simple-info-sidebar .description-scroll::-webkit-scrollbar-thumb {
+                background: #dee2e6;
+                border-radius: 3px;
+                border: 1px solid #f8f9fa;
+            }
+            .simple-info-sidebar .description-scroll::-webkit-scrollbar-thumb:hover {
+                background: #adb5bd;
+            }
+        `;
+        this.node.appendChild(style);
     }
 
     public setNotebookDetail(notebook: Notebook) {
@@ -339,88 +386,7 @@ export class SimpleInfoSidebar extends Widget {
         `;
     }
 
-    // 创建总体统计信息
-    private createOverallStats(): HTMLElement {
-        const section = document.createElement('div');
-        section.style.cssText = `
-            margin-bottom: 16px;
-            flex-shrink: 0;
-        `;
 
-        const title = document.createElement('div');
-        title.style.cssText = `
-            font-size: 14px;
-            font-weight: 600;
-            margin-bottom: 8px;
-            color: #222;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        `;
-        title.innerHTML = `
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M3 3v18h18" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                <path d="M18 17V9" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                <path d="M13 17V5" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                <path d="M8 17v-3" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-            Overall Statistics
-        `;
-
-        const statsContainer = document.createElement('div');
-        statsContainer.style.cssText = `
-            background: #f8f9fa;
-            border-radius: 6px;
-            padding: 12px;
-            border: 1px solid #e9ecef;
-        `;
-
-        // 计算总体统计信息
-        const totalNotebooks = this.allNotebooks.length;
-        let totalCells = 0;
-        let totalCodeCells = 0;
-        let totalLines = 0;
-
-        this.allNotebooks.forEach(notebook => {
-            if (notebook.cells) {
-                totalCells += notebook.cells.length;
-                totalCodeCells += notebook.cells.filter((cell: any) => (cell.cellType + '').toLowerCase() === 'code').length;
-            }
-            if (notebook.totalLines) {
-                totalLines += notebook.totalLines;
-            }
-        });
-
-        const avgCells = totalNotebooks > 0 ? (totalCells / totalNotebooks).toFixed(1) : '0';
-        const avgCodeCells = totalNotebooks > 0 ? (totalCodeCells / totalNotebooks).toFixed(1) : '0';
-        const avgLines = totalNotebooks > 0 ? (totalLines / totalNotebooks).toFixed(1) : '0';
-
-        statsContainer.innerHTML = `
-            <div style="display: flex; flex-direction: row; gap: 12px;">
-                <div style="flex: 1; display: flex; flex-direction: column; justify-content: flex-end;">
-                    <div style="font-size: 11px; color: #6c757d; margin-bottom: 2px;">Total Notebooks</div>
-                    <div style="font-size: 14px; font-weight: 600; color: #495057;">${totalNotebooks}</div>
-                </div>
-                <div style="flex: 1; display: flex; flex-direction: column; justify-content: flex-end;">
-                    <div style="font-size: 11px; color: #6c757d; margin-bottom: 2px;">Avg Cells</div>
-                    <div style="font-size: 14px; font-weight: 600; color: #495057;">${avgCells}</div>
-                </div>
-                <div style="flex: 1; display: flex; flex-direction: column; justify-content: flex-end;">
-                    <div style="font-size: 11px; color: #6c757d; margin-bottom: 2px;">Avg Code Cells</div>
-                    <div style="font-size: 14px; font-weight: 600; color: #495057;">${avgCodeCells}</div>
-                </div>
-                <div style="flex: 1; display: flex; flex-direction: column; justify-content: flex-end;">
-                    <div style="font-size: 11px; color: #6c757d; margin-bottom: 2px;">Avg Lines</div>
-                    <div style="font-size: 14px; font-weight: 600; color: #495057;">${avgLines}</div>
-                </div>
-            </div>
-        `;
-
-        section.appendChild(title);
-        section.appendChild(statsContainer);
-
-        return section;
-    }
 
     // 清除当前notebook信息
     public clearNotebook() {
