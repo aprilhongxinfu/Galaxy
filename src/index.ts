@@ -816,7 +816,7 @@ function activate(
   }
 
   app.commands.addCommand(command, {
-    label: 'Detailed Notebook Analysis',
+    label: 'Condition B',
     execute: async () => {
       isInitializing = true; // 设置初始化标志
 
@@ -1348,7 +1348,7 @@ function activate(
 
   // 添加简化分析命令
   app.commands.addCommand(simpleCommand, {
-    label: 'Simple Notebook Analysis',
+    label: 'Condition A',
     execute: async () => {
       isInitializing = true; // 设置初始化标志
 
@@ -1566,7 +1566,7 @@ function activate(
     if (fbWidget && fbWidget instanceof FileBrowser) {
       const analyzeButton = new ToolbarButton({
         icon: detailedAnalysisIcon,
-        tooltip: 'Detailed notebook analysis',
+        tooltip: 'Condition B',
         onClick: () => {
           app.commands.execute(command);
         }
@@ -1619,7 +1619,7 @@ function activate(
       // 添加简化分析按钮
       const simpleAnalyzeButton = new ToolbarButton({
         icon: runIcon,
-        tooltip: 'Simple notebook analysis',
+        tooltip: 'Condition A',
         onClick: () => {
           app.commands.execute(simpleCommand);
         }
