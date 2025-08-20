@@ -415,16 +415,6 @@ function activate(
     return notebookDetailWidgets.length > 1;
   }
 
-  // ====== 检测是否有多个simple notebook detail widget（简化分析模式分屏检测） ======
-  function hasMultipleSimpleNotebookDetailWidgets(): boolean {
-    const mainWidgets = Array.from(app.shell.widgets('main'));
-    const simpleNotebookDetailWidgets = mainWidgets.filter(w =>
-      w.id && w.id.startsWith('simple-notebook-detail-widget-')
-    );
-
-    return simpleNotebookDetailWidgets.length > 1;
-  }
-
   // ====== 检测是否需要滚动同步（有多个notebook detail widget在分屏中） ======
   function shouldEnableScrollSync(): boolean {
     const hasMultipleNotebookDetails = hasMultipleNotebookDetailWidgets();
@@ -610,7 +600,7 @@ function activate(
     }
     
     // 新增：如果 widget 为空或不是 galaxy 相关 tab，检查是否需要关闭 sidebar
-    if (!widget || !(widget.id && (widget.id === 'matrix-widget' || widget.id.startsWith('notebook-detail-widget-') || widget.id === 'simple-notebook-list-widget' || widget.id.startsWith('simple-notebook-detail-widget-')))) {
+    if (!widget || !(widget.id && (widget.id === 'matrix-widget' || widget.id.startsWith('notebook-detail-widget-')))) {
       // 只有在没有galaxy分析数据时才关闭sidebar
       if (!result1 || result1.length === 0) {
         closeSidebarsIfNoMainWidgets(app);
@@ -649,19 +639,12 @@ function activate(
 
     // 检查是否有分屏布局
     if (hasSplitLayout()) {
-      // 只有在详细分析模式下才收缩sidebar，简化分析模式下保持sidebar展开
-      const mainWidgets = Array.from(app.shell.widgets('main'));
-      const hasSimpleList = mainWidgets.some(w => w.id === 'simple-notebook-list-widget');
-      const hasSimpleDetail = mainWidgets.some(w => w.id && w.id.startsWith('simple-notebook-detail-widget-'));
-      
-      if (!hasSimpleList && !hasSimpleDetail) {
-        // 收缩左右sidebar而不是关闭
-        if (typeof (app.shell as any).collapseLeft === 'function') {
-          (app.shell as any).collapseLeft();
-        }
-        if (typeof (app.shell as any).collapseRight === 'function') {
-          (app.shell as any).collapseRight();
-        }
+      // 收缩左右sidebar而不是关闭
+      if (typeof (app.shell as any).collapseLeft === 'function') {
+        (app.shell as any).collapseLeft();
+      }
+      if (typeof (app.shell as any).collapseRight === 'function') {
+        (app.shell as any).collapseRight();
       }
       // 在分屏布局下也需要更新滚动同步
       setTimeout(() => updateScrollSync(), 100);
@@ -756,27 +739,21 @@ function activate(
     const mainWidgets = Array.from(app.shell.widgets('main'));
     const hasMatrix = mainWidgets.some(w => w.id === 'matrix-widget');
     const hasDetail = mainWidgets.some(w => w.id && w.id.startsWith('notebook-detail-widget-'));
-    // 检查是否有简化分析模式的widget
-    const hasSimpleList = mainWidgets.some(w => w.id === 'simple-notebook-list-widget');
-    const hasSimpleDetail = mainWidgets.some(w => w.id && w.id.startsWith('simple-notebook-detail-widget-'));
 
     // 检查是否有分屏布局
     if (hasSplitLayout()) {
-      // 只有在详细分析模式下才收缩sidebar，简化分析模式下保持sidebar展开
-      if (!hasSimpleList && !hasSimpleDetail) {
-        // 收缩左右sidebar而不是关闭
-        if (typeof (app.shell as any).collapseLeft === 'function') {
-          (app.shell as any).collapseLeft();
-        }
-        if (typeof (app.shell as any).collapseRight === 'function') {
-          (app.shell as any).collapseRight();
-        }
+      // 收缩左右sidebar而不是关闭
+      if (typeof (app.shell as any).collapseLeft === 'function') {
+        (app.shell as any).collapseLeft();
+      }
+      if (typeof (app.shell as any).collapseRight === 'function') {
+        (app.shell as any).collapseRight();
       }
       return;
     }
 
-    // 当没有galaxy相关tab时关闭sidebar（包括简化分析模式）
-    if (!hasMatrix && !hasDetail && !hasSimpleList && !hasSimpleDetail) {
+    // 当没有galaxy相关tab时关闭sidebar
+    if (!hasMatrix && !hasDetail) {
       // 关闭sidebar，不管是否有分析数据
       // 关闭左侧 flowchart
       const oldLeft = app.shell.widgets('left');
@@ -788,7 +765,7 @@ function activate(
       // 关闭右侧 detail sidebar
       const oldRight = app.shell.widgets('right');
       for (const w of oldRight) {
-        if (w.id === 'galaxy-detail-sidebar' || w.id === 'simple-info-sidebar') {
+        if (w.id === 'galaxy-detail-sidebar') {
           w.close();
         }
       }
@@ -807,7 +784,7 @@ function activate(
     return widget.isVisible;
   }
 
-  // 恢复：获取主区域第一个 galaxy 相关 widget（优先 notebook-detail-widget，其次 matrix-widget，最后简化分析模式）
+  // 恢复：获取主区域第一个 galaxy 相关 widget（优先 notebook-detail-widget，其次 matrix-widget）
   function getActiveGalaxyWidget() {
     const mainWidgets = Array.from(app.shell.widgets('main'));
 
@@ -815,9 +792,7 @@ function activate(
     const visibleGalaxyWidgets = mainWidgets.filter(w =>
       w.isVisible && (
         (w.id && w.id.startsWith('notebook-detail-widget-')) ||
-        (w.id && w.id === 'matrix-widget') ||
-        (w.id && w.id.startsWith('simple-notebook-detail-widget-')) ||
-        (w.id && w.id === 'simple-notebook-list-widget')
+        (w.id && w.id === 'matrix-widget')
       )
     );
 
@@ -830,12 +805,6 @@ function activate(
     let widget = mainWidgets.find(w => w.id && w.id.startsWith('notebook-detail-widget-'));
     if (!widget) {
       widget = mainWidgets.find(w => w.id && w.id === 'matrix-widget');
-    }
-    if (!widget) {
-      widget = mainWidgets.find(w => w.id && w.id.startsWith('simple-notebook-detail-widget-'));
-    }
-    if (!widget) {
-      widget = mainWidgets.find(w => w.id && w.id === 'simple-notebook-list-widget');
     }
 
     return widget || null;
@@ -1551,40 +1520,6 @@ function activate(
 
           // 注册 simple notebook detail 事件监听器（合并处理）
           handleSimpleNotebookSelected = (e: any) => {
-            // 检查是否已经有simple notebook detail widget - 在简化分析模式下禁用分屏
-            if (hasMultipleSimpleNotebookDetailWidgets()) {
-              // 在简化分析模式下，如果已经有notebook detail widget，不创建新的
-              console.warn('Split screen is disabled in simple analysis mode. Please close the existing notebook detail first.');
-              
-              // 显示用户友好的提示
-              const notification = document.createElement('div');
-              notification.style.cssText = `
-                position: fixed;
-                top: 20px;
-                right: 20px;
-                background: #ff6b35;
-                color: white;
-                padding: 12px 16px;
-                border-radius: 6px;
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                font-size: 14px;
-                z-index: 10000;
-                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-                max-width: 300px;
-              `;
-              notification.textContent = 'Split screen is disabled in simple analysis mode. Please close the existing notebook detail first.';
-              document.body.appendChild(notification);
-              
-              // 3秒后自动移除提示
-              setTimeout(() => {
-                if (notification.parentNode) {
-                  notification.parentNode.removeChild(notification);
-                }
-              }, 3000);
-              
-              return;
-            }
-            
             // 新建并显示 simple notebook 详情，深拷贝 notebook 数据
             const nb = JSON.parse(JSON.stringify(e.detail.notebook));
             const simpleDetailWidget = new SimpleNotebookDetailWidget(nb);
@@ -1863,19 +1798,12 @@ function activate(
       checkNotebookDetailWidgetStatus();
       // 检查是否有分屏布局
       if (hasSplitLayout()) {
-        // 只有在详细分析模式下才收缩sidebar，简化分析模式下保持sidebar展开
-        const mainWidgets = Array.from(app.shell.widgets('main'));
-        const hasSimpleList = mainWidgets.some(w => w.id === 'simple-notebook-list-widget');
-        const hasSimpleDetail = mainWidgets.some(w => w.id && w.id.startsWith('simple-notebook-detail-widget-'));
-        
-        if (!hasSimpleList && !hasSimpleDetail) {
-          // 收缩左右sidebar而不是关闭
-          if (typeof (app.shell as any).collapseLeft === 'function') {
-            (app.shell as any).collapseLeft();
-          }
-          if (typeof (app.shell as any).collapseRight === 'function') {
-            (app.shell as any).collapseRight();
-          }
+        // 收缩左右sidebar而不是关闭
+        if (typeof (app.shell as any).collapseLeft === 'function') {
+          (app.shell as any).collapseLeft();
+        }
+        if (typeof (app.shell as any).collapseRight === 'function') {
+          (app.shell as any).collapseRight();
         }
       }
       // 在布局变化时更新滚动同步状态
@@ -1977,17 +1905,6 @@ function activate(
                 const widget = getActiveGalaxyWidget();
                 if (widget) {
                   handleTabSwitch(widget);
-                }
-              }, 100);
-            } else if (w.id === 'simple-notebook-list-widget') {
-              // Simple notebook list widget was closed
-              // 延迟处理以确保状态稳定
-              setTimeout(() => {
-                const widget = getActiveGalaxyWidget();
-                if (widget) {
-                  handleTabSwitch(widget);
-                } else {
-                  closeSidebarsIfNoMainWidgets(app);
                 }
               }, 100);
             } else if (w.id === 'matrix-widget') {
