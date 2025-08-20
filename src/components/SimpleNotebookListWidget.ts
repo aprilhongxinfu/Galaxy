@@ -74,13 +74,6 @@ export class SimpleNotebookListWidget extends Widget {
         container.appendChild(listContainer);
         this.node.appendChild(container);
         
-        // 初始化时设置激活状态
-        if (this.sortByVote) {
-            const sortButton = this.node.querySelector('button') as HTMLButtonElement;
-            if (sortButton) {
-                sortButton.classList.add('active');
-            }
-        }
     }
 
     private createNotebookTable(): HTMLElement {
@@ -96,44 +89,6 @@ export class SimpleNotebookListWidget extends Widget {
             flex-direction: column;
         `;
 
-        // 创建排序按钮容器
-        const buttonContainer = document.createElement('div');
-        buttonContainer.style.display = 'flex';
-        buttonContainer.style.justifyContent = 'flex-start';
-        buttonContainer.style.alignItems = 'center';
-        buttonContainer.style.marginTop = '4px';
-        buttonContainer.style.marginBottom = '4px';
-        buttonContainer.style.height = '24px';
-        buttonContainer.style.width = '100%';
-        buttonContainer.style.position = 'relative';
-
-        // 创建排序按钮
-        const sortButton = document.createElement('button');
-        sortButton.innerHTML = 'Sort by vote';
-        sortButton.style.background = 'none';
-        sortButton.style.border = 'none';
-        sortButton.style.cursor = 'pointer';
-        sortButton.style.fontSize = '12px';
-        sortButton.style.fontWeight = '600';
-        sortButton.style.color = '#495057';
-        sortButton.style.display = 'flex';
-        sortButton.style.alignItems = 'center';
-        sortButton.style.justifyContent = 'center';
-        sortButton.style.padding = '6px 8px';
-
-
-        sortButton.addEventListener('click', () => {
-            this.sortByVote = !this.sortByVote;
-            if (this.sortByVote) {
-                sortButton.classList.add('active');
-            } else {
-                sortButton.classList.remove('active');
-            }
-            sortButton.innerHTML = 'Sort by vote';
-            this.render();
-        });
-
-        buttonContainer.appendChild(sortButton);
 
         const tableContainer = document.createElement('div');
         tableContainer.style.cssText = `
@@ -161,11 +116,57 @@ export class SimpleNotebookListWidget extends Widget {
         `;
 
         const headerRow = document.createElement('tr');
-        headerRow.innerHTML = `
-            <th style="padding: 6px 8px; text-align: center; font-weight: 600; color: #495057; width: 40px;">ID</th>
-            <th style="padding: 6px 8px; text-align: center; font-weight: 600; color: #495057; width: 70px;">Vote</th>
-            <th style="padding: 6px 8px; text-align: left; font-weight: 600; color: #495057;">Notebook</th>
+        
+        // ID header
+        const idHeader = document.createElement('th');
+        idHeader.style.cssText = 'padding: 6px 8px; text-align: center; font-weight: 600; color: #495057; width: 40px;';
+        idHeader.textContent = 'ID';
+        headerRow.appendChild(idHeader);
+        
+        // Vote header with sort triangle
+        const voteHeader = document.createElement('th');
+        voteHeader.style.cssText = 'padding: 6px 8px; text-align: center; font-weight: 600; color: #495057; width: 70px; cursor: pointer; position: relative;';
+        voteHeader.textContent = 'Vote';
+        
+        // Create triangle icon
+        const triangle = document.createElement('span');
+        triangle.style.cssText = `
+            position: absolute;
+            right: 8px;
+            top: 50%;
+            transform: translateY(-50%) ${this.sortByVote ? 'rotate(180deg)' : 'rotate(0deg)'};
+            width: 0;
+            height: 0;
+            border-left: 3px solid transparent;
+            border-right: 3px solid transparent;
+            border-bottom: 4px solid #495057;
+            transition: transform 0.2s, opacity 0.2s;
+            opacity: 0;
         `;
+        voteHeader.appendChild(triangle);
+        
+        voteHeader.addEventListener('click', () => {
+            this.sortByVote = !this.sortByVote;
+            triangle.style.transform = `translateY(-50%) ${this.sortByVote ? 'rotate(180deg)' : 'rotate(0deg)'}`;
+            this.render();
+        });
+        
+        // Show triangle on hover
+        voteHeader.addEventListener('mouseenter', () => {
+            triangle.style.opacity = '1';
+        });
+        
+        voteHeader.addEventListener('mouseleave', () => {
+            triangle.style.opacity = '0';
+        });
+        
+        headerRow.appendChild(voteHeader);
+        
+        // Notebook header
+        const notebookHeader = document.createElement('th');
+        notebookHeader.style.cssText = 'padding: 6px 8px; text-align: left; font-weight: 600; color: #495057;';
+        notebookHeader.textContent = 'Notebook';
+        headerRow.appendChild(notebookHeader);
 
         thead.appendChild(headerRow);
 
@@ -180,7 +181,6 @@ export class SimpleNotebookListWidget extends Widget {
         table.appendChild(thead);
         table.appendChild(tbody);
         tableContainer.appendChild(table);
-        tableWrapper.appendChild(buttonContainer);
         tableWrapper.appendChild(tableContainer);
 
         return tableWrapper;
