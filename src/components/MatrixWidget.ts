@@ -41,6 +41,8 @@ export class MatrixWidget extends Widget {
     private topStats: { topStages?: [string, number][], topTransitions?: [string, number][] } = {}; // 存储top stages和top transitions
     private _topStatsHandler: (e: any) => void; // 事件处理函数引用
     private summaryData: any = null; // 存储summary数据
+    private stageHoverTimeout: number | null = null; // stage hover防抖定时器
+    private transitionHoverTimeout: number | null = null; // transition hover防抖定时器
 
     // 获取cluster的title
     private getClusterTitle(clusterId: string): string {
@@ -146,13 +148,10 @@ export class MatrixWidget extends Widget {
             // 恢复高亮状态
             setTimeout(() => {
                 if (currentStageSelection) {
-                    d3.selectAll('.matrix-cell')
-                        .classed('matrix-highlight', false)
-                        .classed('matrix-dim', true);
-                    d3.selectAll(`.matrix-cell-${currentStageSelection}`)
-                        .classed('matrix-highlight', true)
-                        .classed('matrix-dim', false);
+                    // 重新应用stage选中状态的高亮
+                    this.applyStageHover(null, true);
                 } else if (currentFlowSelection) {
+                    // 重新应用flow选中状态的高亮
                     this.applyFlowHighlight(currentFlowSelection.from, currentFlowSelection.to);
                 }
                 
@@ -192,13 +191,10 @@ export class MatrixWidget extends Widget {
             // 恢复高亮状态
             setTimeout(() => {
                 if (currentStageSelection) {
-                    d3.selectAll('.matrix-cell')
-                        .classed('matrix-highlight', false)
-                        .classed('matrix-dim', true);
-                    d3.selectAll(`.matrix-cell-${currentStageSelection}`)
-                        .classed('matrix-highlight', true)
-                        .classed('matrix-dim', false);
+                    // 重新应用stage选中状态的高亮
+                    this.applyStageHover(null, true);
                 } else if (currentFlowSelection) {
+                    // 重新应用flow选中状态的高亮
                     this.applyFlowHighlight(currentFlowSelection.from, currentFlowSelection.to);
                 }
                 
@@ -1105,22 +1101,37 @@ export class MatrixWidget extends Widget {
 
         // 只应用高亮效果，不进行任何筛选
         setTimeout(() => {
+            // 先清除所有高亮和暗淡效果
             d3.selectAll('.matrix-cell')
                 .classed('matrix-highlight', false)
-                .classed('matrix-dim', true);
+                .classed('matrix-dim', false);
             
-            // 如果有选中的cluster，只高亮该cluster内的cells
             if (this.selectedClusterId) {
-                this.notebookOrder.forEach((row, colIdx) => {
+                // 选中了cluster时，只在cluster内部处理
+                const clusterNotebooks = this.notebookOrder.filter(row => {
                     const nb = this.data[row];
-                    if (this.isNotebookInSelectedCluster(nb)) {
-                        d3.selectAll(`.matrix-cell-${stage}[data-row="${row}"]`)
-                            .classed('matrix-highlight', true)
-                            .classed('matrix-dim', false);
-                    }
+                    return this.isNotebookInSelectedCluster(nb);
+                });
+                
+                // 只对cluster内的cells应用暗淡效果
+                const clusterSelector = clusterNotebooks.map(row => 
+                    `.matrix-cell[data-row="${row}"]`
+                ).join(',');
+                
+                if (clusterSelector) {
+                    d3.selectAll(clusterSelector).classed('matrix-dim', true);
+                }
+                
+                // 高亮cluster内匹配的cells
+                clusterNotebooks.forEach((row) => {
+                    d3.selectAll(`.matrix-cell-${stage}[data-row="${row}"]`)
+                        .classed('matrix-highlight', true)
+                        .classed('matrix-dim', false);
                 });
             } else {
-                // 没有选中cluster时，高亮所有匹配的cells
+                // 没有选中cluster时，全局处理
+                d3.selectAll('.matrix-cell').classed('matrix-dim', true);
+                
                 d3.selectAll(`.matrix-cell-${stage}`)
                     .classed('matrix-highlight', true)
                     .classed('matrix-dim', false);
@@ -1150,6 +1161,7 @@ export class MatrixWidget extends Widget {
             d3.selectAll('.matrix-cell')
                 .classed('matrix-highlight', false)
                 .classed('matrix-dim', false);
+            // 注意：不清除cluster-dim类，因为它由cluster选择控制
         }, 100); // 延迟清除高亮，确保matrix已重新绘制
     }
 
@@ -1159,94 +1171,77 @@ export class MatrixWidget extends Widget {
         // 检查是否有选中的stage
         const hasStageSelection = (window as any)._galaxyStageSelection;
 
-        // 只有在没有选中状态时才应用hover效果
-        if (!hasStageSelection) {
-            if (!stage) {
-                d3.selectAll('.matrix-cell')
-                    .classed('matrix-highlight', false)
+        // 优化：使用防抖来减少频繁的DOM操作
+        if (this.stageHoverTimeout) {
+            clearTimeout(this.stageHoverTimeout);
+        }
+
+        this.stageHoverTimeout = setTimeout(() => {
+            this.applyStageHover(stage, hasStageSelection);
+        }, 16); // 约60fps的刷新率
+    }
+
+    // 优化的stage hover应用方法
+    private applyStageHover(stage: string | null, hasStageSelection: boolean) {
+        // 批量操作：先清除所有高亮和暗淡效果
+        d3.selectAll('.matrix-cell')
+            .classed('matrix-highlight', false)
+            .classed('matrix-dim', false);
+
+        // 确定要应用的stage
+        const targetStage = stage || (hasStageSelection ? (window as any)._galaxyStageSelection : null);
+
+        if (targetStage) {
+            if (this.selectedClusterId) {
+                // 选中了cluster时，只在cluster内部处理
+                const clusterNotebooks = this.notebookOrder.filter(row => {
+                    const nb = this.data[row];
+                    return this.isNotebookInSelectedCluster(nb);
+                });
+                
+                // 只对cluster内的cells应用暗淡效果
+                const clusterSelector = clusterNotebooks.map(row => 
+                    `.matrix-cell[data-row="${row}"]`
+                ).join(',');
+                
+                if (clusterSelector) {
+                    d3.selectAll(clusterSelector).classed('matrix-dim', true);
+                }
+                
+                // 高亮cluster内匹配的cells
+                const highlightSelector = clusterNotebooks.map(row => 
+                    `.matrix-cell-${targetStage}[data-row="${row}"]`
+                ).join(',');
+                
+                if (highlightSelector) {
+                    d3.selectAll(highlightSelector)
+                        .classed('matrix-highlight', true)
+                        .classed('matrix-dim', false);
+                }
+            } else {
+                // 没有选中cluster时，全局处理
+                d3.selectAll('.matrix-cell').classed('matrix-dim', true);
+                
+                d3.selectAll(`.matrix-cell-${targetStage}`)
+                    .classed('matrix-highlight', true)
                     .classed('matrix-dim', false);
-            } else {
-                d3.selectAll('.matrix-cell')
-                    .classed('matrix-highlight', false)
-                    .classed('matrix-dim', true);
-                
-                // 如果有选中的cluster，只高亮该cluster内的cells
-                if (this.selectedClusterId) {
-                    this.notebookOrder.forEach((row, colIdx) => {
-                        const nb = this.data[row];
-                        if (this.isNotebookInSelectedCluster(nb)) {
-                            d3.selectAll(`.matrix-cell-${stage}[data-row="${row}"]`)
-                                .classed('matrix-highlight', true)
-                                .classed('matrix-dim', false);
-                        }
-                    });
-                } else {
-                    // 没有选中cluster时，高亮所有匹配的cells
-                    d3.selectAll(`.matrix-cell-${stage}`)
-                        .classed('matrix-highlight', true)
-                        .classed('matrix-dim', false);
-                }
-            }
-        } else {
-            // 如果有选中状态，hover时临时显示hover效果，但保持选中状态的高亮
-            if (!stage) {
-                // 恢复选中状态的高亮
-                const selectedStage = (window as any)._galaxyStageSelection;
-                d3.selectAll('.matrix-cell')
-                    .classed('matrix-highlight', false)
-                    .classed('matrix-dim', true);
-                
-                // 如果有选中的cluster，只高亮该cluster内的cells
-                if (this.selectedClusterId) {
-                    this.notebookOrder.forEach((row, colIdx) => {
-                        const nb = this.data[row];
-                        if (this.isNotebookInSelectedCluster(nb)) {
-                            d3.selectAll(`.matrix-cell-${selectedStage}[data-row="${row}"]`)
-                                .classed('matrix-highlight', true)
-                                .classed('matrix-dim', false);
-                        }
-                    });
-                } else {
-                    // 没有选中cluster时，高亮所有匹配的cells
-                    d3.selectAll(`.matrix-cell-${selectedStage}`)
-                        .classed('matrix-highlight', true)
-                        .classed('matrix-dim', false);
-                }
-            } else {
-                // 临时显示hover效果
-                d3.selectAll('.matrix-cell')
-                    .classed('matrix-highlight', false)
-                    .classed('matrix-dim', true);
-                
-                // 如果有选中的cluster，只高亮该cluster内的cells
-                if (this.selectedClusterId) {
-                    this.notebookOrder.forEach((row, colIdx) => {
-                        const nb = this.data[row];
-                        if (this.isNotebookInSelectedCluster(nb)) {
-                            d3.selectAll(`.matrix-cell-${stage}[data-row="${row}"]`)
-                                .classed('matrix-highlight', true)
-                                .classed('matrix-dim', false);
-                        }
-                    });
-                } else {
-                    // 没有选中cluster时，高亮所有匹配的cells
-                    d3.selectAll(`.matrix-cell-${stage}`)
-                        .classed('matrix-highlight', true)
-                        .classed('matrix-dim', false);
-                }
             }
         }
     }
 
     // 应用flow高亮的辅助方法
     private applyFlowHighlight(from: string, to: string): void {
-        const root = d3.select(this.node);
-        root.selectAll('.matrix-cell')
+        // 优化：批量操作，先清除所有高亮和暗淡效果
+        d3.selectAll('.matrix-cell')
             .classed('matrix-highlight', false)
-            .classed('matrix-dim', true);
+            .classed('matrix-dim', false);
+
+        // 收集所有需要高亮的cell选择器
+        const highlightSelectors: string[] = [];
+        const dimSelectors: string[] = [];
 
         // 遍历所有 notebook
-        this.notebookOrder.forEach((row, colIdx) => {
+        this.notebookOrder.forEach((row) => {
             const nb = this.data[row];
             
             // 如果有选中的cluster，只处理该cluster内的notebooks
@@ -1281,7 +1276,7 @@ export class MatrixWidget extends Widget {
                 }
             }
 
-            // 高亮所有找到的transition pairs
+            // 收集需要高亮的cell选择器
             transitionPairs.forEach(([fromIdx, toIdx]) => {
                 // 向前找连续 from
                 let i0 = fromIdx;
@@ -1290,48 +1285,75 @@ export class MatrixWidget extends Widget {
                 let i1 = toIdx;
                 while (i1 + 1 < processedCells.length && String(processedCells[i1 + 1]["1st-level label"] ?? "None") === to) i1++;
 
-                // 高亮 from 段
+                // 收集 from 段的选择器
                 for (let j = i0; j <= fromIdx; j++) {
-                    root.select(`.matrix-cell[data-row="${row}"][data-index="${j}"]`)
-                        .classed('matrix-highlight', true)
-                        .classed('matrix-dim', false);
+                    highlightSelectors.push(`.matrix-cell[data-row="${row}"][data-index="${j}"]`);
                 }
-                // 高亮 to 段
+                // 收集 to 段的选择器
                 for (let j = toIdx; j <= i1; j++) {
-                    root.select(`.matrix-cell[data-row="${row}"][data-index="${j}"]`)
-                        .classed('matrix-highlight', true)
-                        .classed('matrix-dim', false);
+                    highlightSelectors.push(`.matrix-cell[data-row="${row}"][data-index="${j}"]`);
                 }
             });
+
+            // 收集需要暗淡的cell选择器（当前notebook的所有cells）
+            if (this.selectedClusterId) {
+                // 选中了cluster时，只收集当前notebook的cells
+                for (let j = 0; j < processedCells.length; j++) {
+                    dimSelectors.push(`.matrix-cell[data-row="${row}"][data-index="${j}"]`);
+                }
+            }
         });
+
+        if (this.selectedClusterId) {
+            // 选中了cluster时，只对cluster内的cells应用暗淡效果
+            if (dimSelectors.length > 0) {
+                const combinedDimSelector = dimSelectors.join(',');
+                d3.selectAll(combinedDimSelector).classed('matrix-dim', true);
+            }
+        } else {
+            // 没有选中cluster时，对所有cells应用暗淡效果
+            d3.selectAll('.matrix-cell').classed('matrix-dim', true);
+        }
+
+        // 批量高亮所有收集到的cells
+        if (highlightSelectors.length > 0) {
+            const combinedSelector = highlightSelectors.join(',');
+            d3.selectAll(combinedSelector)
+                .classed('matrix-highlight', true)
+                .classed('matrix-dim', false);
+        }
     }
 
     private handleTransitionHover = (event: Event) => {
         const { from, to } = (event as CustomEvent).detail;
-        const root = d3.select(this.node);
 
+        // 优化：使用防抖来减少频繁的DOM操作
+        if (this.transitionHoverTimeout) {
+            clearTimeout(this.transitionHoverTimeout);
+        }
+
+        this.transitionHoverTimeout = setTimeout(() => {
+            this.applyTransitionHover(from, to);
+        }, 16); // 约60fps的刷新率
+    }
+
+    // 优化的transition hover应用方法
+    private applyTransitionHover(from: string | null, to: string | null) {
         // 检查是否有选中的flow
         const hasFlowSelection = (window as any)._galaxyFlowSelection;
 
-        // 只有在没有选中状态时才应用hover效果
-        if (!hasFlowSelection) {
-            if (!from || !to) {
-                root.selectAll('.matrix-cell')
-                    .classed('matrix-highlight', false)
-                    .classed('matrix-dim', false);
-            } else {
-                this.applyFlowHighlight(from, to);
-            }
+        // 确定要应用的transition
+        const targetFrom = from || (hasFlowSelection ? (window as any)._galaxyFlowSelection.from : null);
+        const targetTo = to || (hasFlowSelection ? (window as any)._galaxyFlowSelection.to : null);
+
+        if (!targetFrom || !targetTo) {
+            // 清除所有高亮效果
+            d3.selectAll('.matrix-cell')
+                .classed('matrix-highlight', false)
+                .classed('matrix-dim', false);
+            // 注意：不清除cluster-dim类，因为它由cluster选择控制
         } else {
-            // 如果有选中状态，hover时临时显示hover效果，但保持选中状态的高亮
-            if (!from || !to) {
-                // 恢复选中状态的高亮
-                const selectedFlow = (window as any)._galaxyFlowSelection;
-                this.applyFlowHighlight(selectedFlow.from, selectedFlow.to);
-            } else {
-                // 临时显示hover效果
-                this.applyFlowHighlight(from, to);
-            }
+            this.applyFlowHighlight(targetFrom, targetTo);
         }
     }
 
@@ -1388,7 +1410,7 @@ export class MatrixWidget extends Widget {
         const cellHeights: number[][] = [];
         const cellYPositions: number[][] = [];
 
-        notebookOrder.forEach((row, colIdx) => {
+        notebookOrder.forEach((row) => {
             const nb = notebooks[row];
             const sortedCells = nb.cells.sort((a, b) => a.cellId - b.cellId);
             const heights: number[] = [];
@@ -1532,12 +1554,6 @@ export class MatrixWidget extends Widget {
                 // 根据cluster选择状态决定cell的样式
                 let cellFill = cell.cellType === 'code' ? color(currStage) : 'white';
                 let cellStroke = cell.cellType === 'code' ? color(currStage) : '#bbb';
-                let cellOpacity = 1;
-
-                if (this.selectedClusterId && !isInSelectedCluster) {
-                    // 如果选中了cluster但当前notebook不属于该cluster，则灰掉
-                    cellOpacity = 0.3;
-                }
 
                 // 在cluster模式下给cell添加额外的y偏移，避免与label重叠
                 const cellYOffset = (this.sortState === 3 && this.similarityGroups && this.similarityGroups.length > 0) ? 20 : 0;
@@ -1552,12 +1568,18 @@ export class MatrixWidget extends Widget {
                     .attr('fill', cellFill)
                     .attr('stroke', cellStroke)
                     .attr('stroke-width', 1)
-                    .attr('opacity', cellOpacity)
                     .attr('data-row', row.toString())
                     .attr('data-index', i.toString())
                     .attr('data-stage', currClass)
-                    .attr('class', `matrix-cell matrix-cell-${currClass} ${transitionClass}`)
-                    .on('mouseover', function (event, d) {
+                    .attr('class', `matrix-cell matrix-cell-${currClass} ${transitionClass}`);
+
+                // 根据cluster选择状态应用初始样式
+                if (this.selectedClusterId && !isInSelectedCluster) {
+                    // 如果选中了cluster但当前notebook不属于该cluster，则灰掉
+                    base.attr('opacity', 0.3).classed('cluster-dim', true);
+                }
+
+                base.on('mouseover', function (event, d) {
                         // 立即应用高亮效果，避免延迟
                         d3.select(this)
                             .classed('matrix-highlight', true)
@@ -1671,20 +1693,34 @@ export class MatrixWidget extends Widget {
                                     // 恢复stage选中状态的高亮
                                     d3.selectAll('.matrix-cell')
                                         .classed('matrix-highlight', false)
-                                        .classed('matrix-dim', true);
+                                        .classed('matrix-dim', false);
                                     
-                                    // 如果有选中的cluster，只高亮该cluster内的cells
                                     if (self.selectedClusterId) {
-                                        self.notebookOrder.forEach((row, colIdx) => {
-                                            const notebook = self.data[row];
-                                            if (self.isNotebookInSelectedCluster(notebook)) {
-                                                d3.selectAll(`.matrix-cell-${hasStageSelection}[data-row="${row}"]`)
-                                                    .classed('matrix-highlight', true)
-                                                    .classed('matrix-dim', false);
-                                            }
+                                        // 选中了cluster时，只在cluster内部处理
+                                        const clusterNotebooks = self.notebookOrder.filter(row => {
+                                            const nb = self.data[row];
+                                            return self.isNotebookInSelectedCluster(nb);
+                                        });
+                                        
+                                        // 只对cluster内的cells应用暗淡效果
+                                        const clusterSelector = clusterNotebooks.map(row => 
+                                            `.matrix-cell[data-row="${row}"]`
+                                        ).join(',');
+                                        
+                                        if (clusterSelector) {
+                                            d3.selectAll(clusterSelector).classed('matrix-dim', true);
+                                        }
+                                        
+                                        // 高亮cluster内匹配的cells
+                                        clusterNotebooks.forEach((row) => {
+                                            d3.selectAll(`.matrix-cell-${hasStageSelection}[data-row="${row}"]`)
+                                                .classed('matrix-highlight', true)
+                                                .classed('matrix-dim', false);
                                         });
                                     } else {
-                                        // 没有选中cluster时，高亮所有匹配的cells
+                                        // 没有选中cluster时，全局处理
+                                        d3.selectAll('.matrix-cell').classed('matrix-dim', true);
+                                        
                                         d3.selectAll(`.matrix-cell-${hasStageSelection}`)
                                             .classed('matrix-highlight', true)
                                             .classed('matrix-dim', false);
@@ -1866,6 +1902,7 @@ export class MatrixWidget extends Widget {
                     .attr('stroke', isSelected ? '#4caf50' : '#666')
                     .attr('stroke-width', isSelected ? 3 : 2)
                     .attr('stroke-linecap', 'round')
+                    .attr('data-cluster-id', range.clusterId)
                     .style('cursor', 'pointer')
                     .on('click', () => {
                         this.selectCluster(range.clusterId);
@@ -1879,6 +1916,7 @@ export class MatrixWidget extends Widget {
                     .attr('font-size', '11px')
                     .attr('font-weight', '600')
                     .attr('fill', isSelected ? '#4caf50' : '#333')
+                    .attr('data-cluster-id', range.clusterId)
                     .style('cursor', 'pointer')
                     .text(`Cluster ${range.clusterId}`)
                     .on('click', () => {
@@ -1894,6 +1932,7 @@ export class MatrixWidget extends Widget {
                     .attr('font-size', '9px')
                     .attr('font-weight', '400')
                     .attr('fill', isSelected ? '#4caf50' : '#666')
+                    .attr('data-cluster-id', range.clusterId)
                     .style('cursor', 'pointer')
                     .text(`${notebookCount} notebook${notebookCount !== 1 ? 's' : ''}`)
                     .on('click', () => {
@@ -2036,22 +2075,37 @@ export class MatrixWidget extends Widget {
         // 不再使用filter，只应用高亮效果
         if (selection && selection.type === 'stage') {
             setTimeout(() => {
+                // 先清除所有高亮和暗淡效果
                 d3.selectAll('.matrix-cell')
                     .classed('matrix-highlight', false)
-                    .classed('matrix-dim', true);
+                    .classed('matrix-dim', false);
                 
-                // 如果有选中的cluster，只高亮该cluster内的cells
                 if (this.selectedClusterId) {
-                    this.notebookOrder.forEach((row, colIdx) => {
+                    // 选中了cluster时，只在cluster内部处理
+                    const clusterNotebooks = this.notebookOrder.filter(row => {
                         const nb = this.data[row];
-                        if (this.isNotebookInSelectedCluster(nb)) {
-                            d3.selectAll(`.matrix-cell-${selection.stage}[data-row="${row}"]`)
-                                .classed('matrix-highlight', true)
-                                .classed('matrix-dim', false);
-                        }
+                        return this.isNotebookInSelectedCluster(nb);
+                    });
+                    
+                    // 只对cluster内的cells应用暗淡效果
+                    const clusterSelector = clusterNotebooks.map(row => 
+                        `.matrix-cell[data-row="${row}"]`
+                    ).join(',');
+                    
+                    if (clusterSelector) {
+                        d3.selectAll(clusterSelector).classed('matrix-dim', true);
+                    }
+                    
+                    // 高亮cluster内匹配的cells
+                    clusterNotebooks.forEach((row) => {
+                        d3.selectAll(`.matrix-cell-${selection.stage}[data-row="${row}"]`)
+                            .classed('matrix-highlight', true)
+                            .classed('matrix-dim', false);
                     });
                 } else {
-                    // 没有选中cluster时，高亮所有匹配的cells
+                    // 没有选中cluster时，全局处理
+                    d3.selectAll('.matrix-cell').classed('matrix-dim', true);
+                    
                     d3.selectAll(`.matrix-cell-${selection.stage}`)
                         .classed('matrix-highlight', true)
                         .classed('matrix-dim', false);
@@ -2267,6 +2321,10 @@ export class MatrixWidget extends Widget {
 
     // 选择cluster
     private selectCluster(clusterId: string | null) {
+        // 保存当前的stage或transition选中状态
+        const currentStageSelection = (window as any)._galaxyStageSelection;
+        const currentFlowSelection = (window as any)._galaxyFlowSelection;
+
         if (this.selectedClusterId === clusterId) {
             // 如果点击的是当前选中的cluster，则取消选择
             this.selectedClusterId = null;
@@ -2275,12 +2333,24 @@ export class MatrixWidget extends Widget {
             this.selectedClusterId = clusterId;
         }
 
-        // 清除之前的stage或transition选中状态
-        (window as any)._galaxyStageSelection = null;
-        (window as any)._galaxyFlowSelection = null;
+        // 优化：只更新cell的透明度，而不是重新绘制整个矩阵
+        this.updateCellOpacityForClusterSelection();
 
-        // 重新绘制矩阵以更新高亮状态
-        this.drawMatrix();
+        // 更新cluster信息显示
+        this.updateClusterInfo();
+
+        // 如果有stage或transition选中状态，需要重新应用高亮效果
+        if (currentStageSelection || currentFlowSelection) {
+            setTimeout(() => {
+                if (currentStageSelection) {
+                    // 重新应用stage选中状态的高亮
+                    this.applyStageHover(null, true);
+                } else if (currentFlowSelection) {
+                    // 重新应用flow选中状态的高亮
+                    this.applyFlowHighlight(currentFlowSelection.from, currentFlowSelection.to);
+                }
+            }, 100);
+        }
 
         // Track cluster selection
         analytics.trackMatrixInteraction('cluster_selected', {
@@ -2645,11 +2715,28 @@ export class MatrixWidget extends Widget {
             interaction_context: 'cluster_management'
         });
 
-        // 清除之前的stage或transition选中状态
-        (window as any)._galaxyStageSelection = null;
-        (window as any)._galaxyFlowSelection = null;
+        // 保存当前的stage或transition选中状态
+        const currentStageSelection = (window as any)._galaxyStageSelection;
+        const currentFlowSelection = (window as any)._galaxyFlowSelection;
 
-        this.drawMatrix();
+        // 优化：只更新cell的透明度，而不是重新绘制整个矩阵
+        this.updateCellOpacityForClusterSelection();
+
+        // 更新cluster信息显示
+        this.updateClusterInfo();
+
+        // 如果有stage或transition选中状态，需要重新应用高亮效果
+        if (currentStageSelection || currentFlowSelection) {
+            setTimeout(() => {
+                if (currentStageSelection) {
+                    // 重新应用stage选中状态的高亮
+                    this.applyStageHover(null, true);
+                } else if (currentFlowSelection) {
+                    // 重新应用flow选中状态的高亮
+                    this.applyFlowHighlight(currentFlowSelection.from, currentFlowSelection.to);
+                }
+            }, 100);
+        }
 
         // 派发cluster选择事件，通知LeftSidebar更新数据
         const clusterFilteredNotebooks = this.getClusterFilteredNotebooks();
@@ -2659,6 +2746,73 @@ export class MatrixWidget extends Widget {
                 notebooks: clusterFilteredNotebooks
             }
         }));
+    }
+
+    // 优化：只更新cell的透明度和cluster标签样式，而不是重新绘制整个矩阵
+    private updateCellOpacityForClusterSelection() {
+        // 使用 D3 选择所有 matrix cells 并更新透明度
+        d3.selectAll('.matrix-cell').each((d: any, i: number, nodes: any) => {
+            const cell = d3.select(nodes[i]);
+            const row = cell.attr('data-row');
+            const nb = this.data[parseInt(row)];
+            
+            // 检查当前notebook是否属于选中的cluster
+            let isInSelectedCluster = false;
+            if (this.selectedClusterId && this.sortState === 3 && this.similarityGroups && this.similarityGroups.length > 0) {
+                const kernelId = (nb as any)?.kernelVersionId?.toString();
+                const simRow = kernelId ? this.similarityGroups.find((row: any) => row.kernelVersionId === kernelId) : null;
+                isInSelectedCluster = simRow && simRow.cluster_id === this.selectedClusterId;
+            }
+
+            // 更新透明度 - 使用CSS类而不是直接设置opacity属性，避免与matrix-dim类冲突
+            if (this.selectedClusterId && !isInSelectedCluster) {
+                // 如果选中了cluster但当前notebook不属于该cluster，则灰掉
+                cell.attr('opacity', 0.3).classed('cluster-dim', true).classed('matrix-dim', false);
+            } else {
+                // 否则恢复正常透明度，让CSS类控制透明度
+                cell.attr('opacity', null).classed('cluster-dim', false);
+            }
+        });
+
+        // 更新cluster标签的样式
+        if (this.sortState === 3 && this.similarityGroups && this.similarityGroups.length > 0) {
+            // 更新cluster标签的横线样式
+            d3.selectAll('.cluster-labels line').each((d: any, i: number, nodes: any) => {
+                const line = d3.select(nodes[i]);
+                const clusterId = line.attr('data-cluster-id');
+                const isSelected = this.selectedClusterId === clusterId;
+                
+                if (isSelected) {
+                    line.attr('stroke', '#4caf50').attr('stroke-width', 3);
+                } else {
+                    line.attr('stroke', '#666').attr('stroke-width', 2);
+                }
+            });
+
+            // 更新cluster标签文本样式
+            d3.selectAll('.cluster-labels text').each((d: any, i: number, nodes: any) => {
+                const text = d3.select(nodes[i]);
+                const clusterId = text.attr('data-cluster-id');
+                const textContent = text.text();
+                const isSelected = this.selectedClusterId === clusterId;
+                
+                // 检查是否是cluster标题文本（包含"Cluster"字样）
+                if (textContent && textContent.includes('Cluster')) {
+                    if (isSelected) {
+                        text.attr('fill', '#4caf50');
+                    } else {
+                        text.attr('fill', '#333');
+                    }
+                } else {
+                    // 数量信息文本
+                    if (isSelected) {
+                        text.attr('fill', '#4caf50');
+                    } else {
+                        text.attr('fill', '#666');
+                    }
+                }
+            });
+        }
     }
 
     // 滚动到选中的cluster位置
@@ -2748,6 +2902,14 @@ export class MatrixWidget extends Widget {
     }
 
     dispose(): void {
+        // 清理定时器
+        if (this.stageHoverTimeout) {
+            clearTimeout(this.stageHoverTimeout);
+        }
+        if (this.transitionHoverTimeout) {
+            clearTimeout(this.transitionHoverTimeout);
+        }
+        
         // 移除事件监听器
         window.removeEventListener('galaxy-top-stats-updated', this._topStatsHandler);
         super.dispose();
