@@ -83,3 +83,52 @@
 .galaxy-analyze-button:active * {
   fill: #FF0000 !important;
 }
+
+/* Galaxy 简化分析按钮样式 - 绿色主题 */
+.galaxy-simple-analyze-button svg,
+.galaxy-simple-analyze-button .jp-icon3,
+.galaxy-simple-analyze-button [data-icon],
+.galaxy-simple-analyze-button .lm-Widget svg {
+  fill: #28a745 !important; /* 绿色 */
+}
+
+.galaxy-simple-analyze-button:hover svg,
+.galaxy-simple-analyze-button:hover .jp-icon3,
+.galaxy-simple-analyze-button:hover [data-icon],
+.galaxy-simple-analyze-button:hover .lm-Widget svg {
+  fill: #20c997 !important; /* 悬停时更亮的绿色 */
+  transform: scale(1.1);
+  transition: all 0.2s ease;
+}
+
+.galaxy-simple-analyze-button:active svg,
+.galaxy-simple-analyze-button:active .jp-icon3,
+.galaxy-simple-analyze-button:active [data-icon],
+.galaxy-simple-analyze-button:active .lm-Widget svg {
+  fill: #1e7e34 !important; /* 点击时深绿色 */
+  transform: scale(0.95);
+}
+
+/* 更通用的选择器，覆盖所有可能的图标元素 */
+.galaxy-simple-analyze-button * {
+  fill: #28a745 !important;
+}
+
+.galaxy-simple-analyze-button:hover * {
+  fill: #20c997 !important;
+}
+
+.galaxy-simple-analyze-button:active * {
+  fill: #1e7e34 !important;
+}
+
+/* 按钮激活状态样式 */
+button.active {
+  opacity: 1;
+  transform: scale(1.05);
+  transition: all 0.2s ease;
+}
+
+button.active:hover {
+  transform: scale(1.1);
+}

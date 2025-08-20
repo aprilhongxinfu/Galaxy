@@ -11,7 +11,9 @@ import {
 
 import { IFileBrowserFactory, FileBrowser } from '@jupyterlab/filebrowser';
 import { LeftSidebar } from './components/LeftSidebar';
-
+import { SimpleNotebookListWidget } from './components/SimpleNotebookListWidget';
+import { SimpleNotebookDetailWidget } from './components/SimpleNotebookDetailWidget';
+import { SimpleInfoSidebar } from './components/SimpleInfoSidebar';
 
 import { runIcon } from '@jupyterlab/ui-components';
 import { colorMap as colorMapModule, initColorMap } from './components/colorMap';
@@ -255,6 +257,7 @@ function activate(
   // Extension activated
 
   const command = 'galaxy:analyze';
+  const simpleCommand = 'galaxy:simple-analyze';
 
   // 将 app 赋值给全局变量
   app = appInstance;
@@ -506,6 +509,28 @@ function activate(
   let previousTabId: string | null = null;
 
   function handleTabSwitch(widget: any) {
+    // 检查simple notebook detail widget
+    if (widget && widget.id && widget.id.startsWith('simple-notebook-detail-widget-')) {
+      // 更新SimpleInfoSidebar
+      const rightWidgets = Array.from(app.shell.widgets('right'));
+      const simpleInfoSidebar = rightWidgets.find(w => w.id === 'simple-info-sidebar');
+      if (simpleInfoSidebar && widget.notebook) {
+        (simpleInfoSidebar as any).setNotebookDetail(widget.notebook);
+      }
+      return;
+    }
+    
+    // 检查simple notebook list widget
+    if (widget && widget.id === 'simple-notebook-list-widget') {
+      // 切换回list时，清除notebook详情，恢复总体统计
+      const rightWidgets = Array.from(app.shell.widgets('right'));
+      const simpleInfoSidebar = rightWidgets.find(w => w.id === 'simple-info-sidebar');
+      if (simpleInfoSidebar) {
+        (simpleInfoSidebar as any).clearNotebook();
+      }
+      return;
+    }
+    
     // 新增：如果 widget 为空或不是 galaxy 相关 tab，检查是否需要关闭 sidebar
     if (!widget || !(widget.id && (widget.id === 'matrix-widget' || widget.id.startsWith('notebook-detail-widget-')))) {
       // 只有在没有galaxy分析数据时才关闭sidebar
@@ -1195,6 +1220,16 @@ function activate(
             window.addEventListener('galaxy-notebook-selected', handleNotebookSelected!);
             notebookSelectedListenerRegistered = true;
           }
+
+          // 注册 simple notebook detail 事件监听器
+          window.addEventListener('galaxy-simple-notebook-selected', (e: any) => {
+            // 新建并显示 simple notebook 详情，深拷贝 notebook 数据
+            const nb = JSON.parse(JSON.stringify(e.detail.notebook));
+            const simpleDetailWidget = new SimpleNotebookDetailWidget(nb);
+            
+            app.shell.add(simpleDetailWidget, 'main');
+            app.shell.activateById(simpleDetailWidget.id);
+          });
         }
       } catch (err) {
 
@@ -1205,7 +1240,159 @@ function activate(
     }
   });
 
+  // 添加简化分析命令
+  app.commands.addCommand(simpleCommand, {
+    label: 'Simple Notebook List',
+    execute: async () => {
+      isInitializing = true; // 设置初始化标志
+
+      const fileBrowserWidget = browserFactory.tracker.currentWidget;
+      if (!fileBrowserWidget) {
+        console.warn('No active file browser');
+        return;
+      }
+
+      const selectedItems = Array.from(fileBrowserWidget.selectedItems());
+
+      try {
+        // 关闭之前的插件窗口
+        const oldLeft = app.shell.widgets('left');
+        for (const w of oldLeft) {
+          if (w.id === 'flow-chart-widget') w.close();
+        }
+        const oldMain = app.shell.widgets('main');
+        for (const w of oldMain) {
+          if (w.id === 'simple-notebook-list-widget' || (w.id && w.id.startsWith('notebook-detail-widget-'))) {
+            // Track notebook closing before closing
+            if (w.id && w.id.startsWith('notebook-detail-widget-')) {
+              const notebookData = (w as any).notebook;
+              if (notebookData) {
+                analytics.trackNotebookClosed(
+                  notebookData.kernelVersionId || `nb_${notebookData.index || Date.now()}`,
+                  {
+                    tabTitle: w.title?.label,
+                    tabId: w.id
+                  }
+                );
+              }
+            }
+            w.close();
+          }
+        }
+        const oldRight = app.shell.widgets('right');
+        for (const w of oldRight) {
+          if (w.id === 'simple-info-sidebar') w.close();
+        }
+
+        // 清理 notebook detail IDs 记录
+        notebookDetailIds.clear();
+        lastKnownDetailIds.clear();
+
+        // 检查是否选中了JSON文件
+        if (
+          selectedItems.length === 1 &&
+          selectedItems[0].type === 'file' &&
+          selectedItems[0].path.endsWith('.json')
+        ) {
+          // 直接用 Contents API 读取 JSON 文件内容
+          const contentsManager = app.serviceManager.contents;
+          const model = await contentsManager.get(selectedItems[0].path, { type: 'file', format: 'text', content: true });
+          result1 = JSON.parse(model.content as string);
+
+          // 提取competition ID和基础目录
+          const competitionId = extractCompetitionId(selectedItems[0].path);
+          const baseDir = extractBaseDir(selectedItems[0].path);
+
+          // Track analysis started
+          analytics.trackAnalysisStarted({
+            competitionId: competitionId || undefined,
+            totalNotebooks: result1.length,
+            jsonFilePath: selectedItems[0].path
+          });
+
+          // 获取competition信息
+          let competitionInfo: { id: string; name: string; url: string } | undefined = undefined;
+          if (competitionId) {
+            competitionInfo = getCompetitionInfo(competitionId) || undefined;
+          }
+
+          // 创建kernelTitleMap
+          let kernelTitleMap = new Map<string, { title: string; creationDate: string; totalLines: number; displayname?: string; url?: string }>();
+          let voteData: any[] = [];
+          
+          if (competitionId && baseDir) {
+            try {
+              kernelTitleMap = await createKernelTitleMap(competitionId, baseDir);
+              result1 = replaceKernelVersionIdWithTitle(result1, kernelTitleMap);
+            } catch (e) {
+              // Kernel data not available
+            }
+
+            // 加载TOC数据并合并到notebook数据中
+            try {
+              const tocData = await loadTocData(competitionId, baseDir);
+              result1 = mergeTocData(result1, tocData);
+            } catch (e) {
+              // TOC data not available
+            }
+
+            // 读取投票数据（如果存在）
+            try {
+              const votePath = `${baseDir}/cluster_data/${competitionId}_sorted.csv`;
+              const voteModel = await contentsManager.get(votePath, { type: 'file', format: 'text', content: true });
+              voteData = csvParse(voteModel.content as string);
+            } catch (e) {
+              voteData = [];
+            }
+          }
+
+          // 创建简化的notebook列表widget
+          const simpleListWidget = new SimpleNotebookListWidget(result1, kernelTitleMap, competitionInfo, voteData);
+          app.shell.add(simpleListWidget, 'main');
+          app.shell.activateById(simpleListWidget.id);
+
+          // 注册 simple notebook detail 事件监听器
+          window.addEventListener('galaxy-simple-notebook-selected', (e: any) => {
+            // 新建并显示 simple notebook 详情，深拷贝 notebook 数据
+            const nb = JSON.parse(JSON.stringify(e.detail.notebook));
+            const simpleDetailWidget = new SimpleNotebookDetailWidget(nb);
+            
+            app.shell.add(simpleDetailWidget, 'main');
+            app.shell.activateById(simpleDetailWidget.id);
+          });
+
+          // 创建简化的信息侧边栏
+          const simpleInfoSidebar = new SimpleInfoSidebar(competitionInfo, result1);
+          app.shell.add(simpleInfoSidebar, 'right');
+          if (typeof (app.shell as any).expandRightArea === 'function') {
+            (app.shell as any).expandRightArea();
+          }
+          app.shell.activateById(simpleInfoSidebar.id);
+
+          // 监听notebook选择事件
+          window.addEventListener('galaxy-notebook-selected', (e: any) => {
+            const notebook = e.detail.notebook;
+            simpleInfoSidebar.setNotebookDetail(notebook);
+          });
+
+
+
+        } else {
+          // 只支持JSON文件分析
+          console.warn('Please select a single JSON file for analysis');
+          return;
+        }
+
+      } catch (err) {
+        console.error('Failed to analyze notebooks:', err);
+      } finally {
+        isInitializing = false; // 清除初始化标志
+      }
+    }
+  });
+
   palette.addItem({ command: command, category: 'Galaxy Tools' });
+  palette.addItem({ command: simpleCommand, category: 'Galaxy Tools' });
 
   if (restorer) {
     // 已无 tracker，直接不 restore
@@ -1264,6 +1451,57 @@ function activate(
         }
       }, 100);
       fbWidget.toolbar.insertItem(5, 'analyzeNotebooks', analyzeButton);
+
+      // 添加简化分析按钮
+      const simpleAnalyzeButton = new ToolbarButton({
+        icon: runIcon,
+        tooltip: 'Simple notebook list view',
+        onClick: () => {
+          app.commands.execute(simpleCommand);
+        }
+      });
+
+      // 给简化分析按钮添加自定义样式
+      simpleAnalyzeButton.addClass('galaxy-simple-analyze-button');
+
+      // 直接设置样式确保颜色生效
+      setTimeout(() => {
+        const iconElement = simpleAnalyzeButton.node.querySelector('svg');
+        if (iconElement) {
+          iconElement.style.fill = '#28a745';
+          iconElement.style.transition = 'all 0.2s ease';
+
+          // 添加悬停效果
+          simpleAnalyzeButton.node.addEventListener('mouseenter', () => {
+            if (iconElement) {
+              iconElement.style.fill = '#20c997';
+              iconElement.style.transform = 'scale(1.1)';
+            }
+          });
+
+          simpleAnalyzeButton.node.addEventListener('mouseleave', () => {
+            if (iconElement) {
+              iconElement.style.fill = '#28a745';
+              iconElement.style.transform = 'scale(1)';
+            }
+          });
+
+          simpleAnalyzeButton.node.addEventListener('mousedown', () => {
+            if (iconElement) {
+              iconElement.style.fill = '#1e7e34';
+              iconElement.style.transform = 'scale(0.95)';
+            }
+          });
+
+          simpleAnalyzeButton.node.addEventListener('mouseup', () => {
+            if (iconElement) {
+              iconElement.style.fill = '#20c997';
+              iconElement.style.transform = 'scale(1.1)';
+            }
+          });
+        }
+      }, 100);
+      fbWidget.toolbar.insertItem(6, 'simpleAnalyzeNotebooks', simpleAnalyzeButton);
     }
   })
 
