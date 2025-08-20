@@ -99,19 +99,13 @@ export class SimpleNotebookListWidget extends Widget {
         // 创建排序按钮容器
         const buttonContainer = document.createElement('div');
         buttonContainer.style.display = 'flex';
-        buttonContainer.style.justifyContent = 'space-between';
+        buttonContainer.style.justifyContent = 'flex-end';
         buttonContainer.style.alignItems = 'center';
         buttonContainer.style.marginTop = '4px';
         buttonContainer.style.marginBottom = '4px';
         buttonContainer.style.height = '24px';
         buttonContainer.style.width = '100%';
         buttonContainer.style.position = 'relative';
-
-        // 左侧按钮容器
-        const leftButtons = document.createElement('div');
-        leftButtons.style.display = 'flex';
-        leftButtons.style.alignItems = 'center';
-        leftButtons.style.gap = '8px';
 
         // 创建排序按钮
         const sortButton = document.createElement('button');
@@ -138,8 +132,7 @@ export class SimpleNotebookListWidget extends Widget {
             this.render();
         });
 
-        leftButtons.appendChild(sortButton);
-        buttonContainer.appendChild(leftButtons);
+        buttonContainer.appendChild(sortButton);
 
         const tableContainer = document.createElement('div');
         tableContainer.style.cssText = `

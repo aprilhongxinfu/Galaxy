@@ -16,6 +16,7 @@ import { SimpleNotebookDetailWidget } from './components/SimpleNotebookDetailWid
 import { SimpleInfoSidebar } from './components/SimpleInfoSidebar';
 
 import { runIcon } from '@jupyterlab/ui-components';
+import { detailedAnalysisIcon } from './components/DetailedAnalysisIcon';
 import { colorMap as colorMapModule, initColorMap } from './components/colorMap';
 import { MatrixWidget } from './components/MatrixWidget';
 import { DetailSidebar } from './components/DetailSidebar';
@@ -744,7 +745,7 @@ function activate(
   }
 
   app.commands.addCommand(command, {
-    label: 'Analyze Selected Notebooks',
+    label: 'Detailed Notebook Analysis',
     execute: async () => {
       isInitializing = true; // 设置初始化标志
 
@@ -1276,7 +1277,7 @@ function activate(
 
   // 添加简化分析命令
   app.commands.addCommand(simpleCommand, {
-    label: 'Simple Notebook List',
+    label: 'Simple Notebook Analysis',
     execute: async () => {
       isInitializing = true; // 设置初始化标志
 
@@ -1481,8 +1482,8 @@ function activate(
     }
   });
 
-  palette.addItem({ command: command, category: 'Galaxy Tools' });
-  palette.addItem({ command: simpleCommand, category: 'Galaxy Tools' });
+  palette.addItem({ command: command, category: 'Galaxy Analysis' });
+  palette.addItem({ command: simpleCommand, category: 'Galaxy Analysis' });
 
   if (restorer) {
     // 已无 tracker，直接不 restore
@@ -1493,8 +1494,8 @@ function activate(
     const fbWidget = browserFactory.tracker.currentWidget;
     if (fbWidget && fbWidget instanceof FileBrowser) {
       const analyzeButton = new ToolbarButton({
-        icon: runIcon,
-        tooltip: 'Analyze selected notebooks',
+        icon: detailedAnalysisIcon,
+        tooltip: 'Detailed notebook analysis',
         onClick: () => {
           app.commands.execute(command);
         }
@@ -1507,45 +1508,47 @@ function activate(
       setTimeout(() => {
         const iconElement = analyzeButton.node.querySelector('svg');
         if (iconElement) {
-          iconElement.style.fill = '#FF6B35';
-          iconElement.style.transition = 'all 0.2s ease';
+          // 设置自定义图标的颜色
+          const pathElement = iconElement.querySelector('path');
+          if (pathElement) {
+            pathElement.style.fill = '#FF6B35';
+            pathElement.style.transition = 'all 0.2s ease';
+          }
 
           // 添加悬停效果
           analyzeButton.node.addEventListener('mouseenter', () => {
-            if (iconElement) {
-              iconElement.style.fill = '#FF4500';
+            if (pathElement) {
+              pathElement.style.fill = '#FF4500';
               iconElement.style.transform = 'scale(1.1)';
             }
           });
 
           analyzeButton.node.addEventListener('mouseleave', () => {
-            if (iconElement) {
-              iconElement.style.fill = '#FF6B35';
+            if (pathElement) {
+              pathElement.style.fill = '#FF6B35';
               iconElement.style.transform = 'scale(1)';
             }
           });
 
           analyzeButton.node.addEventListener('mousedown', () => {
-            if (iconElement) {
-              iconElement.style.fill = '#FF0000';
+            if (pathElement) {
+              pathElement.style.fill = '#FF0000';
               iconElement.style.transform = 'scale(0.95)';
             }
           });
 
           analyzeButton.node.addEventListener('mouseup', () => {
-            if (iconElement) {
-              iconElement.style.fill = '#FF4500';
+            if (pathElement) {
+              pathElement.style.fill = '#FF4500';
               iconElement.style.transform = 'scale(1.1)';
             }
           });
         }
       }, 100);
-      fbWidget.toolbar.insertItem(5, 'analyzeNotebooks', analyzeButton);
-
       // 添加简化分析按钮
       const simpleAnalyzeButton = new ToolbarButton({
         icon: runIcon,
-        tooltip: 'Simple notebook list view',
+        tooltip: 'Simple notebook analysis',
         onClick: () => {
           app.commands.execute(simpleCommand);
         }
@@ -1591,7 +1594,9 @@ function activate(
           });
         }
       }, 100);
-      fbWidget.toolbar.insertItem(6, 'simpleAnalyzeNotebooks', simpleAnalyzeButton);
+      fbWidget.toolbar.insertItem(5, 'simpleAnalyzeNotebooks', simpleAnalyzeButton);
+
+      fbWidget.toolbar.insertItem(6, 'analyzeNotebooks', analyzeButton);
     }
   })
 
