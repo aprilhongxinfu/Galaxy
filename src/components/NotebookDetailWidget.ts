@@ -337,6 +337,11 @@ export class NotebookDetailWidget extends Widget {
   private updateLockIconVisibility(): void {
     const hasSplit = this.detectSplitLayout();
     const btn = this.node.querySelector('#nbd-lock-btn') as HTMLButtonElement | null;
+    // Toggle navigation overlay visibility on split changes
+    const nav = this.node.querySelector('#nbd-nav-container') as HTMLElement | null;
+    if (nav) {
+      nav.style.display = hasSplit ? 'none' : 'block';
+    }
 
     // 如果现在是分屏且没有按钮，就触发一次轻量重渲染（只替换顶部区域）
     if (hasSplit && !btn) {
@@ -453,8 +458,13 @@ export class NotebookDetailWidget extends Widget {
   }
 
   private handleStageHover(event: Event): void {
-    const stage = (event as CustomEvent).detail.stage;
+    const detail = (event as CustomEvent).detail || {};
+    const stage = detail.stage;
     const tabId = this.getTabId();
+    // Ignore hover events that carry a tabId not matching this widget
+    if (detail.tabId && detail.tabId !== tabId) {
+      return;
+    }
     // 记录当前 flow chart 悬浮 stage（按 tab 隔离）
     (window as any)[`_galaxyFlowHoverStage_${tabId}`] = stage;
     // 清除flow信息（当stage筛选时）
@@ -464,8 +474,8 @@ export class NotebookDetailWidget extends Widget {
     const minimapSvg = this.node.querySelector('svg');
     if (!minimapSvg) return;
     // 检查是否来自 minimap 内部的 hover
-    const isFromMinimap = (event as any).detail?.source === 'minimap';
-    const hoveredIdx = (event as any).detail?.cellIdx;
+    const isFromMinimap = detail?.source === 'minimap';
+    const hoveredIdx = detail?.cellIdx;
 
     // 检查是否有选中状态，如果有则不添加高亮
     const flowSelectionKey = `_galaxyFlowSelection_${tabId}`;
@@ -508,8 +518,13 @@ export class NotebookDetailWidget extends Widget {
   }
 
   private handleTransitionHover(event: Event): void {
-    const { from, to } = (event as CustomEvent).detail;
+    const detail = (event as CustomEvent).detail || {};
+    const { from, to } = detail;
     const tabId = this.getTabId();
+    // Ignore hover events that carry a tabId not matching this widget
+    if (detail.tabId && detail.tabId !== tabId) {
+      return;
+    }
     // 记录 flow chart 悬浮（按 tab 隔离）
     (window as any)[`_galaxyFlowHoverStage_${tabId}`] = from && to ? '__flow_transition__' : null;
     // 设置全局flow信息（按 tab 隔离）
@@ -837,6 +852,11 @@ export class NotebookDetailWidget extends Widget {
 
     // 检测是否有分屏布局
     const hasSplitLayout = this.detectSplitLayout();
+    // Hide navigation overlay in split layout
+    const navContainer = this.node.querySelector('#nbd-nav-container') as HTMLElement | null;
+    if (navContainer) {
+      navContainer.style.display = hasSplitLayout ? 'none' : 'block';
+    }
     // let nbIdx = '';
     // if (nb.path && /\d+/.test(nb.path)) {
     //   nbIdx = nb.path.match(/\d+/)![0];
@@ -906,7 +926,7 @@ export class NotebookDetailWidget extends Widget {
         
         ${(() => {
         return filteredCellIndices.length > 0 ? `
-        <div style="position:absolute; bottom:20px; left:50%; transform:translateX(-50%); z-index:1000;">
+        <div id="nbd-nav-container" style="position:absolute; bottom:20px; left:50%; transform:translateX(-50%); z-index:1000; display:${hasSplitLayout ? 'none' : 'block'};">
           <div style="display:flex; align-items:center; background:rgba(255,255,255,0.95); backdrop-filter:blur(10px); border:1px solid #e0e0e0; border-radius:20px; padding:8px 12px; box-shadow:0 4px 12px rgba(0,0,0,0.15);">
             <button id="nbd-nav-prev" style="background:none; border:none; cursor:pointer; color:#666; font-size:14px; padding:4px; margin-right:8px; border-radius:4px; transition:all 0.2s; min-width:24px; height:24px; display:flex; align-items:center; justify-content:center;" ${(currentFilteredIndex <= 0 || currentFilteredIndex === -1) ? 'disabled' : ''}>‹</button>
             <span style="color:#333; font-size:12px; font-weight:500; margin:0 8px; min-width:40px; text-align:center;">${currentFilteredIndex >= 0 ? currentFilteredIndex + 1 : 0} / ${filteredCellIndices.length}</span>

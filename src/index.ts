@@ -11,9 +11,12 @@ import {
 
 import { IFileBrowserFactory, FileBrowser } from '@jupyterlab/filebrowser';
 import { LeftSidebar } from './components/LeftSidebar';
-
+import { SimpleNotebookListWidget } from './components/SimpleNotebookListWidget';
+import { SimpleNotebookDetailWidget } from './components/SimpleNotebookDetailWidget';
+import { SimpleInfoSidebar } from './components/SimpleInfoSidebar';
 
 import { runIcon } from '@jupyterlab/ui-components';
+import { detailedAnalysisIcon } from './components/DetailedAnalysisIcon';
 import { colorMap as colorMapModule, initColorMap } from './components/colorMap';
 import { MatrixWidget } from './components/MatrixWidget';
 import { DetailSidebar } from './components/DetailSidebar';
@@ -32,25 +35,91 @@ function extractCompetitionId(jsonPath: string): string | null {
   return match ? match[1] : null;
 }
 
-// 根据competition ID获取competition信息
-function getCompetitionInfo(competitionId: string): { id: string; name: string; url: string } | null {
-  const competitionMap: { [key: string]: { name: string; url: string } } = {
-    '18599': {
-      name: 'M5 forecasting accuracy',
-      url: 'https://www.kaggle.com/competitions/m5-forecasting-accuracy'
-    },
-    '50160': {
-      name: 'Home Credit - Credit Risk Model Stability',
-      url: 'https://www.kaggle.com/competitions/home-credit-credit-risk-model-stability'
-    },
-    '35332': {
-      name: 'American Express',
-      url: 'https://www.kaggle.com/competitions/amex-default-prediction'
+// 加载competition信息
+async function loadCompetitionsData(): Promise<{ [key: string]: { id: string; name: string; url: string; description?: string; category?: string; evaluation?: string; startDate?: string; endDate?: string } }> {
+  try {
+    const contentsManager = app?.serviceManager?.contents;
+    if (!contentsManager) {
+      console.warn('Contents manager not available for competitions loading');
+      return {};
     }
-  };
 
-  const info = competitionMap[competitionId];
-  return info ? { id: competitionId, ...info } : null;
+    // 首先尝试加载JSON文件
+    const jsonPaths = [
+      './test-notebooks/competition_data/competitions.json',
+      './test-notebooks/competitions.json',
+      '/test-notebooks/competitions.json',
+      'competitions.json',
+      './competitions.json',
+      '/competitions.json'
+    ];
+
+    for (const path of jsonPaths) {
+      try {
+        const model = await contentsManager.get(path, { type: 'file', format: 'text', content: true });
+        const competitionsData = JSON.parse(model.content as string);
+        
+        // 转换为映射格式
+        const competitionMap: { [key: string]: any } = {};
+        competitionsData.forEach((comp: any) => {
+          competitionMap[comp.id] = {
+            id: comp.id,
+            name: comp.name,
+            url: comp.url,
+            description: comp.description,
+            category: comp.category,
+            evaluation: comp.evaluation,
+            startDate: comp.startDate,
+            endDate: comp.endDate
+          };
+        });
+        
+        return competitionMap;
+      } catch (fileError) {
+        continue;
+      }
+    }
+
+    console.warn('Could not load competitions.json, falling back to hardcoded data');
+    return {};
+  } catch (error) {
+    console.warn('Error loading competitions data:', error);
+    return {};
+  }
+}
+
+// 根据competition ID获取competition信息
+async function getCompetitionInfo(competitionId: string): Promise<{ id: string; name: string; url: string; description?: string; category?: string; evaluation?: string; startDate?: string; endDate?: string } | null> {
+  try {
+    const competitionMap = await loadCompetitionsData();
+    const info = competitionMap[competitionId];
+    
+    if (info) {
+      return info;
+    }
+    
+    // 如果从文件加载失败，使用硬编码的fallback数据
+    const fallbackMap: { [key: string]: { name: string; url: string } } = {
+      '18599': {
+        name: 'M5 forecasting accuracy',
+        url: 'https://www.kaggle.com/competitions/m5-forecasting-accuracy'
+      },
+      '50160': {
+        name: 'Home Credit - Credit Risk Model Stability',
+        url: 'https://www.kaggle.com/competitions/home-credit-credit-risk-model-stability'
+      },
+      '35332': {
+        name: 'American Express',
+        url: 'https://www.kaggle.com/competitions/amex-default-prediction'
+      }
+    };
+
+    const fallbackInfo = fallbackMap[competitionId];
+    return fallbackInfo ? { id: competitionId, ...fallbackInfo } : null;
+  } catch (error) {
+    console.warn('Error getting competition info:', error);
+    return null;
+  }
 }
 
 // 从JSON文件路径中提取基础目录
@@ -225,6 +294,7 @@ function replaceKernelVersionIdWithTitle(obj: any, titleMap: Map<string, { title
 
 
 let handleNotebookSelected: ((e: any) => void) | null = null;
+let handleSimpleNotebookSelected: ((e: any) => void) | null = null;
 let notebookSelectedListenerRegistered = false;
 let app: JupyterFrontEnd;
 let flowChartWidget: LeftSidebar | null = null;
@@ -255,6 +325,7 @@ function activate(
   // Extension activated
 
   const command = 'galaxy:analyze';
+  const simpleCommand = 'galaxy:simple-analyze';
 
   // 将 app 赋值给全局变量
   app = appInstance;
@@ -506,6 +577,28 @@ function activate(
   let previousTabId: string | null = null;
 
   function handleTabSwitch(widget: any) {
+    // 检查simple notebook detail widget
+    if (widget && widget.id && widget.id.startsWith('simple-notebook-detail-widget-')) {
+      // 更新SimpleInfoSidebar
+      const rightWidgets = Array.from(app.shell.widgets('right'));
+      const simpleInfoSidebar = rightWidgets.find(w => w.id === 'simple-info-sidebar');
+      if (simpleInfoSidebar && widget.notebook) {
+        (simpleInfoSidebar as any).setNotebookDetail(widget.notebook);
+      }
+      return;
+    }
+    
+    // 检查simple notebook list widget
+    if (widget && widget.id === 'simple-notebook-list-widget') {
+      // 切换回list时，清除notebook详情，恢复总体统计
+      const rightWidgets = Array.from(app.shell.widgets('right'));
+      const simpleInfoSidebar = rightWidgets.find(w => w.id === 'simple-info-sidebar');
+      if (simpleInfoSidebar) {
+        (simpleInfoSidebar as any).clearNotebook();
+      }
+      return;
+    }
+    
     // 新增：如果 widget 为空或不是 galaxy 相关 tab，检查是否需要关闭 sidebar
     if (!widget || !(widget.id && (widget.id === 'matrix-widget' || widget.id.startsWith('notebook-detail-widget-')))) {
       // 只有在没有galaxy分析数据时才关闭sidebar
@@ -646,6 +739,7 @@ function activate(
     const mainWidgets = Array.from(app.shell.widgets('main'));
     const hasMatrix = mainWidgets.some(w => w.id === 'matrix-widget');
     const hasDetail = mainWidgets.some(w => w.id && w.id.startsWith('notebook-detail-widget-'));
+    const hasSimpleList = mainWidgets.some(w => w.id === 'simple-notebook-list-widget');
 
     // 检查是否有分屏布局
     if (hasSplitLayout()) {
@@ -660,7 +754,7 @@ function activate(
     }
 
     // 当没有galaxy相关tab时关闭sidebar
-    if (!hasMatrix && !hasDetail) {
+    if (!hasMatrix && !hasDetail && !hasSimpleList) {
       // 关闭sidebar，不管是否有分析数据
       // 关闭左侧 flowchart
       const oldLeft = app.shell.widgets('left');
@@ -669,10 +763,10 @@ function activate(
           w.close();
         }
       }
-      // 关闭右侧 detail sidebar
+      // 关闭右侧 detail sidebar 和 simple info sidebar
       const oldRight = app.shell.widgets('right');
       for (const w of oldRight) {
-        if (w.id === 'galaxy-detail-sidebar') {
+        if (w.id === 'galaxy-detail-sidebar' || w.id === 'simple-info-sidebar') {
           w.close();
         }
       }
@@ -691,7 +785,7 @@ function activate(
     return widget.isVisible;
   }
 
-  // 恢复：获取主区域第一个 galaxy 相关 widget（优先 notebook-detail-widget，其次 matrix-widget）
+  // 恢复：获取主区域第一个 galaxy 相关 widget（优先 notebook-detail-widget，其次 matrix-widget，最后 simple-notebook-list-widget）
   function getActiveGalaxyWidget() {
     const mainWidgets = Array.from(app.shell.widgets('main'));
 
@@ -699,7 +793,8 @@ function activate(
     const visibleGalaxyWidgets = mainWidgets.filter(w =>
       w.isVisible && (
         (w.id && w.id.startsWith('notebook-detail-widget-')) ||
-        (w.id && w.id === 'matrix-widget')
+        (w.id && w.id === 'matrix-widget') ||
+        (w.id && w.id === 'simple-notebook-list-widget')
       )
     );
 
@@ -713,12 +808,15 @@ function activate(
     if (!widget) {
       widget = mainWidgets.find(w => w.id && w.id === 'matrix-widget');
     }
+    if (!widget) {
+      widget = mainWidgets.find(w => w.id && w.id === 'simple-notebook-list-widget');
+    }
 
     return widget || null;
   }
 
   app.commands.addCommand(command, {
-    label: 'Analyze Selected Notebooks',
+    label: 'Detailed Notebook Analysis',
     execute: async () => {
       isInitializing = true; // 设置初始化标志
 
@@ -736,14 +834,18 @@ function activate(
         let voteData: any[] = [];
         let summaryData: any = null;
 
-        // 关闭之前的插件窗口
+        // 关闭之前的所有galaxy相关窗口和sidebar
         const oldLeft = app.shell.widgets('left');
         for (const w of oldLeft) {
-          if (w.id === 'flow-chart-widget') w.close();
+          if (w.id === 'flow-chart-widget' || w.id === 'simple-notebook-list-widget') w.close();
         }
         const oldMain = app.shell.widgets('main');
         for (const w of oldMain) {
-          if (w.id === 'matrix-widget' || (w.id && w.id.startsWith('notebook-detail-widget-'))) {
+          if (w.id === 'matrix-widget' || 
+              (w.id && w.id.startsWith('notebook-detail-widget-')) ||
+              w.id === 'simple-notebook-list-widget' ||
+              (w.id && w.id.startsWith('simple-notebook-detail-widget-')) ||
+              (w.id && w.id.includes('simple-notebook'))) {
             // Track notebook closing before closing
             if (w.id && w.id.startsWith('notebook-detail-widget-')) {
               const notebookData = (w as any).notebook;
@@ -762,12 +864,49 @@ function activate(
         }
         const oldRight = app.shell.widgets('right');
         for (const w of oldRight) {
-          if (w.id === 'galaxy-detail-sidebar') w.close();
+          if (w.id === 'galaxy-detail-sidebar' || w.id === 'simple-info-sidebar') w.close();
+        }
+        
+        // 额外的清理：确保所有包含 'simple' 或 'galaxy' 的widget都被关闭
+        const allMainWidgets = app.shell.widgets('main');
+        for (const w of allMainWidgets) {
+          if (w.id && (w.id.includes('simple') || w.id.includes('galaxy'))) {
+            console.log('Closing additional widget:', w.id);
+            w.close();
+          }
         }
 
         // 清理 notebook detail IDs 记录
         notebookDetailIds.clear();
         lastKnownDetailIds.clear();
+
+        // 重置全局变量
+        flowChartWidget = null;
+        detailSidebar = null;
+        matrixWidget = null;
+        result1 = null;
+        mostFreqStage = null;
+        mostFreqFlow = null;
+        colorMap = null;
+
+        // 清除滚动同步状态
+        scrollSyncEnabled = false;
+        scrollSyncWidgets.clear();
+        scrollSyncHandlers.clear();
+        lockedWidgets.clear();
+
+        // 移除所有galaxy相关的事件监听器
+        if (handleNotebookSelected) {
+          window.removeEventListener('galaxy-notebook-selected', handleNotebookSelected);
+        }
+        if (handleSimpleNotebookSelected) {
+          window.removeEventListener('galaxy-simple-notebook-selected', handleSimpleNotebookSelected);
+        }
+
+        // 重置事件监听器注册标志
+        notebookSelectedListenerRegistered = false;
+        handleNotebookSelected = null;
+        handleSimpleNotebookSelected = null;
 
         // 检查是否选中了JSON文件
         if (
@@ -886,19 +1025,19 @@ function activate(
           kernelTitleMap = await createKernelTitleMap(competitionIdForMatrix, baseDirForMatrix);
         }
 
-        matrixWidget = new MatrixWidget(result1, colorScale, similarityGroups, kernelTitleMap, voteData, summaryData);
+        // 获取competition信息
+        let competitionInfo: { id: string; name: string; url: string; description?: string; category?: string; evaluation?: string; startDate?: string; endDate?: string } | undefined = undefined;
+        if (competitionIdForMatrix) {
+          competitionInfo = await getCompetitionInfo(competitionIdForMatrix) || undefined;
+        }
+
+        matrixWidget = new MatrixWidget(result1, colorScale, similarityGroups, kernelTitleMap, voteData, summaryData, competitionInfo);
         app.shell.add(matrixWidget, 'main');
         app.shell.activateById(matrixWidget.id);
         matrixWidget.disposed.connect(() => {
           closeSidebarsIfNoMainWidgets(app);
         });
         const notebookOrder = matrixWidget.getNotebookOrder();
-
-        // 获取competition信息
-        let competitionInfo: { id: string; name: string; url: string } | undefined = undefined;
-        if (competitionIdForMatrix) {
-          competitionInfo = getCompetitionInfo(competitionIdForMatrix) || undefined;
-        }
 
         const detailSidebarInstance = new DetailSidebar(colorMapModule, notebookOrder, undefined, similarityGroups, voteData, competitionInfo);
         detailSidebar = detailSidebarInstance;
@@ -927,7 +1066,8 @@ function activate(
         window.addEventListener('galaxy-stage-selected', (e: any) => {
           const { stage, tabId } = e.detail;
           currentSelection = { type: 'stage', stage, tabId };
-          matrixWidget?.setFilter(currentSelection);
+          // 移除对matrix的filter调用，让matrix不再跟随notebook detail tab的选择
+          // matrixWidget?.setFilter(currentSelection);
 
           // 如果有cluster被选中，不要改变右侧sidebar的状态
           const hasSelectedCluster = matrixWidget && (matrixWidget as any).selectedClusterId && (matrixWidget as any).sortState === 3;
@@ -946,7 +1086,8 @@ function activate(
         window.addEventListener('galaxy-flow-selected', (e: any) => {
           const { from, to, tabId } = e.detail;
           currentSelection = { type: 'flow', from, to, tabId };
-          matrixWidget?.setFilter(currentSelection);
+          // 移除对matrix的filter调用，让matrix不再跟随notebook detail tab的选择
+          // matrixWidget?.setFilter(currentSelection);
 
           // 如果有cluster被选中，不要改变右侧sidebar的状态
           const hasSelectedCluster = matrixWidget && (matrixWidget as any).selectedClusterId && (matrixWidget as any).sortState === 3;
@@ -968,7 +1109,8 @@ function activate(
           // Only track analytics if there was actually a selection to clear
           const hadSelection = currentSelection !== null;
           currentSelection = null;
-          matrixWidget?.setFilter(null);
+          // 移除对matrix的filter调用，让matrix不再跟随notebook detail tab的选择
+          // matrixWidget?.setFilter(null);
           detailSidebar?.setFilter(null, true); // 跳过事件派发，避免循环
           // Track flowchart interaction only when there was a selection to clear
           if (hadSelection) {
@@ -1192,6 +1334,8 @@ function activate(
             window.addEventListener('galaxy-notebook-selected', handleNotebookSelected!);
             notebookSelectedListenerRegistered = true;
           }
+
+
         }
       } catch (err) {
 
@@ -1202,7 +1346,215 @@ function activate(
     }
   });
 
-  palette.addItem({ command: command, category: 'Galaxy Tools' });
+  // 添加简化分析命令
+  app.commands.addCommand(simpleCommand, {
+    label: 'Simple Notebook Analysis',
+    execute: async () => {
+      isInitializing = true; // 设置初始化标志
+
+      const fileBrowserWidget = browserFactory.tracker.currentWidget;
+      if (!fileBrowserWidget) {
+        console.warn('No active file browser');
+        return;
+      }
+
+      const selectedItems = Array.from(fileBrowserWidget.selectedItems());
+
+      try {
+        // 关闭之前的所有galaxy相关窗口和sidebar
+        const oldLeft = app.shell.widgets('left');
+        for (const w of oldLeft) {
+          if (w.id === 'flow-chart-widget' || w.id === 'simple-notebook-list-widget') w.close();
+        }
+        const oldMain = app.shell.widgets('main');
+        for (const w of oldMain) {
+          if (w.id === 'matrix-widget' || 
+              (w.id && w.id.startsWith('notebook-detail-widget-')) ||
+              w.id === 'simple-notebook-list-widget' ||
+              (w.id && w.id.startsWith('simple-notebook-detail-widget-')) ||
+              (w.id && w.id.includes('simple-notebook'))) {
+            // Track notebook closing before closing
+            if (w.id && w.id.startsWith('notebook-detail-widget-')) {
+              const notebookData = (w as any).notebook;
+              if (notebookData) {
+                analytics.trackNotebookClosed(
+                  notebookData.kernelVersionId || `nb_${notebookData.index || Date.now()}`,
+                  {
+                    tabTitle: w.title?.label,
+                    tabId: w.id
+                  }
+                );
+              }
+            }
+            w.close();
+          }
+        }
+        const oldRight = app.shell.widgets('right');
+        for (const w of oldRight) {
+          if (w.id === 'simple-info-sidebar' || w.id === 'galaxy-detail-sidebar') w.close();
+        }
+        
+        // 额外的清理：确保所有包含 'simple' 或 'galaxy' 的widget都被关闭
+        const allMainWidgets = app.shell.widgets('main');
+        for (const w of allMainWidgets) {
+          if (w.id && (w.id.includes('simple') || w.id.includes('galaxy') || w.id.includes('matrix'))) {
+            console.log('Closing additional widget:', w.id);
+            w.close();
+          }
+        }
+        
+        // 清理所有侧边栏中的相关widget
+        const allLeftWidgets = app.shell.widgets('left');
+        for (const w of allLeftWidgets) {
+          if (w.id && (w.id.includes('simple') || w.id.includes('galaxy') || w.id.includes('flow'))) {
+            console.log('Closing additional left widget:', w.id);
+            w.close();
+          }
+        }
+        
+        const allRightWidgets = app.shell.widgets('right');
+        for (const w of allRightWidgets) {
+          if (w.id && (w.id.includes('simple') || w.id.includes('galaxy'))) {
+            console.log('Closing additional right widget:', w.id);
+            w.close();
+          }
+        }
+
+        // 清理 notebook detail IDs 记录
+        notebookDetailIds.clear();
+        lastKnownDetailIds.clear();
+
+        // 重置全局变量
+        flowChartWidget = null;
+        detailSidebar = null;
+        matrixWidget = null;
+        result1 = null;
+        mostFreqStage = null;
+        mostFreqFlow = null;
+        colorMap = null;
+
+        // 清除滚动同步状态
+        scrollSyncEnabled = false;
+        scrollSyncWidgets.clear();
+        scrollSyncHandlers.clear();
+        lockedWidgets.clear();
+
+        // 移除所有galaxy相关的事件监听器
+        if (handleNotebookSelected) {
+          window.removeEventListener('galaxy-notebook-selected', handleNotebookSelected);
+        }
+        if (handleSimpleNotebookSelected) {
+          window.removeEventListener('galaxy-simple-notebook-selected', handleSimpleNotebookSelected);
+        }
+
+        // 重置事件监听器注册标志
+        notebookSelectedListenerRegistered = false;
+        handleNotebookSelected = null;
+        handleSimpleNotebookSelected = null;
+
+        // 检查是否选中了JSON文件
+        if (
+          selectedItems.length === 1 &&
+          selectedItems[0].type === 'file' &&
+          selectedItems[0].path.endsWith('.json')
+        ) {
+          // 直接用 Contents API 读取 JSON 文件内容
+          const contentsManager = app.serviceManager.contents;
+          const model = await contentsManager.get(selectedItems[0].path, { type: 'file', format: 'text', content: true });
+          result1 = JSON.parse(model.content as string);
+
+          // 提取competition ID和基础目录
+          const competitionId = extractCompetitionId(selectedItems[0].path);
+          const baseDir = extractBaseDir(selectedItems[0].path);
+
+          // Track analysis started
+          analytics.trackAnalysisStarted({
+            competitionId: competitionId || undefined,
+            totalNotebooks: result1.length,
+            jsonFilePath: selectedItems[0].path
+          });
+
+          // 获取competition信息
+          let competitionInfo: { id: string; name: string; url: string; description?: string; category?: string; evaluation?: string; startDate?: string; endDate?: string } | undefined = undefined;
+          if (competitionId) {
+            competitionInfo = await getCompetitionInfo(competitionId) || undefined;
+          }
+
+          // 创建kernelTitleMap
+          let kernelTitleMap = new Map<string, { title: string; creationDate: string; totalLines: number; displayname?: string; url?: string }>();
+          let voteData: any[] = [];
+          
+          if (competitionId && baseDir) {
+            try {
+              kernelTitleMap = await createKernelTitleMap(competitionId, baseDir);
+              result1 = replaceKernelVersionIdWithTitle(result1, kernelTitleMap);
+            } catch (e) {
+              // Kernel data not available
+            }
+
+            // 加载TOC数据并合并到notebook数据中
+            try {
+              const tocData = await loadTocData(competitionId, baseDir);
+              result1 = mergeTocData(result1, tocData);
+            } catch (e) {
+              // TOC data not available
+            }
+
+            // 读取投票数据（如果存在）
+            try {
+              const votePath = `${baseDir}/cluster_data/${competitionId}_sorted.csv`;
+              const voteModel = await contentsManager.get(votePath, { type: 'file', format: 'text', content: true });
+              voteData = csvParse(voteModel.content as string);
+            } catch (e) {
+              voteData = [];
+            }
+          }
+
+          // 创建简化的notebook列表widget
+          const simpleListWidget = new SimpleNotebookListWidget(result1, kernelTitleMap, competitionInfo, voteData);
+          app.shell.add(simpleListWidget, 'main');
+          app.shell.activateById(simpleListWidget.id);
+
+          // 创建简化的信息侧边栏
+          const simpleInfoSidebar = new SimpleInfoSidebar(competitionInfo);
+          app.shell.add(simpleInfoSidebar, 'right');
+          if (typeof (app.shell as any).expandRightArea === 'function') {
+            (app.shell as any).expandRightArea();
+          }
+          app.shell.activateById(simpleInfoSidebar.id);
+
+          // 注册 simple notebook detail 事件监听器（合并处理）
+          handleSimpleNotebookSelected = (e: any) => {
+            // 新建并显示 simple notebook 详情，深拷贝 notebook 数据
+            const nb = JSON.parse(JSON.stringify(e.detail.notebook));
+            const simpleDetailWidget = new SimpleNotebookDetailWidget(nb);
+            
+            app.shell.add(simpleDetailWidget, 'main');
+            app.shell.activateById(simpleDetailWidget.id);
+            
+            // 同时更新信息侧边栏
+            simpleInfoSidebar.setNotebookDetail(nb);
+          };
+          window.addEventListener('galaxy-simple-notebook-selected', handleSimpleNotebookSelected);
+
+
+
+        } else {
+          // 只支持JSON文件分析
+          console.warn('Please select a single JSON file for analysis');
+          return;
+        }
+
+      } catch (err) {
+        console.error('Failed to analyze notebooks:', err);
+      } finally {
+        isInitializing = false; // 清除初始化标志
+      }
+    }
+  });
+
+  palette.addItem({ command: command, category: 'Galaxy Analysis' });
+  palette.addItem({ command: simpleCommand, category: 'Galaxy Analysis' });
 
   if (restorer) {
     // 已无 tracker，直接不 restore
@@ -1213,8 +1565,8 @@ function activate(
     const fbWidget = browserFactory.tracker.currentWidget;
     if (fbWidget && fbWidget instanceof FileBrowser) {
       const analyzeButton = new ToolbarButton({
-        icon: runIcon,
-        tooltip: 'Analyze selected notebooks',
+        icon: detailedAnalysisIcon,
+        tooltip: 'Detailed notebook analysis',
         onClick: () => {
           app.commands.execute(command);
         }
@@ -1227,40 +1579,95 @@ function activate(
       setTimeout(() => {
         const iconElement = analyzeButton.node.querySelector('svg');
         if (iconElement) {
-          iconElement.style.fill = '#FF6B35';
-          iconElement.style.transition = 'all 0.2s ease';
+          // 设置自定义图标的颜色
+          const pathElement = iconElement.querySelector('path');
+          if (pathElement) {
+            pathElement.style.fill = '#FF6B35';
+            pathElement.style.transition = 'all 0.2s ease';
+          }
 
           // 添加悬停效果
           analyzeButton.node.addEventListener('mouseenter', () => {
-            if (iconElement) {
-              iconElement.style.fill = '#FF4500';
+            if (pathElement) {
+              pathElement.style.fill = '#FF4500';
               iconElement.style.transform = 'scale(1.1)';
             }
           });
 
           analyzeButton.node.addEventListener('mouseleave', () => {
-            if (iconElement) {
-              iconElement.style.fill = '#FF6B35';
+            if (pathElement) {
+              pathElement.style.fill = '#FF6B35';
               iconElement.style.transform = 'scale(1)';
             }
           });
 
           analyzeButton.node.addEventListener('mousedown', () => {
-            if (iconElement) {
-              iconElement.style.fill = '#FF0000';
+            if (pathElement) {
+              pathElement.style.fill = '#FF0000';
               iconElement.style.transform = 'scale(0.95)';
             }
           });
 
           analyzeButton.node.addEventListener('mouseup', () => {
-            if (iconElement) {
-              iconElement.style.fill = '#FF4500';
+            if (pathElement) {
+              pathElement.style.fill = '#FF4500';
               iconElement.style.transform = 'scale(1.1)';
             }
           });
         }
       }, 100);
-      fbWidget.toolbar.insertItem(5, 'analyzeNotebooks', analyzeButton);
+      // 添加简化分析按钮
+      const simpleAnalyzeButton = new ToolbarButton({
+        icon: runIcon,
+        tooltip: 'Simple notebook analysis',
+        onClick: () => {
+          app.commands.execute(simpleCommand);
+        }
+      });
+
+      // 给简化分析按钮添加自定义样式
+      simpleAnalyzeButton.addClass('galaxy-simple-analyze-button');
+
+      // 直接设置样式确保颜色生效
+      setTimeout(() => {
+        const iconElement = simpleAnalyzeButton.node.querySelector('svg');
+        if (iconElement) {
+          iconElement.style.fill = '#28a745';
+          iconElement.style.transition = 'all 0.2s ease';
+
+          // 添加悬停效果
+          simpleAnalyzeButton.node.addEventListener('mouseenter', () => {
+            if (iconElement) {
+              iconElement.style.fill = '#20c997';
+              iconElement.style.transform = 'scale(1.1)';
+            }
+          });
+
+          simpleAnalyzeButton.node.addEventListener('mouseleave', () => {
+            if (iconElement) {
+              iconElement.style.fill = '#28a745';
+              iconElement.style.transform = 'scale(1)';
+            }
+          });
+
+          simpleAnalyzeButton.node.addEventListener('mousedown', () => {
+            if (iconElement) {
+              iconElement.style.fill = '#1e7e34';
+              iconElement.style.transform = 'scale(0.95)';
+            }
+          });
+
+          simpleAnalyzeButton.node.addEventListener('mouseup', () => {
+            if (iconElement) {
+              iconElement.style.fill = '#20c997';
+              iconElement.style.transform = 'scale(1.1)';
+            }
+          });
+        }
+      }, 100);
+      fbWidget.toolbar.insertItem(5, 'simpleAnalyzeNotebooks', simpleAnalyzeButton);
+
+      fbWidget.toolbar.insertItem(6, 'analyzeNotebooks', analyzeButton);
     }
   })
 
@@ -1442,10 +1849,30 @@ function activate(
     function bindTabCloseDelegates() {
       document.querySelectorAll('.lm-TabBar-content').forEach(tabBar => {
         if (!(tabBar as any).__galaxyCloseBound) {
-          tabBar.addEventListener('mousedown', (e) => {
-                  });
-      tabBar.addEventListener('click', (e) => {
-      });
+          tabBar.addEventListener('click', (e) => {
+            const target = e.target as HTMLElement;
+            if (target && target.classList.contains('lm-TabBar-tabCloseIcon')) {
+              const tabElement = target.closest('.lm-TabBar-tab');
+              if (tabElement) {
+                const dataId = tabElement.getAttribute('data-id');
+                if (dataId && dataId.startsWith('simple-notebook-detail-widget-')) {
+                  // 触发事件通知SimpleInfoSidebar清除notebook信息
+                  window.dispatchEvent(new CustomEvent('galaxy-simple-notebook-detail-closed'));
+                } else if (dataId && dataId === 'simple-notebook-list-widget') {
+                  // Simple notebook list widget is being closed
+                  // Close simple info sidebar when list is closed
+                  setTimeout(() => {
+                    const rightWidgets = Array.from(app.shell.widgets('right'));
+                    for (const rightWidget of rightWidgets) {
+                      if (rightWidget.id === 'simple-info-sidebar') {
+                        rightWidget.close();
+                      }
+                    }
+                  }, 100);
+                }
+              }
+            }
+          });
           (tabBar as any).__galaxyCloseBound = true;
         }
       });
@@ -1484,12 +1911,35 @@ function activate(
                   closeSidebarsIfNoMainWidgets(app);
                 }
               }, 200); // 增加延迟时间，确保状态稳定
+            } else if (w.id && w.id.startsWith('simple-notebook-detail-widget-')) {
+              // Simple notebook detail widget was closed
+              // 触发事件通知SimpleInfoSidebar清除notebook信息
+              window.dispatchEvent(new CustomEvent('galaxy-simple-notebook-detail-closed'));
+              
+              // 延迟处理以确保状态稳定
+              setTimeout(() => {
+                const widget = getActiveGalaxyWidget();
+                if (widget) {
+                  handleTabSwitch(widget);
+                }
+              }, 100);
             } else if (w.id === 'matrix-widget') {
               // Matrix widget (overview) was closed
 
               // Close sidebars when overview is closed
               setTimeout(() => {
                 closeSidebarsIfNoMainWidgets(app);
+              }, 100);
+            } else if (w.id === 'simple-notebook-list-widget') {
+              // Simple notebook list widget was closed
+              // Close simple info sidebar when list is closed
+              setTimeout(() => {
+                const rightWidgets = Array.from(app.shell.widgets('right'));
+                for (const rightWidget of rightWidgets) {
+                  if (rightWidget.id === 'simple-info-sidebar') {
+                    rightWidget.close();
+                  }
+                }
               }, 100);
             } else {
               setTimeout(() => {
