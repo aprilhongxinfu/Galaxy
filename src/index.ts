@@ -927,7 +927,8 @@ function activate(
         window.addEventListener('galaxy-stage-selected', (e: any) => {
           const { stage, tabId } = e.detail;
           currentSelection = { type: 'stage', stage, tabId };
-          matrixWidget?.setFilter(currentSelection);
+          // 移除对matrix的filter调用，让matrix不再跟随notebook detail tab的选择
+          // matrixWidget?.setFilter(currentSelection);
 
           // 如果有cluster被选中，不要改变右侧sidebar的状态
           const hasSelectedCluster = matrixWidget && (matrixWidget as any).selectedClusterId && (matrixWidget as any).sortState === 3;
@@ -946,7 +947,8 @@ function activate(
         window.addEventListener('galaxy-flow-selected', (e: any) => {
           const { from, to, tabId } = e.detail;
           currentSelection = { type: 'flow', from, to, tabId };
-          matrixWidget?.setFilter(currentSelection);
+          // 移除对matrix的filter调用，让matrix不再跟随notebook detail tab的选择
+          // matrixWidget?.setFilter(currentSelection);
 
           // 如果有cluster被选中，不要改变右侧sidebar的状态
           const hasSelectedCluster = matrixWidget && (matrixWidget as any).selectedClusterId && (matrixWidget as any).sortState === 3;
@@ -968,7 +970,8 @@ function activate(
           // Only track analytics if there was actually a selection to clear
           const hadSelection = currentSelection !== null;
           currentSelection = null;
-          matrixWidget?.setFilter(null);
+          // 移除对matrix的filter调用，让matrix不再跟随notebook detail tab的选择
+          // matrixWidget?.setFilter(null);
           detailSidebar?.setFilter(null, true); // 跳过事件派发，避免循环
           // Track flowchart interaction only when there was a selection to clear
           if (hadSelection) {

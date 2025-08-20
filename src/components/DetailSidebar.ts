@@ -715,7 +715,7 @@ export class DetailSidebar extends Widget {
           const stage = (link as HTMLElement).getAttribute('data-stage');
           if (stage) {
             // 触发stage选中效果，与选中block相同
-            this.setFilter({ type: 'stage', stage });
+            this.setFilter({ type: 'stage', stage }, true); // 跳过事件派发，避免影响matrix
           }
         });
       });
@@ -729,7 +729,7 @@ export class DetailSidebar extends Widget {
             const [from, to] = flow.split(/→|->/);
             if (from && to) {
               // 触发flow选中效果，与选中flow相同
-              this.setFilter({ type: 'flow', from, to });
+              this.setFilter({ type: 'flow', from, to }, true); // 跳过事件派发，避免影响matrix
             }
           }
         });
@@ -762,7 +762,7 @@ export class DetailSidebar extends Widget {
           const stage = (link as HTMLElement).getAttribute('data-stage');
           if (stage) {
             // 触发stage选中效果，与选中block相同
-            this.setFilter({ type: 'stage', stage });
+            this.setFilter({ type: 'stage', stage }, true); // 跳过事件派发，避免影响matrix
           }
         });
       });
@@ -771,14 +771,14 @@ export class DetailSidebar extends Widget {
         link.addEventListener('click', (e) => {
           e.preventDefault();
           const flow = (link as HTMLElement).getAttribute('data-flow');
-          if (flow) {
-            // 解析flow字符串，格式为 "from→to" 或 "from->to"
-            const [from, to] = flow.split(/→|->/);
-            if (from && to) {
-              // 触发flow选中效果，与选中flow相同
-              this.setFilter({ type: 'flow', from, to });
+                      if (flow) {
+              // 解析flow字符串，格式为 "from→to" 或 "from->to"
+              const [from, to] = flow.split(/→|->/);
+              if (from && to) {
+                // 触发flow选中效果，与选中flow相同
+                this.setFilter({ type: 'flow', from, to }, true); // 跳过事件派发，避免影响matrix
+              }
             }
-          }
         });
       });
 
@@ -1137,19 +1137,20 @@ export class DetailSidebar extends Widget {
       // 触发筛选状态变化事件，通知NotebookDetailWidget重新渲染
       window.dispatchEvent(new CustomEvent('galaxy-flow-selection-changed', { detail: selection }));
 
+      // 移除对MatrixWidget和flowchart的事件通知，让matrix不再跟随notebook detail tab的选择
       // 触发MatrixWidget和flowchart的事件通知
-      if (selection) {
-        if (selection.type === 'stage') {
-          // 通知MatrixWidget和flowchart选中stage
-          window.dispatchEvent(new CustomEvent('galaxy-stage-selected', { detail: { stage: selection.stage, tabId } }));
-        } else if (selection.type === 'flow') {
-          // 通知MatrixWidget和flowchart选中flow
-          window.dispatchEvent(new CustomEvent('galaxy-flow-selected', { detail: { from: selection.from, to: selection.to, tabId } }));
-        }
-      } else {
-        // 清除选中状态
-        window.dispatchEvent(new CustomEvent('galaxy-selection-cleared', { detail: { tabId } }));
-      }
+      // if (selection) {
+      //   if (selection.type === 'stage') {
+      //     // 通知MatrixWidget和flowchart选中stage
+      //     window.dispatchEvent(new CustomEvent('galaxy-stage-selected', { detail: { stage: selection.stage, tabId } }));
+      //   } else if (selection.type === 'flow') {
+      //     // 通知MatrixWidget和flowchart选中flow
+      //     window.dispatchEvent(new CustomEvent('galaxy-flow-selected', { detail: { from: selection.from, to: selection.to, tabId } }));
+      //   }
+      // } else {
+      //   // 清除选中状态
+      //   window.dispatchEvent(new CustomEvent('galaxy-selection-cleared', { detail: { tabId } }));
+      // }
     }
 
     // 根据当前状态调用相应的方法
@@ -1764,7 +1765,7 @@ export class DetailSidebar extends Widget {
           const stage = (link as HTMLElement).getAttribute('data-stage');
           if (stage) {
             // 触发stage选中效果，与选中block相同
-            this.setFilter({ type: 'stage', stage });
+            this.setFilter({ type: 'stage', stage }, true); // 跳过事件派发，避免影响matrix
           }
         });
       });
@@ -1773,14 +1774,14 @@ export class DetailSidebar extends Widget {
         link.addEventListener('click', (e) => {
           e.preventDefault();
           const flow = (link as HTMLElement).getAttribute('data-flow');
-          if (flow) {
-            // 解析flow字符串，格式为 "from→to" 或 "from->to"
-            const [from, to] = flow.split(/→|->/);
-            if (from && to) {
-              // 触发flow选中效果，与选中flow相同
-              this.setFilter({ type: 'flow', from, to });
+                      if (flow) {
+              // 解析flow字符串，格式为 "from→to" 或 "from->to"
+              const [from, to] = flow.split(/→|->/);
+              if (from && to) {
+                // 触发flow选中效果，与选中flow相同
+                this.setFilter({ type: 'flow', from, to }, true); // 跳过事件派发，避免影响matrix
+              }
             }
-          }
         });
       });
     }, 0);

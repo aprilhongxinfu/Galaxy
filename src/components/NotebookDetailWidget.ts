@@ -453,8 +453,13 @@ export class NotebookDetailWidget extends Widget {
   }
 
   private handleStageHover(event: Event): void {
-    const stage = (event as CustomEvent).detail.stage;
+    const detail = (event as CustomEvent).detail || {};
+    const stage = detail.stage;
     const tabId = this.getTabId();
+    // Ignore hover events that carry a tabId not matching this widget
+    if (detail.tabId && detail.tabId !== tabId) {
+      return;
+    }
     // 记录当前 flow chart 悬浮 stage（按 tab 隔离）
     (window as any)[`_galaxyFlowHoverStage_${tabId}`] = stage;
     // 清除flow信息（当stage筛选时）
@@ -464,8 +469,8 @@ export class NotebookDetailWidget extends Widget {
     const minimapSvg = this.node.querySelector('svg');
     if (!minimapSvg) return;
     // 检查是否来自 minimap 内部的 hover
-    const isFromMinimap = (event as any).detail?.source === 'minimap';
-    const hoveredIdx = (event as any).detail?.cellIdx;
+    const isFromMinimap = detail?.source === 'minimap';
+    const hoveredIdx = detail?.cellIdx;
 
     // 检查是否有选中状态，如果有则不添加高亮
     const flowSelectionKey = `_galaxyFlowSelection_${tabId}`;
@@ -508,8 +513,13 @@ export class NotebookDetailWidget extends Widget {
   }
 
   private handleTransitionHover(event: Event): void {
-    const { from, to } = (event as CustomEvent).detail;
+    const detail = (event as CustomEvent).detail || {};
+    const { from, to } = detail;
     const tabId = this.getTabId();
+    // Ignore hover events that carry a tabId not matching this widget
+    if (detail.tabId && detail.tabId !== tabId) {
+      return;
+    }
     // 记录 flow chart 悬浮（按 tab 隔离）
     (window as any)[`_galaxyFlowHoverStage_${tabId}`] = from && to ? '__flow_transition__' : null;
     // 设置全局flow信息（按 tab 隔离）

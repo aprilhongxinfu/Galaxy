@@ -773,7 +773,7 @@ export class LeftSidebar extends Widget {
                         });
 
                         // 联动高亮 matrix pattern
-                        window.dispatchEvent(new CustomEvent('galaxy-transition-hover', { detail: { from, to } }));
+                        if (this.isOverviewMode) window.dispatchEvent(new CustomEvent('galaxy-transition-hover', { detail: { from, to, tabId: this.getTabId() } }));
                     }
                     // tooltip
                     const tooltip = document.getElementById('galaxy-tooltip');
@@ -806,7 +806,7 @@ export class LeftSidebar extends Widget {
                             }
                         });
                         // 取消联动高亮
-                        window.dispatchEvent(new CustomEvent('galaxy-transition-hover', { detail: { from: null, to: null } }));
+                        if (this.isOverviewMode) window.dispatchEvent(new CustomEvent('galaxy-transition-hover', { detail: { from: null, to: null, tabId: this.getTabId() } }));
                     } else {
                         // 如果有选中状态，直接应用选中效果
                         if (this.selection.type === 'flow') {
@@ -939,7 +939,7 @@ export class LeftSidebar extends Widget {
                     });
 
                     // 联动高亮
-                    window.dispatchEvent(new CustomEvent('galaxy-stage-hover', { detail: { stage } }));
+                    if (this.isOverviewMode) window.dispatchEvent(new CustomEvent('galaxy-stage-hover', { detail: { stage, tabId: this.getTabId() } }));
                 } else {
                     // 如果有选中状态，不触发hover事件，避免minimap高亮
                 }
@@ -979,7 +979,7 @@ export class LeftSidebar extends Widget {
                         }
                     });
                     // 联动高亮取消
-                    window.dispatchEvent(new CustomEvent('galaxy-stage-hover', { detail: { stage: null } }));
+                    if (this.isOverviewMode) window.dispatchEvent(new CustomEvent('galaxy-stage-hover', { detail: { stage: null, tabId: this.getTabId() } }));
                 } else {
                     // 如果有选中状态，直接应用选中效果
                     if (this.selection.type === 'flow') {
