@@ -99,7 +99,7 @@ export class SimpleNotebookListWidget extends Widget {
         // 创建排序按钮容器
         const buttonContainer = document.createElement('div');
         buttonContainer.style.display = 'flex';
-        buttonContainer.style.justifyContent = 'flex-end';
+        buttonContainer.style.justifyContent = 'flex-start';
         buttonContainer.style.alignItems = 'center';
         buttonContainer.style.marginTop = '4px';
         buttonContainer.style.marginBottom = '4px';
@@ -109,17 +109,18 @@ export class SimpleNotebookListWidget extends Widget {
 
         // 创建排序按钮
         const sortButton = document.createElement('button');
-        sortButton.innerHTML = this.getVoteSortIcon();
+        sortButton.innerHTML = 'Sort by vote';
         sortButton.style.background = 'none';
         sortButton.style.border = 'none';
         sortButton.style.cursor = 'pointer';
-        sortButton.style.fontSize = '18px';
+        sortButton.style.fontSize = '12px';
+        sortButton.style.fontWeight = '600';
+        sortButton.style.color = '#495057';
         sortButton.style.display = 'flex';
         sortButton.style.alignItems = 'center';
         sortButton.style.justifyContent = 'center';
+        sortButton.style.padding = '6px 8px';
 
-        // 添加tooltip
-        this.addTooltipToButton(sortButton, () => 'Sort by votes');
 
         sortButton.addEventListener('click', () => {
             this.sortByVote = !this.sortByVote;
@@ -128,7 +129,7 @@ export class SimpleNotebookListWidget extends Widget {
             } else {
                 sortButton.classList.remove('active');
             }
-            sortButton.innerHTML = this.getVoteSortIcon();
+            sortButton.innerHTML = 'Sort by vote';
             this.render();
         });
 
@@ -277,62 +278,7 @@ export class SimpleNotebookListWidget extends Widget {
 
 
 
-    // 获取投票排序图标
-    private getVoteSortIcon(): string {
-        // 投票排序icon，使用星星图标，激活绿色，未激活灰色
-        if (this.sortByVote) {
-            // 激活（绿色）
-            return `<svg width="18" height="18" viewBox="0 0 24 24">
-  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" fill="#4caf50"/>
-</svg>`;
-        } else {
-            // 未激活（灰色）
-            return `<svg width="18" height="18" viewBox="0 0 24 24">
-  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" fill="#555"/>
-</svg>`;
-        }
-    }
 
-    // 通用的tooltip处理函数
-    private addTooltipToButton(button: HTMLButtonElement, getTooltipText: () => string): void {
-        button.onmouseenter = (e) => {
-            // 使用缓存的tooltip元素或创建新的
-            let tooltip = (window as any)._galaxyTooltip;
-            if (!tooltip) {
-                tooltip = document.createElement('div');
-                tooltip.id = 'galaxy-tooltip';
-                tooltip.style.position = 'fixed';
-                tooltip.style.display = 'none';
-                tooltip.style.pointerEvents = 'none';
-                tooltip.style.background = 'rgba(0,0,0,0.75)';
-                tooltip.style.color = '#fff';
-                tooltip.style.padding = '6px 10px';
-                tooltip.style.borderRadius = '4px';
-                tooltip.style.fontSize = '12px';
-                tooltip.style.zIndex = '9999';
-                document.body.appendChild(tooltip);
-                (window as any)._galaxyTooltip = tooltip;
-            }
-            
-            tooltip.innerHTML = getTooltipText();
-            tooltip.style.display = 'block';
-            tooltip.style.left = e.clientX + 12 + 'px';
-            tooltip.style.top = e.clientY + 12 + 'px';
-        };
-        button.onmousemove = (e) => {
-            const tooltip = (window as any)._galaxyTooltip;
-            if (tooltip) {
-                tooltip.style.left = e.clientX + 12 + 'px';
-                tooltip.style.top = e.clientY + 12 + 'px';
-            }
-        };
-        button.onmouseleave = () => {
-            const tooltip = (window as any)._galaxyTooltip;
-            if (tooltip) {
-                tooltip.style.display = 'none';
-            }
-        };
-    }
 
     // 更新数据的方法
     public updateData(newData: Notebook[]) {
