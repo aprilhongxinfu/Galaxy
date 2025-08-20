@@ -227,6 +227,7 @@ function replaceKernelVersionIdWithTitle(obj: any, titleMap: Map<string, { title
 
 
 let handleNotebookSelected: ((e: any) => void) | null = null;
+let handleSimpleNotebookSelected: ((e: any) => void) | null = null;
 let notebookSelectedListenerRegistered = false;
 let app: JupyterFrontEnd;
 let flowChartWidget: LeftSidebar | null = null;
@@ -761,14 +762,18 @@ function activate(
         let voteData: any[] = [];
         let summaryData: any = null;
 
-        // 关闭之前的插件窗口
+        // 关闭之前的所有galaxy相关窗口和sidebar
         const oldLeft = app.shell.widgets('left');
         for (const w of oldLeft) {
-          if (w.id === 'flow-chart-widget') w.close();
+          if (w.id === 'flow-chart-widget' || w.id === 'simple-notebook-list-widget') w.close();
         }
         const oldMain = app.shell.widgets('main');
         for (const w of oldMain) {
-          if (w.id === 'matrix-widget' || (w.id && w.id.startsWith('notebook-detail-widget-'))) {
+          if (w.id === 'matrix-widget' || 
+              (w.id && w.id.startsWith('notebook-detail-widget-')) ||
+              w.id === 'simple-notebook-list-widget' ||
+              (w.id && w.id.startsWith('simple-notebook-detail-widget-')) ||
+              (w.id && w.id.includes('simple-notebook'))) {
             // Track notebook closing before closing
             if (w.id && w.id.startsWith('notebook-detail-widget-')) {
               const notebookData = (w as any).notebook;
@@ -787,12 +792,49 @@ function activate(
         }
         const oldRight = app.shell.widgets('right');
         for (const w of oldRight) {
-          if (w.id === 'galaxy-detail-sidebar') w.close();
+          if (w.id === 'galaxy-detail-sidebar' || w.id === 'simple-info-sidebar') w.close();
+        }
+        
+        // 额外的清理：确保所有包含 'simple' 或 'galaxy' 的widget都被关闭
+        const allMainWidgets = app.shell.widgets('main');
+        for (const w of allMainWidgets) {
+          if (w.id && (w.id.includes('simple') || w.id.includes('galaxy'))) {
+            console.log('Closing additional widget:', w.id);
+            w.close();
+          }
         }
 
         // 清理 notebook detail IDs 记录
         notebookDetailIds.clear();
         lastKnownDetailIds.clear();
+
+        // 重置全局变量
+        flowChartWidget = null;
+        detailSidebar = null;
+        matrixWidget = null;
+        result1 = null;
+        mostFreqStage = null;
+        mostFreqFlow = null;
+        colorMap = null;
+
+        // 清除滚动同步状态
+        scrollSyncEnabled = false;
+        scrollSyncWidgets.clear();
+        scrollSyncHandlers.clear();
+        lockedWidgets.clear();
+
+        // 移除所有galaxy相关的事件监听器
+        if (handleNotebookSelected) {
+          window.removeEventListener('galaxy-notebook-selected', handleNotebookSelected);
+        }
+        if (handleSimpleNotebookSelected) {
+          window.removeEventListener('galaxy-simple-notebook-selected', handleSimpleNotebookSelected);
+        }
+
+        // 重置事件监听器注册标志
+        notebookSelectedListenerRegistered = false;
+        handleNotebookSelected = null;
+        handleSimpleNotebookSelected = null;
 
         // 检查是否选中了JSON文件
         if (
@@ -1221,15 +1263,7 @@ function activate(
             notebookSelectedListenerRegistered = true;
           }
 
-          // 注册 simple notebook detail 事件监听器
-          window.addEventListener('galaxy-simple-notebook-selected', (e: any) => {
-            // 新建并显示 simple notebook 详情，深拷贝 notebook 数据
-            const nb = JSON.parse(JSON.stringify(e.detail.notebook));
-            const simpleDetailWidget = new SimpleNotebookDetailWidget(nb);
-            
-            app.shell.add(simpleDetailWidget, 'main');
-            app.shell.activateById(simpleDetailWidget.id);
-          });
+
         }
       } catch (err) {
 
@@ -1255,14 +1289,18 @@ function activate(
       const selectedItems = Array.from(fileBrowserWidget.selectedItems());
 
       try {
-        // 关闭之前的插件窗口
+        // 关闭之前的所有galaxy相关窗口和sidebar
         const oldLeft = app.shell.widgets('left');
         for (const w of oldLeft) {
-          if (w.id === 'flow-chart-widget') w.close();
+          if (w.id === 'flow-chart-widget' || w.id === 'simple-notebook-list-widget') w.close();
         }
         const oldMain = app.shell.widgets('main');
         for (const w of oldMain) {
-          if (w.id === 'simple-notebook-list-widget' || (w.id && w.id.startsWith('notebook-detail-widget-'))) {
+          if (w.id === 'matrix-widget' || 
+              (w.id && w.id.startsWith('notebook-detail-widget-')) ||
+              w.id === 'simple-notebook-list-widget' ||
+              (w.id && w.id.startsWith('simple-notebook-detail-widget-')) ||
+              (w.id && w.id.includes('simple-notebook'))) {
             // Track notebook closing before closing
             if (w.id && w.id.startsWith('notebook-detail-widget-')) {
               const notebookData = (w as any).notebook;
@@ -1281,12 +1319,66 @@ function activate(
         }
         const oldRight = app.shell.widgets('right');
         for (const w of oldRight) {
-          if (w.id === 'simple-info-sidebar') w.close();
+          if (w.id === 'simple-info-sidebar' || w.id === 'galaxy-detail-sidebar') w.close();
+        }
+        
+        // 额外的清理：确保所有包含 'simple' 或 'galaxy' 的widget都被关闭
+        const allMainWidgets = app.shell.widgets('main');
+        for (const w of allMainWidgets) {
+          if (w.id && (w.id.includes('simple') || w.id.includes('galaxy') || w.id.includes('matrix'))) {
+            console.log('Closing additional widget:', w.id);
+            w.close();
+          }
+        }
+        
+        // 清理所有侧边栏中的相关widget
+        const allLeftWidgets = app.shell.widgets('left');
+        for (const w of allLeftWidgets) {
+          if (w.id && (w.id.includes('simple') || w.id.includes('galaxy') || w.id.includes('flow'))) {
+            console.log('Closing additional left widget:', w.id);
+            w.close();
+          }
+        }
+        
+        const allRightWidgets = app.shell.widgets('right');
+        for (const w of allRightWidgets) {
+          if (w.id && (w.id.includes('simple') || w.id.includes('galaxy'))) {
+            console.log('Closing additional right widget:', w.id);
+            w.close();
+          }
         }
 
         // 清理 notebook detail IDs 记录
         notebookDetailIds.clear();
         lastKnownDetailIds.clear();
+
+        // 重置全局变量
+        flowChartWidget = null;
+        detailSidebar = null;
+        matrixWidget = null;
+        result1 = null;
+        mostFreqStage = null;
+        mostFreqFlow = null;
+        colorMap = null;
+
+        // 清除滚动同步状态
+        scrollSyncEnabled = false;
+        scrollSyncWidgets.clear();
+        scrollSyncHandlers.clear();
+        lockedWidgets.clear();
+
+        // 移除所有galaxy相关的事件监听器
+        if (handleNotebookSelected) {
+          window.removeEventListener('galaxy-notebook-selected', handleNotebookSelected);
+        }
+        if (handleSimpleNotebookSelected) {
+          window.removeEventListener('galaxy-simple-notebook-selected', handleSimpleNotebookSelected);
+        }
+
+        // 重置事件监听器注册标志
+        notebookSelectedListenerRegistered = false;
+        handleNotebookSelected = null;
+        handleSimpleNotebookSelected = null;
 
         // 检查是否选中了JSON文件
         if (
@@ -1351,16 +1443,6 @@ function activate(
           app.shell.add(simpleListWidget, 'main');
           app.shell.activateById(simpleListWidget.id);
 
-          // 注册 simple notebook detail 事件监听器
-          window.addEventListener('galaxy-simple-notebook-selected', (e: any) => {
-            // 新建并显示 simple notebook 详情，深拷贝 notebook 数据
-            const nb = JSON.parse(JSON.stringify(e.detail.notebook));
-            const simpleDetailWidget = new SimpleNotebookDetailWidget(nb);
-            
-            app.shell.add(simpleDetailWidget, 'main');
-            app.shell.activateById(simpleDetailWidget.id);
-          });
-
           // 创建简化的信息侧边栏
           const simpleInfoSidebar = new SimpleInfoSidebar(competitionInfo, result1);
           app.shell.add(simpleInfoSidebar, 'right');
@@ -1369,11 +1451,19 @@ function activate(
           }
           app.shell.activateById(simpleInfoSidebar.id);
 
-          // 监听notebook选择事件
-          window.addEventListener('galaxy-notebook-selected', (e: any) => {
-            const notebook = e.detail.notebook;
-            simpleInfoSidebar.setNotebookDetail(notebook);
-          });
+          // 注册 simple notebook detail 事件监听器（合并处理）
+          handleSimpleNotebookSelected = (e: any) => {
+            // 新建并显示 simple notebook 详情，深拷贝 notebook 数据
+            const nb = JSON.parse(JSON.stringify(e.detail.notebook));
+            const simpleDetailWidget = new SimpleNotebookDetailWidget(nb);
+            
+            app.shell.add(simpleDetailWidget, 'main');
+            app.shell.activateById(simpleDetailWidget.id);
+            
+            // 同时更新信息侧边栏
+            simpleInfoSidebar.setNotebookDetail(nb);
+          };
+          window.addEventListener('galaxy-simple-notebook-selected', handleSimpleNotebookSelected);
 
 
 
