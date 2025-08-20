@@ -739,6 +739,7 @@ function activate(
     const mainWidgets = Array.from(app.shell.widgets('main'));
     const hasMatrix = mainWidgets.some(w => w.id === 'matrix-widget');
     const hasDetail = mainWidgets.some(w => w.id && w.id.startsWith('notebook-detail-widget-'));
+    const hasSimpleList = mainWidgets.some(w => w.id === 'simple-notebook-list-widget');
 
     // 检查是否有分屏布局
     if (hasSplitLayout()) {
@@ -753,7 +754,7 @@ function activate(
     }
 
     // 当没有galaxy相关tab时关闭sidebar
-    if (!hasMatrix && !hasDetail) {
+    if (!hasMatrix && !hasDetail && !hasSimpleList) {
       // 关闭sidebar，不管是否有分析数据
       // 关闭左侧 flowchart
       const oldLeft = app.shell.widgets('left');
@@ -762,10 +763,10 @@ function activate(
           w.close();
         }
       }
-      // 关闭右侧 detail sidebar
+      // 关闭右侧 detail sidebar 和 simple info sidebar
       const oldRight = app.shell.widgets('right');
       for (const w of oldRight) {
-        if (w.id === 'galaxy-detail-sidebar') {
+        if (w.id === 'galaxy-detail-sidebar' || w.id === 'simple-info-sidebar') {
           w.close();
         }
       }
@@ -784,7 +785,7 @@ function activate(
     return widget.isVisible;
   }
 
-  // 恢复：获取主区域第一个 galaxy 相关 widget（优先 notebook-detail-widget，其次 matrix-widget）
+  // 恢复：获取主区域第一个 galaxy 相关 widget（优先 notebook-detail-widget，其次 matrix-widget，最后 simple-notebook-list-widget）
   function getActiveGalaxyWidget() {
     const mainWidgets = Array.from(app.shell.widgets('main'));
 
@@ -792,7 +793,8 @@ function activate(
     const visibleGalaxyWidgets = mainWidgets.filter(w =>
       w.isVisible && (
         (w.id && w.id.startsWith('notebook-detail-widget-')) ||
-        (w.id && w.id === 'matrix-widget')
+        (w.id && w.id === 'matrix-widget') ||
+        (w.id && w.id === 'simple-notebook-list-widget')
       )
     );
 
@@ -805,6 +807,9 @@ function activate(
     let widget = mainWidgets.find(w => w.id && w.id.startsWith('notebook-detail-widget-'));
     if (!widget) {
       widget = mainWidgets.find(w => w.id && w.id === 'matrix-widget');
+    }
+    if (!widget) {
+      widget = mainWidgets.find(w => w.id && w.id === 'simple-notebook-list-widget');
     }
 
     return widget || null;
@@ -1853,6 +1858,17 @@ function activate(
                 if (dataId && dataId.startsWith('simple-notebook-detail-widget-')) {
                   // 触发事件通知SimpleInfoSidebar清除notebook信息
                   window.dispatchEvent(new CustomEvent('galaxy-simple-notebook-detail-closed'));
+                } else if (dataId && dataId === 'simple-notebook-list-widget') {
+                  // Simple notebook list widget is being closed
+                  // Close simple info sidebar when list is closed
+                  setTimeout(() => {
+                    const rightWidgets = Array.from(app.shell.widgets('right'));
+                    for (const rightWidget of rightWidgets) {
+                      if (rightWidget.id === 'simple-info-sidebar') {
+                        rightWidget.close();
+                      }
+                    }
+                  }, 100);
                 }
               }
             }
@@ -1913,6 +1929,17 @@ function activate(
               // Close sidebars when overview is closed
               setTimeout(() => {
                 closeSidebarsIfNoMainWidgets(app);
+              }, 100);
+            } else if (w.id === 'simple-notebook-list-widget') {
+              // Simple notebook list widget was closed
+              // Close simple info sidebar when list is closed
+              setTimeout(() => {
+                const rightWidgets = Array.from(app.shell.widgets('right'));
+                for (const rightWidget of rightWidgets) {
+                  if (rightWidget.id === 'simple-info-sidebar') {
+                    rightWidget.close();
+                  }
+                }
               }, 100);
             } else {
               setTimeout(() => {
