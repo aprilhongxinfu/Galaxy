@@ -237,8 +237,16 @@ export class MatrixWidget extends Widget {
         this.similaritySortButton.style.display = 'flex';
         this.similaritySortButton.style.alignItems = 'center';
         this.similaritySortButton.style.justifyContent = 'center';
+        this.similaritySortButton.style.transition = 'transform 0.2s ease';
         this.similaritySortButton.innerHTML = this.getSimilaritySortIcon();
-        this.addTooltipToButton(this.similaritySortButton, () => 'Toggle clustering');
+        
+        // Add hover effects
+        this.similaritySortButton.onmouseenter = () => {
+            this.similaritySortButton.style.transform = 'scale(1.1)';
+        };
+        this.similaritySortButton.onmouseleave = () => {
+            this.similaritySortButton.style.transform = 'scale(1)';
+        };
         this.similaritySortButton.onclick = () => {
             // 由于matrix不再跟随notebook detail tab的选择，这里不再保存高亮状态
 
@@ -486,7 +494,15 @@ export class MatrixWidget extends Widget {
         this.cellHeightButton.style.alignItems = 'center';
         this.cellHeightButton.style.justifyContent = 'center';
         this.cellHeightButton.innerHTML = this.getCellHeightIcon();
-        this.addTooltipToButton(this.cellHeightButton, () => 'Toggle height');
+        
+        // Add hover effects using addEventListener to avoid conflict with tooltip
+        this.cellHeightButton.style.transition = 'transform 0.2s ease';
+        this.cellHeightButton.addEventListener('mouseenter', () => {
+            this.cellHeightButton.style.transform = 'scale(1.1)';
+        });
+        this.cellHeightButton.addEventListener('mouseleave', () => {
+            this.cellHeightButton.style.transform = 'scale(1)';
+        });
         this.cellHeightButton.onclick = () => {
             // 保存当前的cluster选择状态
             const currentSelectedCluster = this.selectedClusterId;
@@ -532,7 +548,15 @@ export class MatrixWidget extends Widget {
         this.markdownButton.style.alignItems = 'center';
         this.markdownButton.style.justifyContent = 'center';
         this.markdownButton.innerHTML = this.getMarkdownIcon();
-        this.addTooltipToButton(this.markdownButton, () => 'Toggle markdown');
+        
+        // Add hover effects
+        this.markdownButton.style.transition = 'transform 0.2s ease';
+        this.markdownButton.addEventListener('mouseenter', () => {
+            this.markdownButton.style.transform = 'scale(1.1)';
+        });
+        this.markdownButton.addEventListener('mouseleave', () => {
+            this.markdownButton.style.transform = 'scale(1)';
+        });
         this.markdownButton.onclick = () => {
             // 保存当前的cluster选择状态
             const currentSelectedCluster = this.selectedClusterId;
@@ -627,25 +651,13 @@ export class MatrixWidget extends Widget {
         }
     }
     private getSimilaritySortIcon(): string {
-        // similarity排序icon，左右框+双向箭头，激活绿色，未激活灰色
+        // clustering button text, green when active, gray when inactive
         if (this.sortState === 3) {
             // 激活（绿色）
-            return `<svg width="18" height="18" viewBox="0 0 24 24">
-  <rect x="3" y="5" width="7" height="14" rx="2" fill="none" stroke="#4caf50" stroke-width="2"/>
-  <rect x="14" y="5" width="7" height="14" rx="2" fill="none" stroke="#4caf50" stroke-width="2" stroke-dasharray="4 2"/>
-  <path d="M10 12h4" stroke="#4caf50" stroke-width="2" stroke-linecap="round"/>
-  <polygon points="12,10 10,12 12,14" fill="#4caf50"/>
-  <polygon points="14,10 16,12 14,14" fill="#4caf50"/>
-</svg>`;
+            return `<span style="color: #4caf50; font-weight: 600; font-size: 12px; line-height: 1; display: inline-block; vertical-align: middle;">Cluster</span>`;
         } else {
             // 未激活（灰色）
-            return `<svg width="18" height="18" viewBox="0 0 24 24">
-  <rect x="3" y="5" width="7" height="14" rx="2" fill="none" stroke="#555" stroke-width="2"/>
-  <rect x="14" y="5" width="7" height="14" rx="2" fill="none" stroke="#555" stroke-width="2" stroke-dasharray="4 2"/>
-  <path d="M10 12h4" stroke="#555" stroke-width="2" stroke-linecap="round"/>
-  <polygon points="12,10 10,12 12,14" fill="#555"/>
-  <polygon points="14,10 16,12 14,14" fill="#555"/>
-</svg>`;
+            return `<span style="color: #555; font-weight: 600; font-size: 12px; line-height: 1; display: inline-block; vertical-align: middle;">Cluster</span>`;
         }
     }
 
@@ -665,18 +677,13 @@ export class MatrixWidget extends Widget {
     }
 
     private getCellHeightIcon(): string {
-        // cell高度模式icon：固定高度（等号）、动态高度（波浪线）
+        // cell高度模式text：固定高度时灰色，动态高度时绿色
         if (this.cellHeightMode === 'fixed') {
-            // 固定高度模式：等号图标
-            return `<svg width="18" height="18" viewBox="0 0 20 20">
-  <path d="M4 8h12M4 12h12" stroke="#555" stroke-width="2" stroke-linecap="round"/>
-</svg>`;
+            // 固定高度模式：灰色
+            return `<span style="color: #555; font-weight: 600; font-size: 12px; line-height: 1; display: inline-block; vertical-align: middle;">Height</span>`;
         } else {
-            // 动态高度模式：波浪线图标
-            return `<svg width="18" height="18" viewBox="0 0 20 20">
-  <path d="M3 8c1-1 2-1 3 0s2 1 3 0 2-1 3 0 2 1 3 0 2-1 3 0 2 1 3 0 2-1 3 0" stroke="#4caf50" stroke-width="2" stroke-linecap="round" fill="none"/>
-  <path d="M3 12c1-1 2-1 3 0s2 1 3 0 2-1 3 0 2 1 3 0 2-1 3 0 2 1 3 0 2-1 3 0" stroke="#4caf50" stroke-width="2" stroke-linecap="round" fill="none"/>
-</svg>`;
+            // 动态高度模式：绿色
+            return `<span style="color: #4caf50; font-weight: 600; font-size: 12px; line-height: 1; display: inline-block; vertical-align: middle;">Height</span>`;
         }
     }
 
