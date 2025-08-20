@@ -2432,7 +2432,7 @@ export class MatrixWidget extends Widget {
             <div style="font-size:16px; font-weight:700; margin-bottom:12px; line-height:1.3; padding-bottom:8px; border-bottom:1px solid #e9ecef;">
                 <span style="color: #222;">Competition Description</span>
             </div>
-            <div style="background:#f8f9fa; border-radius:6px; padding:12px; margin-bottom:8px; border:1px solid #e9ecef; max-height: 200px; overflow-y: auto;">
+            <div style="background:#f8f9fa; border-radius:6px; padding:12px; margin-bottom:8px; border:1px solid #e9ecef; max-height: 100px; overflow-y: auto;">
                 <div style="font-size:13px; color:#222; line-height:1.5; font-weight:400;">
                     ${description}
                 </div>
@@ -2494,7 +2494,6 @@ export class MatrixWidget extends Widget {
             
             ${overallSummary ? `
                 <div style="background:#f8f9fa; border-radius:6px; padding:8px; margin-bottom:8px; border:1px solid #e9ecef;">
-                    <div style="font-size:11px; color:#6c757d; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">Overall Summary</div>
                     <div style="font-size:13px; color:#222; line-height:1.5; font-weight:400;">${overallSummary}</div>
                 </div>
             ` : ''}
