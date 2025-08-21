@@ -2360,7 +2360,7 @@ export class MatrixWidget extends Widget {
                 <span style="color: #222;">Competition Description</span>
             </div>
             <div style="position: relative;">
-                <div id="competition-description-content" style="background:#fff; border-radius:6px; padding:12px; border:1px solid #e9ecef; box-shadow:0 1px 3px rgba(0,0,0,0.05); height: 150px; overflow-y: auto; resize: vertical; min-height: 80px; max-height: 400px;">
+                <div id="competition-description-content" style="background:#fff; border-radius:6px; padding:12px; border:1px solid #e9ecef; box-shadow:0 1px 3px rgba(0,0,0,0.05); height: 150px; overflow-y: auto; resize: vertical; min-height: 80px;">
                     <div style="font-size:13px; color:#222; line-height:1.5; font-weight:400;">
                         ${description}
                     </div>
@@ -2375,6 +2375,30 @@ export class MatrixWidget extends Widget {
             const resizer = this.clusterInfoContainer?.querySelector('#competition-description-resizer') as HTMLElement;
 
             if (contentDiv && resizer) {
+                // 计算内容的完整高度
+                const tempDiv = document.createElement('div');
+                tempDiv.style.cssText = `
+                    position: absolute;
+                    visibility: hidden;
+                    width: ${contentDiv.offsetWidth}px;
+                    font-size: 13px;
+                    line-height: 1.5;
+                    padding: 12px;
+                    white-space: pre-wrap;
+                    word-wrap: break-word;
+                `;
+                tempDiv.innerHTML = description;
+                document.body.appendChild(tempDiv);
+                
+                const contentFullHeight = tempDiv.offsetHeight;
+                document.body.removeChild(tempDiv);
+
+                // 计算最大可用高度（视窗高度的80%）
+                const maxAvailableHeight = Math.min(contentFullHeight, window.innerHeight * 0.8);
+                
+                // 设置最大高度
+                contentDiv.style.maxHeight = maxAvailableHeight + 'px';
+
                 let isResizing = false;
                 let startY = 0;
                 let startHeight = 0;
@@ -2391,7 +2415,7 @@ export class MatrixWidget extends Widget {
                     if (!isResizing) return;
 
                     const deltaY = e.clientY - startY;
-                    const newHeight = Math.max(80, Math.min(400, startHeight + deltaY));
+                    const newHeight = Math.max(80, Math.min(maxAvailableHeight, startHeight + deltaY));
                     contentDiv.style.height = newHeight + 'px';
                 });
 
