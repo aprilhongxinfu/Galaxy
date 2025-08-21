@@ -35,7 +35,7 @@ function extractCompetitionId(jsonPath: string): string | null {
 }
 
 // 加载competition信息
-async function loadCompetitionsData(): Promise<{ [key: string]: { id: string; name: string; url: string; description?: string; category?: string; evaluation?: string; startDate?: string; endDate?: string } }> {
+async function loadCompetitionsData(baseDir?: string): Promise<{ [key: string]: { id: string; name: string; url: string; description?: string; category?: string; evaluation?: string; startDate?: string; endDate?: string } }> {
   try {
     const contentsManager = app?.serviceManager?.contents;
     if (!contentsManager) {
@@ -43,14 +43,38 @@ async function loadCompetitionsData(): Promise<{ [key: string]: { id: string; na
       return {};
     }
 
-    // 首先尝试加载JSON文件
+    // 如果有baseDir，从指定目录加载
+    if (baseDir) {
+      const competitionPath = `${baseDir}/competition_data/competitions.json`;
+      try {
+        const model = await contentsManager.get(competitionPath, { type: 'file', format: 'text', content: true });
+        const competitionsData = JSON.parse(model.content as string);
+        
+        // 转换为映射格式
+        const competitionMap: { [key: string]: any } = {};
+        competitionsData.forEach((comp: any) => {
+          competitionMap[comp.id] = {
+            id: comp.id,
+            name: comp.name,
+            url: comp.url,
+            description: comp.description,
+            category: comp.category,
+            evaluation: comp.evaluation,
+            startDate: comp.startDate,
+            endDate: comp.endDate
+          };
+        });
+        
+        return competitionMap;
+      } catch (fileError) {
+        // Competition data not available in baseDir
+      }
+    }
+
+    // 如果没有baseDir或加载失败，尝试从当前目录加载
     const jsonPaths = [
-      './test-notebooks/competition_data/competitions.json',
-      './test-notebooks/competitions.json',
-      '/test-notebooks/competitions.json',
-      'competitions.json',
-      './competitions.json',
-      '/competitions.json'
+      './competition_data/competitions.json',
+      'competition_data/competitions.json'
     ];
 
     for (const path of jsonPaths) {
@@ -88,9 +112,9 @@ async function loadCompetitionsData(): Promise<{ [key: string]: { id: string; na
 }
 
 // 根据competition ID获取competition信息
-async function getCompetitionInfo(competitionId: string): Promise<{ id: string; name: string; url: string; description?: string; category?: string; evaluation?: string; startDate?: string; endDate?: string } | null> {
+async function getCompetitionInfo(competitionId: string, baseDir?: string): Promise<{ id: string; name: string; url: string; description?: string; category?: string; evaluation?: string; startDate?: string; endDate?: string } | null> {
   try {
-    const competitionMap = await loadCompetitionsData();
+    const competitionMap = await loadCompetitionsData(baseDir);
     const info = competitionMap[competitionId];
     
     if (info) {
@@ -139,13 +163,6 @@ async function loadTocData(competitionId: string, baseDir: string): Promise<any[
     }
 
     const tocPath = `${baseDir}/toc_data/${competitionId}_toc.json`;
-            // 尝试不同的路径格式
-        const alternativePaths = [
-          tocPath,
-          `./${baseDir}/toc_data/${competitionId}_toc.json`,
-          `/${baseDir}/toc_data/${competitionId}_toc.json`,
-          `${baseDir}/toc_data/${competitionId}_toc.json`
-        ];
         const contentsManager = app?.serviceManager?.contents;
 
         if (!contentsManager) {
@@ -153,15 +170,13 @@ async function loadTocData(competitionId: string, baseDir: string): Promise<any[
           return [];
         }
 
-    // 尝试多个路径格式
-    for (const path of alternativePaths) {
-      try {
-        const model = await contentsManager.get(path, { type: 'file', format: 'text', content: true });
-        const tocData = JSON.parse(model.content as string);
-        return tocData;
-      } catch (fileError) {
-        continue;
-      }
+    // 尝试加载TOC数据
+    try {
+      const model = await contentsManager.get(tocPath, { type: 'file', format: 'text', content: true });
+      const tocData = JSON.parse(model.content as string);
+      return tocData;
+    } catch (fileError) {
+      // TOC data not available
     }
     return [];
   } catch (error) {
@@ -177,13 +192,6 @@ async function loadSummaryData(competitionId: string, baseDir: string): Promise<
     }
 
     const summaryPath = `${baseDir}/summary_data/${competitionId}_summarized.json`;
-            // 尝试不同的路径格式
-        const alternativePaths = [
-          summaryPath,
-          `./${baseDir}/summary_data/${competitionId}_summarized.json`,
-          `/${baseDir}/summary_data/${competitionId}_summarized.json`,
-          `${baseDir}/summary_data/${competitionId}_summarized.json`
-        ];
         const contentsManager = app?.serviceManager?.contents;
 
         if (!contentsManager) {
@@ -191,15 +199,13 @@ async function loadSummaryData(competitionId: string, baseDir: string): Promise<
           return null;
         }
 
-    // 尝试多个路径格式
-    for (const path of alternativePaths) {
-      try {
-        const model = await contentsManager.get(path, { type: 'file', format: 'text', content: true });
-        const summaryData = JSON.parse(model.content as string);
-        return summaryData;
-      } catch (fileError) {
-        continue;
-      }
+    // 尝试加载Summary数据
+    try {
+      const model = await contentsManager.get(summaryPath, { type: 'file', format: 'text', content: true });
+      const summaryData = JSON.parse(model.content as string);
+      return summaryData;
+    } catch (fileError) {
+      // Summary data not available
     }
     return null;
   } catch (error) {
@@ -1027,7 +1033,7 @@ function activate(
         // 获取competition信息
         let competitionInfo: { id: string; name: string; url: string; description?: string; category?: string; evaluation?: string; startDate?: string; endDate?: string } | undefined = undefined;
         if (competitionIdForMatrix) {
-          competitionInfo = await getCompetitionInfo(competitionIdForMatrix) || undefined;
+          competitionInfo = await getCompetitionInfo(competitionIdForMatrix, baseDirForMatrix || undefined) || undefined;
         }
 
         matrixWidget = new MatrixWidget(result1, colorScale, similarityGroups, kernelTitleMap, voteData, summaryData, competitionInfo);
@@ -1476,7 +1482,7 @@ function activate(
           // 获取competition信息
           let competitionInfo: { id: string; name: string; url: string; description?: string; category?: string; evaluation?: string; startDate?: string; endDate?: string } | undefined = undefined;
           if (competitionId) {
-            competitionInfo = await getCompetitionInfo(competitionId) || undefined;
+            competitionInfo = await getCompetitionInfo(competitionId, baseDir || undefined) || undefined;
           }
 
           // 创建kernelTitleMap

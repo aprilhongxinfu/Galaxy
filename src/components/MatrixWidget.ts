@@ -22,7 +22,7 @@ export class MatrixWidget extends Widget {
     private colorScale: (label: string) => string;
     private sortState: number = 0; // 0: 默认, 1: notebook长度降序, 2: notebook长度升序, 3: similarity排序
     private voteEnabled: boolean = false; // 独立的投票排序状态
-    private lengthSortEnabled: boolean = false; // 独立的长度排序状态
+    private lengthSortEnabled: boolean = true; // 独立的长度排序状态，默认激活
     private clusterSizeSortDirection: 'desc' | 'asc' = 'asc'; // cluster size排序方向，默认升序
     private notebookOrder: number[] = [];
     private sortButton: HTMLButtonElement;
@@ -66,7 +66,7 @@ export class MatrixWidget extends Widget {
         if (!this.selectedClusterId || this.sortState !== 3 || !this.similarityGroups || this.similarityGroups.length === 0) {
             return true; // 如果没有选中cluster，返回true表示所有notebook都应该被考虑
         }
-        
+
         const kernelId = notebook?.kernelVersionId?.toString();
         const simRow = kernelId ? this.similarityGroups.find((row: any) => row.kernelVersionId === kernelId) : null;
         return simRow && simRow.cluster_id === this.selectedClusterId;
@@ -146,7 +146,7 @@ export class MatrixWidget extends Widget {
             this.drawMatrix();
 
             // 恢复高亮状态 - 由于matrix不再跟随notebook detail tab的选择，这里不再恢复高亮状态
-            
+
             // 如果有选中的cluster且在cluster模式下，滚动到cluster位置
             if (currentSelectedCluster && this.sortState === 3) {
                 setTimeout(() => {
@@ -157,7 +157,7 @@ export class MatrixWidget extends Widget {
             // 派发筛选事件和cluster选择事件
             const filteredNotebooks = this.getFilteredNotebooks();
             window.dispatchEvent(new CustomEvent('galaxy-matrix-filtered', { detail: { notebooks: filteredNotebooks } }));
-            
+
             // 如果在cluster模式下，派发cluster选择事件以更新左边的flowchart
             if (this.sortState === 3) {
                 const clusterFilteredNotebooks = this.getClusterFilteredNotebooks();
@@ -178,7 +178,7 @@ export class MatrixWidget extends Widget {
             this.drawMatrix();
 
             // 恢复高亮状态 - 由于matrix不再跟随notebook detail tab的选择，这里不再恢复高亮状态
-            
+
             // 如果有选中的cluster且在cluster模式下，滚动到cluster位置
             if (currentSelectedCluster && this.sortState === 3) {
                 setTimeout(() => {
@@ -189,7 +189,7 @@ export class MatrixWidget extends Widget {
             // 派发筛选事件和cluster选择事件
             const filteredNotebooks = this.getFilteredNotebooks();
             window.dispatchEvent(new CustomEvent('galaxy-matrix-filtered', { detail: { notebooks: filteredNotebooks } }));
-            
+
             // 如果在cluster模式下，派发cluster选择事件以更新左边的flowchart
             if (this.sortState === 3) {
                 const clusterFilteredNotebooks = this.getClusterFilteredNotebooks();
@@ -219,6 +219,15 @@ export class MatrixWidget extends Widget {
         leftSortButtons.style.alignItems = 'center';
         leftSortButtons.style.gap = '8px';
 
+        // 添加 "Sort by:" 文本标签
+        const sortByLabel = document.createElement('span');
+        sortByLabel.textContent = 'Sort by:';
+        sortByLabel.style.fontSize = '12px';
+        sortByLabel.style.fontWeight = '500';
+        sortByLabel.style.color = '#666';
+        sortByLabel.style.marginRight = '4px';
+        leftSortButtons.appendChild(sortByLabel);
+
         // 右侧其他按钮容器
         const rightButtons = document.createElement('div');
         rightButtons.style.display = 'flex';
@@ -239,7 +248,7 @@ export class MatrixWidget extends Widget {
         this.similaritySortButton.style.justifyContent = 'center';
         this.similaritySortButton.style.transition = 'transform 0.2s ease';
         this.similaritySortButton.innerHTML = this.getSimilaritySortIcon();
-        
+
         // Add hover effects
         this.similaritySortButton.onmouseenter = () => {
             this.similaritySortButton.style.transform = 'scale(1.1)';
@@ -300,7 +309,7 @@ export class MatrixWidget extends Widget {
             // 派发筛选事件和cluster选择事件
             const filteredNotebooks = this.getFilteredNotebooks();
             window.dispatchEvent(new CustomEvent('galaxy-matrix-filtered', { detail: { notebooks: filteredNotebooks } }));
-            
+
             // 派发cluster选择事件以更新左边的flowchart
             const clusterFilteredNotebooks = this.getClusterFilteredNotebooks();
             window.dispatchEvent(new CustomEvent('galaxy-cluster-selected', {
@@ -321,7 +330,15 @@ export class MatrixWidget extends Widget {
         this.voteSortButton.style.alignItems = 'center';
         this.voteSortButton.style.justifyContent = 'center';
         this.voteSortButton.innerHTML = this.getVoteSortIcon();
-        this.addTooltipToButton(this.voteSortButton, () => this.voteEnabled ? 'Sorted by votes' : 'Sort by votes');
+
+        // Add hover effects
+        this.voteSortButton.style.transition = 'transform 0.2s ease';
+        this.voteSortButton.addEventListener('mouseenter', () => {
+            this.voteSortButton.style.transform = 'scale(1.1)';
+        });
+        this.voteSortButton.addEventListener('mouseleave', () => {
+            this.voteSortButton.style.transform = 'scale(1)';
+        });
         this.voteSortButton.onclick = () => {
             // 保存当前的cluster选择状态
             const currentSelectedCluster = this.selectedClusterId;
@@ -369,7 +386,7 @@ export class MatrixWidget extends Widget {
             this.drawMatrix();
 
             // 由于matrix不再跟随notebook detail tab的选择，这里不再恢复高亮状态
-            
+
             // 如果有选中的cluster且在cluster模式下，滚动到cluster位置
             if (currentSelectedCluster && this.sortState === 3) {
                 setTimeout(() => {
@@ -380,7 +397,7 @@ export class MatrixWidget extends Widget {
             // 派发筛选事件和cluster选择事件
             const filteredNotebooks = this.getFilteredNotebooks();
             window.dispatchEvent(new CustomEvent('galaxy-matrix-filtered', { detail: { notebooks: filteredNotebooks } }));
-            
+
             // 如果在cluster模式下，派发cluster选择事件以更新左边的flowchart
             if (this.sortState === 3) {
                 const clusterFilteredNotebooks = this.getClusterFilteredNotebooks();
@@ -404,7 +421,15 @@ export class MatrixWidget extends Widget {
         this.sortButton.style.alignItems = 'center';
         this.sortButton.style.justifyContent = 'center';
         this.sortButton.innerHTML = this.getSortIcon();
-        this.addTooltipToButton(this.sortButton, () => this.getSortButtonTooltip());
+
+        // Add hover effects
+        this.sortButton.style.transition = 'transform 0.2s ease';
+        this.sortButton.addEventListener('mouseenter', () => {
+            this.sortButton.style.transform = 'scale(1.1)';
+        });
+        this.sortButton.addEventListener('mouseleave', () => {
+            this.sortButton.style.transform = 'scale(1)';
+        });
         this.sortButton.onclick = () => {
             // 保存当前的cluster选择状态
             const currentSelectedCluster = this.selectedClusterId;
@@ -425,15 +450,24 @@ export class MatrixWidget extends Widget {
                 }
             } else {
                 // cluster未激活时：默认激活 -> 降序 -> 升序 -> 默认激活
-                if (this.sortState === 0) {
-                    // 默认激活状态：切换到降序
-                    this.sortState = 1;
-                } else if (this.sortState === 1) {
-                    // 当前是降序：切换到升序
-                    this.sortState = 2;
-                } else if (this.sortState === 2) {
-                    // 当前是升序：切换回默认激活
-                    this.sortState = 0;
+                // 确保length排序被激活
+                this.lengthSortEnabled = true;
+
+                // 如果当前vote激活，则先回到length的默认激活状态
+                if (this.voteEnabled) {
+                    this.sortState = 0; // 回到默认激活状态
+                } else {
+                    // 正常的length排序循环：默认激活 -> 降序 -> 升序 -> 默认激活
+                    if (this.sortState === 0) {
+                        // 默认激活状态：切换到降序
+                        this.sortState = 1;
+                    } else if (this.sortState === 1) {
+                        // 当前是降序：切换到升序
+                        this.sortState = 2;
+                    } else if (this.sortState === 2) {
+                        // 当前是升序：切换回默认激活
+                        this.sortState = 0;
+                    }
                 }
                 // length激活时，vote排序设置为未激活
                 this.voteEnabled = false;
@@ -459,7 +493,7 @@ export class MatrixWidget extends Widget {
             this.drawMatrix();
 
             // 由于matrix不再跟随notebook detail tab的选择，这里不再恢复高亮状态
-            
+
             // 如果有选中的cluster且在cluster模式下，滚动到cluster位置
             if (currentSelectedCluster && this.sortState === 3) {
                 setTimeout(() => {
@@ -470,7 +504,7 @@ export class MatrixWidget extends Widget {
             // 派发筛选事件和cluster选择事件
             const filteredNotebooks = this.getFilteredNotebooks();
             window.dispatchEvent(new CustomEvent('galaxy-matrix-filtered', { detail: { notebooks: filteredNotebooks } }));
-            
+
             // 如果在cluster模式下，派发cluster选择事件以更新左边的flowchart
             if (this.sortState === 3) {
                 const clusterFilteredNotebooks = this.getClusterFilteredNotebooks();
@@ -494,7 +528,7 @@ export class MatrixWidget extends Widget {
         this.cellHeightButton.style.alignItems = 'center';
         this.cellHeightButton.style.justifyContent = 'center';
         this.cellHeightButton.innerHTML = this.getCellHeightIcon();
-        
+
         // Add hover effects using addEventListener to avoid conflict with tooltip
         this.cellHeightButton.style.transition = 'transform 0.2s ease';
         this.cellHeightButton.addEventListener('mouseenter', () => {
@@ -528,7 +562,7 @@ export class MatrixWidget extends Widget {
             this.drawMatrix();
 
             // 由于matrix不再跟随notebook detail tab的选择，这里不再恢复高亮状态
-            
+
             // 如果有选中的cluster且在cluster模式下，滚动到cluster位置
             if (currentSelectedCluster && this.sortState === 3) {
                 setTimeout(() => {
@@ -548,7 +582,7 @@ export class MatrixWidget extends Widget {
         this.markdownButton.style.alignItems = 'center';
         this.markdownButton.style.justifyContent = 'center';
         this.markdownButton.innerHTML = this.getMarkdownIcon();
-        
+
         // Add hover effects
         this.markdownButton.style.transition = 'transform 0.2s ease';
         this.markdownButton.addEventListener('mouseenter', () => {
@@ -577,7 +611,7 @@ export class MatrixWidget extends Widget {
             this.drawMatrix();
 
             // 由于matrix不再跟随notebook detail tab的选择，这里不再恢复高亮状态
-            
+
             // 如果有选中的cluster且在cluster模式下，滚动到cluster位置
             if (currentSelectedCluster && this.sortState === 3) {
                 setTimeout(() => {
@@ -614,40 +648,40 @@ export class MatrixWidget extends Widget {
     }
 
     private getSortIcon(): string {
-        // SVG icons: 默认、降序、升序
+        // 文本图标：ID（默认）、Size↑（升序）、Size↓（降序）
         if (this.sortState === 3) {
             // cluster激活时
             if (this.voteEnabled) {
-                // vote激活时，显示从少到多的未激活状态（正常灰色升序图标）
-                return `<svg width="18" height="18" viewBox="0 0 20 20"><path d="M6 17h8M8 12h4M10 7h0" stroke="#555" stroke-width="2" stroke-linecap="round"/><path d="M15 14V4m0 0l-3 3m3-3l3 3" stroke="#555" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+                // vote激活时，显示未激活的Size↑（灰色）
+                return `<span style="font-weight: 600; font-size: 12px; line-height: 1; display: inline-block; vertical-align: middle;">Size↑</span>`;
             } else if (this.lengthSortEnabled) {
                 // length激活时，显示排序图标
                 if (this.clusterSizeSortDirection === 'desc') {
-                    // cluster size降序
-                    return `<svg width="18" height="18" viewBox="0 0 20 20"><path d="M6 7h8M8 12h4M10 17h0" stroke="#4caf50" stroke-width="2" stroke-linecap="round"/><path d="M15 4v10m0 0l-3-3m3 3l3-3" stroke="#4caf50" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+                    // cluster size降序（绿色）
+                    return `<span style="color: #4caf50; font-weight: 600; font-size: 12px; line-height: 1; display: inline-block; vertical-align: middle;">Size↓</span>`;
                 } else {
-                    // cluster size升序
-                    return `<svg width="18" height="18" viewBox="0 0 20 20"><path d="M6 17h8M8 12h4M10 7h0" stroke="#4caf50" stroke-width="2" stroke-linecap="round"/><path d="M15 14V4m0 0l-3 3m3-3l3 3" stroke="#4caf50" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+                    // cluster size升序（绿色）
+                    return `<span style="color: #4caf50; font-weight: 600; font-size: 12px; line-height: 1; display: inline-block; vertical-align: middle;">Size↑</span>`;
                 }
             } else {
-                // 默认状态：从少到多的未激活状态（正常灰色升序图标）
-                return `<svg width="18" height="18" viewBox="0 0 20 20"><path d="M6 17h8M8 12h4M10 7h0" stroke="#555" stroke-width="2" stroke-linecap="round"/><path d="M15 14V4m0 0l-3 3m3-3l3 3" stroke="#555" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+                // 默认状态：未激活的Size↑（灰色）
+                return `<span style="font-weight: 600; font-size: 12px; line-height: 1; display: inline-block; vertical-align: middle;">Size↑</span>`;
             }
-        } else if (!this.lengthSortEnabled) {
-            // length未激活状态（默认状态）
-            return `<svg width="18" height="18" viewBox="0 0 20 20"><path d="M4 7h12M4 12h12M4 17h12" stroke="#555" stroke-width="2" stroke-linecap="round"/></svg>`;
-        } else if (this.sortState === 1) {
-            // cluster未激活时：按notebook长度降序
-            return `<svg width="18" height="18" viewBox="0 0 20 20"><path d="M6 7h8M8 12h4M10 17h0" stroke="#4caf50" stroke-width="2" stroke-linecap="round"/><path d="M15 4v10m0 0l-3-3m3 3l3-3" stroke="#4caf50" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-        } else if (this.sortState === 2) {
-            // cluster未激活时：按notebook长度升序
-            return `<svg width="18" height="18" viewBox="0 0 20 20"><path d="M6 17h8M8 12h4M10 7h0" stroke="#4caf50" stroke-width="2" stroke-linecap="round"/><path d="M15 14V4m0 0l-3 3m3-3l3 3" stroke="#4caf50" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-        } else if (this.lengthSortEnabled && this.sortState === 0) {
-            // 默认状态的激活状态：绿色三条横线
-            return `<svg width="18" height="18" viewBox="0 0 20 20"><path d="M4 7h12M4 12h12M4 17h12" stroke="#4caf50" stroke-width="2" stroke-linecap="round"/></svg>`;
+        } else if (this.lengthSortEnabled) {
+            // length激活时（非cluster模式）
+            if (this.sortState === 1) {
+                // 按notebook长度降序（绿色）
+                return `<span style="color: #4caf50; font-weight: 600; font-size: 12px; line-height: 1; display: inline-block; vertical-align: middle;">Size↓</span>`;
+            } else if (this.sortState === 2) {
+                // 按notebook长度升序（绿色）
+                return `<span style="color: #4caf50; font-weight: 600; font-size: 12px; line-height: 1; display: inline-block; vertical-align: middle;">Size↑</span>`;
+            } else {
+                // 默认激活状态：ID（绿色）
+                return `<span style="color: #4caf50; font-weight: 600; font-size: 12px; line-height: 1; display: inline-block; vertical-align: middle;">ID</span>`;
+            }
         } else {
-            // 默认状态：三条横线
-            return `<svg width="18" height="18" viewBox="0 0 20 20"><path d="M4 7h12M4 12h12M4 17h12" stroke="#555" stroke-width="2" stroke-linecap="round"/></svg>`;
+            // length未激活状态：ID（灰色）
+            return `<span style="font-weight: 600; font-size: 12px; line-height: 1; display: inline-block; vertical-align: middle;">ID</span>`;
         }
     }
     private getSimilaritySortIcon(): string {
@@ -662,17 +696,13 @@ export class MatrixWidget extends Widget {
     }
 
     private getVoteSortIcon(): string {
-        // 投票排序icon，使用星星图标，激活绿色，未激活灰色
+        // 投票排序text：激活绿色，未激活灰色
         if (this.voteEnabled) {
             // 激活（绿色）
-            return `<svg width="18" height="18" viewBox="0 0 24 24">
-  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" fill="#4caf50"/>
-</svg>`;
+            return `<span style="color: #4caf50; font-weight: 600; font-size: 12px; line-height: 1; display: inline-block; vertical-align: middle;">Votes</span>`;
         } else {
             // 未激活（灰色）
-            return `<svg width="18" height="18" viewBox="0 0 24 24">
-  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" fill="#555"/>
-</svg>`;
+            return `<span style="color: #555; font-weight: 600; font-size: 12px; line-height: 1; display: inline-block; vertical-align: middle;">Votes</span>`;
         }
     }
 
@@ -698,110 +728,7 @@ export class MatrixWidget extends Widget {
         }
     }
 
-    private getSortButtonTooltip(): string {
-        if (this.sortState === 3) {
-            // cluster激活时
-            if (this.voteEnabled) {
-                return 'Sorted by cluster votes';
-            } else if (this.lengthSortEnabled) {
-                if (this.clusterSizeSortDirection === 'desc') {
-                    return 'Sorted by cluster size (desc)';
-                } else {
-                    return 'Sorted by cluster size (asc)';
-                }
-            } else {
-                return 'Cluster mode active';
-            }
-        } else if (this.lengthSortEnabled) {
-            if (this.sortState === 1) {
-                return 'Sorted by length (desc)';
-            } else if (this.sortState === 2) {
-                return 'Sorted by length (asc)';
-            } else if (this.sortState === 0) {
-                return 'Sorted by length (default)';
-            } else {
-                return 'Sorted by length';
-            }
-        } else {
-            return 'Sort by length';
-        }
-    }
 
-    // 通用的tooltip处理函数
-    private addTooltipToButton(button: HTMLButtonElement, getTooltipText: () => string): void {
-        let tooltipTimeout: number | null = null;
-        
-        button.onmouseenter = (e) => {
-            // 清除之前的超时
-            if (tooltipTimeout) {
-                clearTimeout(tooltipTimeout);
-                tooltipTimeout = null;
-            }
-            
-            // 使用缓存的tooltip元素或创建新的
-            let tooltip = (window as any)._galaxyTooltip;
-            if (!tooltip) {
-                tooltip = document.createElement('div');
-                tooltip.id = 'galaxy-tooltip';
-                tooltip.style.position = 'fixed';
-                tooltip.style.display = 'none';
-                tooltip.style.pointerEvents = 'none';
-                tooltip.style.background = 'rgba(0,0,0,0.75)';
-                tooltip.style.color = '#fff';
-                tooltip.style.padding = '6px 10px';
-                tooltip.style.borderRadius = '4px';
-                tooltip.style.fontSize = '12px';
-                tooltip.style.zIndex = '9999';
-                tooltip.style.transition = 'opacity 0.2s ease-in-out';
-                document.body.appendChild(tooltip);
-                (window as any)._galaxyTooltip = tooltip;
-            }
-            
-            tooltip.innerHTML = getTooltipText();
-            tooltip.style.display = 'block';
-            tooltip.style.opacity = '1';
-            tooltip.style.left = e.clientX + 12 + 'px';
-            tooltip.style.top = e.clientY + 12 + 'px';
-        };
-        
-        button.onmousemove = (e) => {
-            const tooltip = (window as any)._galaxyTooltip;
-            if (tooltip && tooltip.style.display === 'block') {
-                tooltip.style.left = e.clientX + 12 + 'px';
-                tooltip.style.top = e.clientY + 12 + 'px';
-            }
-        };
-        
-        button.onmouseleave = () => {
-            const tooltip = (window as any)._galaxyTooltip;
-            if (tooltip) {
-                // 立即隐藏tooltip
-                tooltip.style.opacity = '0';
-                tooltipTimeout = setTimeout(() => {
-                    if (tooltip && tooltip.style.opacity === '0') {
-                        tooltip.style.display = 'none';
-                    }
-                }, 200) as any;
-            }
-        };
-        
-        // 添加点击事件来立即隐藏tooltip
-        button.onclick = () => {
-            const tooltip = (window as any)._galaxyTooltip;
-            if (tooltip) {
-                tooltip.style.opacity = '0';
-                if (tooltipTimeout) {
-                    clearTimeout(tooltipTimeout);
-                    tooltipTimeout = null;
-                }
-                setTimeout(() => {
-                    if (tooltip && tooltip.style.opacity === '0') {
-                        tooltip.style.display = 'none';
-                    }
-                }, 200);
-            }
-        };
-    }
 
     private updateNotebookOrder() {
         // 创建vote map（如果需要的话）
@@ -1074,21 +1001,21 @@ export class MatrixWidget extends Widget {
                     const nb = this.data[row];
                     return this.isNotebookInSelectedCluster(nb);
                 });
-                
+
                 // 只对cluster内的cells应用暗淡效果
-                const clusterSelector = clusterNotebooks.map(row => 
+                const clusterSelector = clusterNotebooks.map(row =>
                     `.matrix-cell[data-row="${row}"]`
                 ).join(',');
-                
+
                 if (clusterSelector) {
                     d3.selectAll(clusterSelector).classed('matrix-dim', true);
                 }
-                
+
                 // 高亮cluster内匹配的cells
-                const highlightSelector = clusterNotebooks.map(row => 
+                const highlightSelector = clusterNotebooks.map(row =>
                     `.matrix-cell-${stage}[data-row="${row}"]`
                 ).join(',');
-                
+
                 if (highlightSelector) {
                     d3.selectAll(highlightSelector)
                         .classed('matrix-highlight', true)
@@ -1097,7 +1024,7 @@ export class MatrixWidget extends Widget {
             } else {
                 // 没有选中cluster时，全局处理
                 d3.selectAll('.matrix-cell').classed('matrix-dim', true);
-                
+
                 d3.selectAll(`.matrix-cell-${stage}`)
                     .classed('matrix-highlight', true)
                     .classed('matrix-dim', false);
@@ -1119,12 +1046,12 @@ export class MatrixWidget extends Widget {
         // 遍历所有 notebook
         this.notebookOrder.forEach((row) => {
             const nb = this.data[row];
-            
+
             // 如果有选中的cluster，只处理该cluster内的notebooks
             if (this.selectedClusterId && !this.isNotebookInSelectedCluster(nb)) {
                 return; // 跳过不在选中cluster内的notebook
             }
-            
+
             const sortedCells = nb.cells.sort((a, b) => a.cellId - b.cellId);
 
             // 过滤可见cells（与drawMatrix中的逻辑保持一致）
@@ -1455,75 +1382,75 @@ export class MatrixWidget extends Widget {
                 }
 
                 base.on('mouseover', function (event, d) {
-                        // 立即应用高亮效果，避免延迟
-                        d3.select(this)
-                            .classed('matrix-highlight', true)
-                            .classed('matrix-dim', false)
-                            .attr('stroke', d.cellType === 'code' ? color(String(d["1st-level label"] ?? "None")) : '#bbb')
-                            .attr('filter', 'drop-shadow(0px 0px 6px rgba(0,0,0,0.18))');
+                    // 立即应用高亮效果，避免延迟
+                    d3.select(this)
+                        .classed('matrix-highlight', true)
+                        .classed('matrix-dim', false)
+                        .attr('stroke', d.cellType === 'code' ? color(String(d["1st-level label"] ?? "None")) : '#bbb')
+                        .attr('filter', 'drop-shadow(0px 0px 6px rgba(0,0,0,0.18))');
 
-                        // 高亮对应的notebook
-                        const notebookIndex = nb?.globalIndex;
-                        if (notebookIndex) {
-                            window.dispatchEvent(new CustomEvent('galaxy-notebook-highlight', {
-                                detail: {
-                                    notebookIndex: notebookIndex,
-                                    highlight: true
-                                }
-                            }));
-                        }
-
-                        // 使用缓存的tooltip元素或创建新的
-                        let tooltip = (window as any)._galaxyTooltip;
-                        if (!tooltip) {
-                            tooltip = document.createElement('div');
-                            tooltip.id = 'galaxy-tooltip';
-                            tooltip.style.position = 'fixed';
-                            tooltip.style.display = 'none';
-                            tooltip.style.pointerEvents = 'none';
-                            tooltip.style.background = 'rgba(0,0,0,0.75)';
-                            tooltip.style.color = '#fff';
-                            tooltip.style.padding = '6px 10px';
-                            tooltip.style.borderRadius = '4px';
-                            tooltip.style.fontSize = '12px';
-                            tooltip.style.zIndex = '9999';
-                            document.body.appendChild(tooltip);
-                            (window as any)._galaxyTooltip = tooltip;
-                        }
-
-                        // 预计算tooltip内容
-                        const code = (d as any).source ?? (d as any).code ?? '';
-                        const lineCount = code.split(/\r?\n/).length;
-                        const kernelId = (d as any)?.kernelVersionId?.toString();
-                        const titleFromMap = kernelId ? self.kernelTitleMap.get(kernelId) : null;
-                        const notebookTitle = titleFromMap?.title || kernelId || 'Unknown';
-
-                        let tooltipContent = `Stage: ${typeof LABEL_MAP !== 'undefined' ? (LABEL_MAP[String(d["1st-level label"] ?? "None")] ?? d["1st-level label"] ?? "None") : (d["1st-level label"] ?? "None")}` +
-                            `<br>Title: ${notebookTitle}` +
-                            `<br>Lines: ${lineCount}`;
-
-                        // 添加投票信息
-                        if (self.voteData && self.voteData.length > 0) {
-                            const voteRow = kernelId ? self.voteData.find((row: any) => row.kernelVersionId === kernelId) : null;
-                            if (voteRow && voteRow.TotalVotes !== undefined) {
-                                tooltipContent += `<br>Votes: ${voteRow.TotalVotes}`;
+                    // 高亮对应的notebook
+                    const notebookIndex = nb?.globalIndex;
+                    if (notebookIndex) {
+                        window.dispatchEvent(new CustomEvent('galaxy-notebook-highlight', {
+                            detail: {
+                                notebookIndex: notebookIndex,
+                                highlight: true
                             }
-                        }
+                        }));
+                    }
 
-                        // 如果有 similarityGroups，显示 similarity, label_integers
-                        if (self.similarityGroups && self.similarityGroups.length > 0) {
-                            const simRow = kernelId ? self.similarityGroups.find((row: any) => row.kernelVersionId === kernelId) : null;
-                            if (simRow && simRow.similarity !== undefined) {
-                                tooltipContent += `<br>similarity: ${simRow.similarity}`;
-                            }
-                        }
+                    // 使用缓存的tooltip元素或创建新的
+                    let tooltip = (window as any)._galaxyTooltip;
+                    if (!tooltip) {
+                        tooltip = document.createElement('div');
+                        tooltip.id = 'galaxy-tooltip';
+                        tooltip.style.position = 'fixed';
+                        tooltip.style.display = 'none';
+                        tooltip.style.pointerEvents = 'none';
+                        tooltip.style.background = 'rgba(0,0,0,0.75)';
+                        tooltip.style.color = '#fff';
+                        tooltip.style.padding = '6px 10px';
+                        tooltip.style.borderRadius = '4px';
+                        tooltip.style.fontSize = '12px';
+                        tooltip.style.zIndex = '9999';
+                        document.body.appendChild(tooltip);
+                        (window as any)._galaxyTooltip = tooltip;
+                    }
 
-                        // 一次性设置tooltip内容和位置
-                        tooltip.innerHTML = tooltipContent;
-                        tooltip.style.left = event.clientX + 12 + 'px';
-                        tooltip.style.top = event.clientY + 12 + 'px';
-                        tooltip.style.display = 'block';
-                    })
+                    // 预计算tooltip内容
+                    const code = (d as any).source ?? (d as any).code ?? '';
+                    const lineCount = code.split(/\r?\n/).length;
+                    const kernelId = (d as any)?.kernelVersionId?.toString();
+                    const titleFromMap = kernelId ? self.kernelTitleMap.get(kernelId) : null;
+                    const notebookTitle = titleFromMap?.title || kernelId || 'Unknown';
+
+                    let tooltipContent = `Stage: ${typeof LABEL_MAP !== 'undefined' ? (LABEL_MAP[String(d["1st-level label"] ?? "None")] ?? d["1st-level label"] ?? "None") : (d["1st-level label"] ?? "None")}` +
+                        `<br>Title: ${notebookTitle}` +
+                        `<br>Lines: ${lineCount}`;
+
+                    // 添加投票信息
+                    if (self.voteData && self.voteData.length > 0) {
+                        const voteRow = kernelId ? self.voteData.find((row: any) => row.kernelVersionId === kernelId) : null;
+                        if (voteRow && voteRow.TotalVotes !== undefined) {
+                            tooltipContent += `<br>Votes: ${voteRow.TotalVotes}`;
+                        }
+                    }
+
+                    // 如果有 similarityGroups，显示 similarity, label_integers
+                    if (self.similarityGroups && self.similarityGroups.length > 0) {
+                        const simRow = kernelId ? self.similarityGroups.find((row: any) => row.kernelVersionId === kernelId) : null;
+                        if (simRow && simRow.similarity !== undefined) {
+                            tooltipContent += `<br>similarity: ${simRow.similarity}`;
+                        }
+                    }
+
+                    // 一次性设置tooltip内容和位置
+                    tooltip.innerHTML = tooltipContent;
+                    tooltip.style.left = event.clientX + 12 + 'px';
+                    tooltip.style.top = event.clientY + 12 + 'px';
+                    tooltip.style.display = 'block';
+                })
                     .on('mousemove', function (event) {
                         const tooltip = (window as any)._galaxyTooltip;
                         if (tooltip && tooltip.style.display === 'block') {
@@ -1599,7 +1526,7 @@ export class MatrixWidget extends Widget {
                                         cell: { ...d, notebookIndex: nb.globalIndex, cellIndex: originalCellIndex, _notebookDetail: notebookObj }
                                     }
                                 }));
-                                
+
                                 // Track cell detail opened from matrix
                                 analytics.trackCellDetailOpened({
                                     cellType: d.cellType,
@@ -1843,7 +1770,7 @@ export class MatrixWidget extends Widget {
         // 默认使用非cluster模式（原始顺序）
         this.sortState = 0;
         this.voteEnabled = false;
-        this.lengthSortEnabled = false; // 非cluster模式下默认不启用length排序
+        this.lengthSortEnabled = true; // 非cluster模式下默认启用length排序
         this.clusterSizeSortDirection = 'asc'; // 默认升序
         this.notebookOrder = this.data.map((_, i) => i);
         (this as any)._assignmentFilter = '';
@@ -2006,7 +1933,7 @@ export class MatrixWidget extends Widget {
         if (savedState) {
             this.sortState = savedState.sortState;
             this.voteEnabled = savedState.voteEnabled || false;
-            this.lengthSortEnabled = savedState.lengthSortEnabled || false;
+            this.lengthSortEnabled = savedState.lengthSortEnabled !== undefined ? savedState.lengthSortEnabled : true;
             this.clusterSizeSortDirection = savedState.clusterSizeSortDirection || 'asc';
             this.notebookOrder = savedState.notebookOrder || this.data.map((_, i) => i);
             (this as any)._assignmentFilter = savedState.assignmentFilter || '';
@@ -2060,7 +1987,7 @@ export class MatrixWidget extends Widget {
             // 默认使用非cluster模式（原始顺序）
             this.sortState = 0;
             this.voteEnabled = false;
-            this.lengthSortEnabled = false; // 非cluster模式下默认不启用length排序
+            this.lengthSortEnabled = true; // 非cluster模式下默认启用length排序
             this.clusterSizeSortDirection = 'asc'; // 默认升序
             this.notebookOrder = this.data.map((_, i) => i);
             (this as any)._assignmentFilter = '';
@@ -2261,7 +2188,7 @@ export class MatrixWidget extends Widget {
                                 </svg>
                                 Summary
                             </div>
-                            <div style="background:#fff; border-radius:6px; padding:12px; border:1px solid #e9ecef; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+                            <div style="background:#fff; border-radius:6px; padding:12px; border:1px solid #e9ecef; box-shadow:0 1px 3px rgba(0,0,0,0.05); height: 70px; overflow-y: auto;">
                                 <div style="font-size:13px; color:#222; line-height:1.5; font-weight:400;">${clusterDescription}</div>
                             </div>
                         </div>
@@ -2306,7 +2233,7 @@ export class MatrixWidget extends Widget {
                         </svg>
                         Workflow Analysis
                     </div>
-                    <div style="background:#fff; border-radius:6px; padding:12px; border:1px solid #e9ecef; box-shadow:0 1px 3px rgba(0,0,0,0.05); flex: 1; display: flex; flex-direction: column;">
+                    <div style="background:#fff; border-radius:6px; padding:12px; border:1px solid #e9ecef; box-shadow:0 1px 3px rgba(0,0,0,0.05); height: 70px; overflow-y: auto;">
                         <div style="margin-bottom:0px;">
                             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; color:#495057;">
                                 <span style="font-weight:500; font-size:13px;">Top Stage(s)</span>
@@ -2432,12 +2359,50 @@ export class MatrixWidget extends Widget {
             <div style="font-size:16px; font-weight:700; margin-bottom:12px; line-height:1.3; padding-bottom:8px; border-bottom:1px solid #e9ecef;">
                 <span style="color: #222;">Competition Description</span>
             </div>
-            <div style="background:#f8f9fa; border-radius:6px; padding:12px; margin-bottom:8px; border:1px solid #e9ecef; max-height: 100px; overflow-y: auto;">
-                <div style="font-size:13px; color:#222; line-height:1.5; font-weight:400;">
-                    ${description}
+            <div style="position: relative;">
+                <div id="competition-description-content" style="background:#fff; border-radius:6px; padding:12px; border:1px solid #e9ecef; box-shadow:0 1px 3px rgba(0,0,0,0.05); height: 150px; overflow-y: auto; resize: vertical; min-height: 80px; max-height: 400px;">
+                    <div style="font-size:13px; color:#222; line-height:1.5; font-weight:400;">
+                        ${description}
+                    </div>
                 </div>
+                <div id="competition-description-resizer" style="position: absolute; bottom: 0; left: 0; right: 0; height: 6px; cursor: ns-resize; background: transparent; border-radius: 0 0 6px 6px; z-index: 10;"></div>
             </div>
         `;
+
+        // 添加拖拽调整高度的功能
+        setTimeout(() => {
+            const contentDiv = this.clusterInfoContainer?.querySelector('#competition-description-content') as HTMLElement;
+            const resizer = this.clusterInfoContainer?.querySelector('#competition-description-resizer') as HTMLElement;
+
+            if (contentDiv && resizer) {
+                let isResizing = false;
+                let startY = 0;
+                let startHeight = 0;
+
+                resizer.addEventListener('mousedown', (e) => {
+                    isResizing = true;
+                    startY = e.clientY;
+                    startHeight = parseInt(contentDiv.style.height) || contentDiv.offsetHeight;
+                    document.body.style.cursor = 'ns-resize';
+                    e.preventDefault();
+                });
+
+                document.addEventListener('mousemove', (e) => {
+                    if (!isResizing) return;
+
+                    const deltaY = e.clientY - startY;
+                    const newHeight = Math.max(80, Math.min(400, startHeight + deltaY));
+                    contentDiv.style.height = newHeight + 'px';
+                });
+
+                document.addEventListener('mouseup', () => {
+                    if (isResizing) {
+                        isResizing = false;
+                        document.body.style.cursor = '';
+                    }
+                });
+            }
+        }, 0);
     }
 
     // 显示cluster概览信息
@@ -2493,7 +2458,7 @@ export class MatrixWidget extends Widget {
             </div>
             
             ${overallSummary ? `
-                <div style="background:#f8f9fa; border-radius:6px; padding:8px; margin-bottom:8px; border:1px solid #e9ecef;">
+                <div style="background:#fff; border-radius:6px; padding:12px; border:1px solid #e9ecef; box-shadow:0 1px 3px rgba(0,0,0,0.05); height: 150px; overflow-y: auto;">
                     <div style="font-size:13px; color:#222; line-height:1.5; font-weight:400;">${overallSummary}</div>
                 </div>
             ` : ''}
@@ -2540,7 +2505,7 @@ export class MatrixWidget extends Widget {
             const cell = d3.select(nodes[i]);
             const row = cell.attr('data-row');
             const nb = this.data[parseInt(row)];
-            
+
             // 检查当前notebook是否属于选中的cluster
             let isInSelectedCluster = false;
             if (this.selectedClusterId && this.sortState === 3 && this.similarityGroups && this.similarityGroups.length > 0) {
@@ -2566,7 +2531,7 @@ export class MatrixWidget extends Widget {
                 const line = d3.select(nodes[i]);
                 const clusterId = line.attr('data-cluster-id');
                 const isSelected = this.selectedClusterId === clusterId;
-                
+
                 if (isSelected) {
                     line.attr('stroke', '#4caf50').attr('stroke-width', 3);
                 } else {
@@ -2580,7 +2545,7 @@ export class MatrixWidget extends Widget {
                 const clusterId = text.attr('data-cluster-id');
                 const textContent = text.text();
                 const isSelected = this.selectedClusterId === clusterId;
-                
+
                 // 检查是否是cluster标题文本（包含"Cluster"字样）
                 if (textContent && textContent.includes('Cluster')) {
                     if (isSelected) {
@@ -2694,14 +2659,14 @@ export class MatrixWidget extends Widget {
         if (this.transitionHoverTimeout) {
             clearTimeout(this.transitionHoverTimeout);
         }
-        
+
         // 隐藏tooltip
         const tooltip = (window as any)._galaxyTooltip;
         if (tooltip) {
             tooltip.style.display = 'none';
             tooltip.style.opacity = '0';
         }
-        
+
         // 移除事件监听器
         window.removeEventListener('galaxy-top-stats-updated', this._topStatsHandler);
         super.dispose();
