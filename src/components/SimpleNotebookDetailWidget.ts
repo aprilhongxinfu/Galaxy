@@ -1,7 +1,5 @@
 import { Widget } from '@lumino/widgets';
 import { RenderMimeRegistry, standardRendererFactories } from '@jupyterlab/rendermime';
-import { colorMap } from './colorMap';
-import { LABEL_MAP } from './labelMap';
 
 // 动态插入 JupyterLab 主题样式（只插入一次）
 function ensureJupyterlabThemeStyle() {
@@ -359,8 +357,6 @@ export class SimpleNotebookDetailWidget extends Widget {
         if (cellList) {
             cellList.innerHTML = '';
             (nb.cells ?? []).forEach((cell: any, i: number) => {
-                const stage = String(cell["1st-level label"] ?? 'None');
-                const stageColor = colorMap.get(stage) || '#fff';
                 const content = cell.source ?? cell.code ?? '';
                 
                 // cell外层div
@@ -401,13 +397,7 @@ export class SimpleNotebookDetailWidget extends Widget {
                 cellDiv.style.boxShadow = '0 1px 4px #0001';
                 cellDiv.style.background = '#fff';
                 
-                // stage色条
-                const colorBar = document.createElement('div');
-                colorBar.style.width = '6px';
-                colorBar.style.borderRadius = '6px 0 0 6px';
-                colorBar.style.background = stageColor;
-                colorBar.style.marginRight = '0';
-                cellDiv.appendChild(colorBar);
+
                 
                 // 内容区
                 const contentDiv = document.createElement('div');
@@ -446,23 +436,6 @@ export class SimpleNotebookDetailWidget extends Widget {
                         contentDiv.appendChild(fallbackDiv);
                     }
                 } else if (cell.cellType === 'code') {
-                    // 为code cell添加stage tag
-                    const stageTag = document.createElement('div');
-                    stageTag.style.display = 'flex';
-                    stageTag.style.alignItems = 'center';
-                    stageTag.style.marginBottom = '8px';
-                    stageTag.style.fontSize = '11px';
-                    stageTag.style.fontWeight = '600';
-                    stageTag.style.color = stageColor; // 直接使用stage对应的颜色
-                    stageTag.style.textTransform = 'uppercase';
-                    stageTag.style.letterSpacing = '0.5px';
-                    
-                    const tagText = document.createElement('span');
-                    tagText.textContent = LABEL_MAP[stage] || stage; // 使用LABEL_MAP映射到具体的stage名称
-                    
-                    stageTag.appendChild(tagText);
-                    contentDiv.appendChild(stageTag);
-                    
                     // 创建代码内容 - 使用 Prism.js 官方行号插件
                     const preElement = document.createElement('pre');
                     preElement.classList.add('line-numbers');
