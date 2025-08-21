@@ -1921,6 +1921,31 @@ export class MatrixWidget extends Widget {
         }
     }
 
+    // 重新创建tooltip
+    private recreateTooltip() {
+        // 清除现有的tooltip
+        const existingTooltip = (window as any)._galaxyTooltip;
+        if (existingTooltip) {
+            existingTooltip.remove();
+            (window as any)._galaxyTooltip = null;
+        }
+        
+        // 创建新的tooltip元素
+        const tooltip = document.createElement('div');
+        tooltip.id = 'galaxy-tooltip';
+        tooltip.style.position = 'fixed';
+        tooltip.style.display = 'none';
+        tooltip.style.pointerEvents = 'none';
+        tooltip.style.background = 'rgba(0,0,0,0.75)';
+        tooltip.style.color = '#fff';
+        tooltip.style.padding = '6px 10px';
+        tooltip.style.borderRadius = '4px';
+        tooltip.style.fontSize = '12px';
+        tooltip.style.zIndex = '9999';
+        document.body.appendChild(tooltip);
+        (window as any)._galaxyTooltip = tooltip;
+    }
+
     // 从全局变量恢复筛选状态（按tab隔离）
     private restoreFilterState() {
         // 切换tab时隐藏所有tooltip
@@ -1975,11 +2000,15 @@ export class MatrixWidget extends Widget {
                 // 在 drawMatrix 后延迟恢复滚动位置，给容器更多时间渲染
                 setTimeout(() => {
                     this.restoreScrollPosition();
+                    // 重新创建tooltip以确保它能正常工作
+                    this.recreateTooltip();
                 }, 200); // 增加延迟时间
             } else {
                 // 如果容器已存在，也需要延迟恢复滚动位置，确保tab切换完成
                 setTimeout(() => {
                     this.restoreScrollPosition();
+                    // 重新创建tooltip以确保它能正常工作
+                    this.recreateTooltip();
                 }, 200); // 增加延迟时间
             }
         } else {
