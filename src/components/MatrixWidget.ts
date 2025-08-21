@@ -207,7 +207,7 @@ export class MatrixWidget extends Widget {
         sortBar.style.display = 'flex';
         sortBar.style.justifyContent = 'space-between';
         sortBar.style.alignItems = 'center';
-        sortBar.style.marginTop = '4px';
+        sortBar.style.marginTop = '8px';
         sortBar.style.marginBottom = '4px';
         sortBar.style.height = '24px';
         sortBar.style.width = '100%';
@@ -648,84 +648,151 @@ export class MatrixWidget extends Widget {
     }
 
     private getSortIcon(): string {
-        // 文本图标：ID（默认）、Size↑（升序）、Size↓（降序）
+        // SVG图标 + 文本：ID（默认）、Size↑（升序）、Size↓（降序）
+        let svgIcon = '';
+        let textContent = '';
+        let textColor = '#555';
+
         if (this.sortState === 3) {
             // cluster激活时
             if (this.voteEnabled) {
                 // vote激活时，显示未激活的Size↑（灰色）
-                return `<span style="font-weight: 600; font-size: 12px; line-height: 1; display: inline-block; vertical-align: middle;">Size↑</span>`;
+                svgIcon = `<svg width="14" height="14" viewBox="0 0 20 20" style="margin-right: 4px;"><path d="M6 17h8M8 12h4M10 7h0" stroke="#555" stroke-width="2" stroke-linecap="round"/><path d="M15 14V4m0 0l-3 3m3-3l3 3" stroke="#555" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+                textContent = 'Size↑';
             } else if (this.lengthSortEnabled) {
                 // length激活时，显示排序图标
                 if (this.clusterSizeSortDirection === 'desc') {
                     // cluster size降序（绿色）
-                    return `<span style="color: #4caf50; font-weight: 600; font-size: 12px; line-height: 1; display: inline-block; vertical-align: middle;">Size↓</span>`;
+                    svgIcon = `<svg width="14" height="14" viewBox="0 0 20 20" style="margin-right: 4px;"><path d="M6 7h8M8 12h4M10 17h0" stroke="#4caf50" stroke-width="2" stroke-linecap="round"/><path d="M15 4v10m0 0l-3-3m3 3l3-3" stroke="#4caf50" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+                    textContent = 'Size';
+                    textColor = '#4caf50';
                 } else {
                     // cluster size升序（绿色）
-                    return `<span style="color: #4caf50; font-weight: 600; font-size: 12px; line-height: 1; display: inline-block; vertical-align: middle;">Size↑</span>`;
+                    svgIcon = `<svg width="14" height="14" viewBox="0 0 20 20" style="margin-right: 4px;"><path d="M6 17h8M8 12h4M10 7h0" stroke="#4caf50" stroke-width="2" stroke-linecap="round"/><path d="M15 14V4m0 0l-3 3m3-3l3 3" stroke="#4caf50" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+                    textContent = 'Size';
+                    textColor = '#4caf50';
                 }
             } else {
                 // 默认状态：未激活的Size↑（灰色）
-                return `<span style="font-weight: 600; font-size: 12px; line-height: 1; display: inline-block; vertical-align: middle;">Size↑</span>`;
+                svgIcon = `<svg width="14" height="14" viewBox="0 0 20 20" style="margin-right: 4px;"><path d="M6 17h8M8 12h4M10 7h0" stroke="#555" stroke-width="2" stroke-linecap="round"/><path d="M15 14V4m0 0l-3 3m3-3l3 3" stroke="#555" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+                textContent = 'Size';
             }
         } else if (this.lengthSortEnabled) {
             // length激活时（非cluster模式）
             if (this.sortState === 1) {
                 // 按notebook长度降序（绿色）
-                return `<span style="color: #4caf50; font-weight: 600; font-size: 12px; line-height: 1; display: inline-block; vertical-align: middle;">Size↓</span>`;
+                svgIcon = `<svg width="14" height="14" viewBox="0 0 20 20" style="margin-right: 4px;"><path d="M6 7h8M8 12h4M10 17h0" stroke="#4caf50" stroke-width="2" stroke-linecap="round"/><path d="M15 4v10m0 0l-3-3m3 3l3-3" stroke="#4caf50" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+                textContent = 'Size';
+                textColor = '#4caf50';
             } else if (this.sortState === 2) {
                 // 按notebook长度升序（绿色）
-                return `<span style="color: #4caf50; font-weight: 600; font-size: 12px; line-height: 1; display: inline-block; vertical-align: middle;">Size↑</span>`;
+                svgIcon = `<svg width="14" height="14" viewBox="0 0 20 20" style="margin-right: 4px;"><path d="M6 17h8M8 12h4M10 7h0" stroke="#4caf50" stroke-width="2" stroke-linecap="round"/><path d="M15 14V4m0 0l-3 3m3-3l3 3" stroke="#4caf50" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+                textContent = 'Size';
+                textColor = '#4caf50';
             } else {
                 // 默认激活状态：ID（绿色）
-                return `<span style="color: #4caf50; font-weight: 600; font-size: 12px; line-height: 1; display: inline-block; vertical-align: middle;">ID</span>`;
+                svgIcon = `<svg width="18" height="18" viewBox="0 0 1024 1024" style="margin-right: 4px;"><path d="M404.05 177.6H301.23v569.64H254.9l98.16 103.5 101.28-103.5h-50.28V177.6z m216.36 264.55h56.25V189.03h-56.25c-14.85 32.81-41.8 57.42-80.86 73.83v31.64c32.03-4.69 58.98-14.83 80.86-30.47v178.12z m14.07 93.36c-57.82 2.34-88.68 32.04-92.58 89.06 2.34 50.79 32.41 76.96 90.23 78.52 17.96 0.79 33.98-4.28 48.05-15.23 0.77 49.22-18.37 74.23-57.42 75-29.7-0.77-54.69-13.28-75-37.5v38.67c21.09 21.86 50.39 32.81 87.89 32.81 66.39 0 99.61-42.96 99.61-128.91 1.55-91.4-32.05-135.53-100.78-132.42z m3.51 132.42c-25.78-0.77-39.07-16.79-39.84-48.05 1.56-30.47 14.45-46.47 38.67-48.05 25.78 1.58 39.06 18.37 39.84 50.39-1.57 28.92-14.46 44.16-38.67 45.71z" fill="#4caf50"/></svg>`;
+                textContent = 'ID';
+                textColor = '#4caf50';
             }
         } else {
             // length未激活状态：ID（灰色）
-            return `<span style="font-weight: 600; font-size: 12px; line-height: 1; display: inline-block; vertical-align: middle;">ID</span>`;
+            svgIcon = `<svg width="18" height="18" viewBox="0 0 1024 1024" style="margin-right: 4px;"><path d="M404.05 177.6H301.23v569.64H254.9l98.16 103.5 101.28-103.5h-50.28V177.6z m216.36 264.55h56.25V189.03h-56.25c-14.85 32.81-41.8 57.42-80.86 73.83v31.64c32.03-4.69 58.98-14.83 80.86-30.47v178.12z m14.07 93.36c-57.82 2.34-88.68 32.04-92.58 89.06 2.34 50.79 32.41 76.96 90.23 78.52 17.96 0.79 33.98-4.28 48.05-15.23 0.77 49.22-18.37 74.23-57.42 75-29.7-0.77-54.69-13.28-75-37.5v38.67c21.09 21.86 50.39 32.81 87.89 32.81 66.39 0 99.61-42.96 99.61-128.91 1.55-91.4-32.05-135.53-100.78-132.42z m3.51 132.42c-25.78-0.77-39.07-16.79-39.84-48.05 1.56-30.47 14.45-46.47 38.67-48.05 25.78 1.58 39.06 18.37 39.84 50.39-1.57 28.92-14.46 44.16-38.67 45.71z" fill="#555"/></svg>`;
+            textContent = 'ID';
         }
+
+        return `<div style="display: flex; align-items: center; justify-content: center;">${svgIcon}<span style="color: ${textColor}; font-weight: 600; font-size: 12px; line-height: 1;">${textContent}</span></div>`;
     }
     private getSimilaritySortIcon(): string {
-        // clustering button text, green when active, gray when inactive
+        // clustering button: SVG图标 + 文本，激活绿色，未激活灰色
+        let svgIcon = '';
+        let textColor = '#555';
+
         if (this.sortState === 3) {
             // 激活（绿色）
-            return `<span style="color: #4caf50; font-weight: 600; font-size: 12px; line-height: 1; display: inline-block; vertical-align: middle;">Cluster</span>`;
+            svgIcon = `<svg width="14" height="14" viewBox="0 0 24 24" style="margin-right: 4px;">
+  <rect x="3" y="5" width="7" height="14" rx="2" fill="none" stroke="#4caf50" stroke-width="2"/>
+  <rect x="14" y="5" width="7" height="14" rx="2" fill="none" stroke="#4caf50" stroke-width="2" stroke-dasharray="4 2"/>
+  <path d="M10 12h4" stroke="#4caf50" stroke-width="2" stroke-linecap="round"/>
+  <polygon points="12,10 10,12 12,14" fill="#4caf50"/>
+  <polygon points="14,10 16,12 14,14" fill="#4caf50"/>
+</svg>`;
+            textColor = '#4caf50';
         } else {
             // 未激活（灰色）
-            return `<span style="color: #555; font-weight: 600; font-size: 12px; line-height: 1; display: inline-block; vertical-align: middle;">Cluster</span>`;
+            svgIcon = `<svg width="14" height="14" viewBox="0 0 24 24" style="margin-right: 4px;">
+  <rect x="3" y="5" width="7" height="14" rx="2" fill="none" stroke="#555" stroke-width="2"/>
+  <rect x="14" y="5" width="7" height="14" rx="2" fill="none" stroke="#555" stroke-width="2" stroke-dasharray="4 2"/>
+  <path d="M10 12h4" stroke="#555" stroke-width="2" stroke-linecap="round"/>
+  <polygon points="12,10 10,12 12,14" fill="#555"/>
+  <polygon points="14,10 16,12 14,14" fill="#555"/>
+</svg>`;
         }
+
+        return `<div style="display: flex; align-items: center; justify-content: center;">${svgIcon}<span style="color: ${textColor}; font-weight: 600; font-size: 12px; line-height: 1;">Cluster</span></div>`;
     }
 
     private getVoteSortIcon(): string {
-        // 投票排序text：激活绿色，未激活灰色
+        // 投票排序：使用提供的SVG图标 + 文本，激活绿色，未激活灰色
+        let textColor = '#555';
+        const fillColor = this.voteEnabled ? '#4caf50' : '#555';
+
         if (this.voteEnabled) {
-            // 激活（绿色）
-            return `<span style="color: #4caf50; font-weight: 600; font-size: 12px; line-height: 1; display: inline-block; vertical-align: middle;">Votes</span>`;
-        } else {
-            // 未激活（灰色）
-            return `<span style="color: #555; font-weight: 600; font-size: 12px; line-height: 1; display: inline-block; vertical-align: middle;">Votes</span>`;
+            textColor = '#4caf50';
         }
+
+        const svgIcon = `<svg width="14" height="14" viewBox="0 0 1041 1024" style="margin-right: 4px;">
+  <path d="M1040.968463 609.919147" fill="${fillColor}"></path>
+  <path d="M1040.968463 609.919147" fill="${fillColor}"></path>
+  <path d="M205.00814 443.107957c14.112416 0 25.535583-11.440563 25.535583-25.52535 0-14.103206-11.423167-25.555026-25.535583-25.555026-0.260943 0-0.475837 0.146333-0.718361 0.146333l-61.034075 0.14224c-1.39579-0.187265-2.836605-0.288572-4.272303-0.288572-19.213597 0-34.790364 15.765055-34.790364 35.274388l-0.333598 423.205675c0 19.487843 15.594163 34.763758 34.83539 34.763758 1.87572 0 3.718695 0.287549 5.516644 0l59.60247 0.026606c0.096191 0 0.14224 0.046049 0.242524 0.046049 0.092098 0 0.14224-0.046049 0.237407-0.046049l0.718361 0 0-0.147356c13.101389-0.525979 23.608697-11.157107 23.608697-24.378224 0-13.242606-10.508331-23.86964-23.608697-24.399713l0-0.38067-49.758264 0 1.413186-392.886135L205.00814 443.10591 205.00814 443.107957 205.00814 443.107957zM924.149874 406.52476c-18.839067-30.708396-46.236044-43.143613-79.397305-44.48312-1.724271-0.242524-3.449565-0.388856-5.251607-0.388856l-200.646809-0.672312c13.143345-38.143739 22.167882-83.587744 22.167882-126.296451 0-27.685549-3.119037-54.652737-8.832156-80.612992l-0.476861 0.045025c-10.392698-45.490054-50.53086-79.415724-98.609879-79.415724-55.9288 0-93.239568 47.028083-93.239568 103.652731 0 3.165086-0.283456 6.235005 0 9.309016-2.927679 105.851816-89.109504 190.976566-191.652971 202.659653l0 53.605895-0.76748 217.036082 0 224.381373 10.456143 0 488.348324 0.218988 8.549723-0.237407c18.902512 0.046049 29.528524-4.707209 46.683229-15.741519 16.295128-10.511401 28.555359-24.904203 36.614919-41.170678 2.209318-3.266393 3.935636-6.90834 4.985548-10.93812L938.303222 481.186204c1.029446-3.956102 1.316995-7.986905 1.029446-11.875468C940.869674 448.02699 936.12051 426.054559 924.149874 406.52476L924.149874 406.52476 924.149874 406.52476zM892.214535 458.177164l-81.047898 359.193779-0.092098-0.046049c-2.501984 5.996574-6.720052 11.320836-12.570293 15.068184-4.085038 2.659573-8.573259 4.245697-13.107529 4.849448-1.464351-0.192382-2.977821 0-4.50971 0l-465.886753-0.531096-0.172939-397.895219c87.24197-39.327704 151.22726-77.809133 184.196139-169.602769 0.072655 0.022513 0.122797 0.046049 0.191358 0.068562 2.928702-8.924253 6.16542-20.252253 8.492418-32.387641 5.425569-28.509311 5.135974-56.767911 5.135974-56.767911-4.821819-37.090756 25.340131-51.729152 43.330878-51.729152 24.711821 0.842181 49.091068 32.868595 49.091068 51.102888 0 0 5.466502 26.922163 5.517667 55.856146 0.046049 36.491099-4.560876 55.516408-4.560876 55.516408l-0.452301 0c-5.736655 30.160927-15.838733 58.734706-29.757744 84.937484l0.36225 0.338714c-2.301416 4.702092-3.623527 9.981329-3.623527 15.567557 0 19.460214 18.645662 21.23872 37.858236 21.23872l233.191016 0.261966c0 0 14.3181 0.452301 14.346753 0.452301l0 0.101307c11.847839-0.627287 23.654746 5.081739 30.375821 16.022928 5.374404 8.806573 6.28617 19.150152 3.402493 28.308743L892.214535 458.177164 892.214535 458.177164 892.214535 458.177164zM277.899264 885.443317c0.316202 0.024559 0.433882 0.024559 0.292666-0.024559 0.237407-0.046049 0.357134-0.072655-0.292666-0.072655-0.64059 0-0.520863 0.026606-0.25992 0.072655C277.519618 885.467877 277.615808 885.467877 277.899264 885.443317L277.899264 885.443317 277.899264 885.443317zM277.899264 885.443317" fill="${fillColor}"></path>
+</svg>`;
+
+        return `<div style="display: flex; align-items: center; justify-content: center;">${svgIcon}<span style="color: ${textColor}; font-weight: 600; font-size: 12px; line-height: 1;">Votes</span></div>`;
     }
 
     private getCellHeightIcon(): string {
-        // cell高度模式text：固定高度时灰色，动态高度时绿色
+        // cell高度模式：SVG图标 + 文本，固定高度时灰色，动态高度时绿色
+        let svgIcon = '';
+        let textColor = '#555';
+
         if (this.cellHeightMode === 'fixed') {
-            // 固定高度模式：灰色
-            return `<span style="color: #555; font-weight: 600; font-size: 12px; line-height: 1; display: inline-block; vertical-align: middle;">Height</span>`;
+            // 固定高度模式：等号图标（灰色）
+            svgIcon = `<svg width="14" height="14" viewBox="0 0 20 20" style="margin-right: 4px;">
+  <path d="M4 8h12M4 12h12" stroke="#555" stroke-width="2" stroke-linecap="round"/>
+</svg>`;
         } else {
-            // 动态高度模式：绿色
-            return `<span style="color: #4caf50; font-weight: 600; font-size: 12px; line-height: 1; display: inline-block; vertical-align: middle;">Height</span>`;
+            // 动态高度模式：波浪线图标（绿色）
+            svgIcon = `<svg width="14" height="14" viewBox="0 0 20 20" style="margin-right: 4px;">
+  <path d="M3 8c1-1 2-1 3 0s2 1 3 0 2-1 3 0 2 1 3 0 2-1 3 0 2 1 3 0 2-1 3 0" stroke="#4caf50" stroke-width="2" stroke-linecap="round" fill="none"/>
+  <path d="M3 12c1-1 2-1 3 0s2 1 3 0 2-1 3 0 2 1 3 0 2-1 3 0 2 1 3 0 2-1 3 0" stroke="#4caf50" stroke-width="2" stroke-linecap="round" fill="none"/>
+</svg>`;
+            textColor = '#4caf50';
         }
+
+        return `<div style="display: flex; align-items: center; justify-content: center;">${svgIcon}<span style="color: ${textColor}; font-weight: 600; font-size: 12px; line-height: 1;">Height</span></div>`;
     }
 
     private getMarkdownIcon(): string {
-        // markdown显示/隐藏icon：使用"Md"文本，显示时绿色，隐藏时灰色
+        // markdown显示/隐藏：SVG图标 + 文本，显示时绿色，隐藏时灰色
+        let svgIcon = '';
+        let textColor = '#555';
+
         if (this.showMarkdown) {
-            // 显示markdown：绿色"Md"文本
-            return `<span style="color: #4caf50; font-weight: 600; font-size: 12px; line-height: 1; display: inline-block; vertical-align: middle;">Markdown</span>`;
+            // 显示markdown：绿色
+            svgIcon = `<svg width="14" height="14" viewBox="0 0 1024 1024" style="margin-right: 4px;">
+  <path d="M854.6 288.6L639.4 73.4c-6-6-14.1-9.4-22.6-9.4H192c-17.7 0-32 14.3-32 32v832c0 17.7 14.3 32 32 32h640c17.7 0 32-14.3 32-32V311.3c0-8.5-3.4-16.7-9.4-22.7zM790.2 326H602V137.8L790.2 326z m1.8 562H232V136h302v216c0 23.2 18.8 42 42 42h216v494z" fill="#4caf50"/>
+  <path d="M429 481.2c-1.9-4.4-6.2-7.2-11-7.2h-35c-6.6 0-12 5.4-12 12v272c0 6.6 5.4 12 12 12h27.1c6.6 0 12-5.4 12-12V582.1l66.8 150.2c1.9 4.3 6.2 7.1 11 7.1H524c4.7 0 9-2.8 11-7.1l66.8-150.6V758c0 6.6 5.4 12 12 12H641c6.6 0 12-5.4 12-12V486c0-6.6-5.4-12-12-12h-34.7c-4.8 0-9.1 2.8-11 7.2l-83.1 191-83.2-191z" fill="#4caf50"/>
+</svg>`;
+            textColor = '#4caf50';
         } else {
-            // 隐藏markdown：灰色"Md"文本
-            return `<span style="color: #555; font-weight: 600; font-size: 12px; line-height: 1; display: inline-block; vertical-align: middle;">Markdown</span>`;
+            // 隐藏markdown：灰色
+            svgIcon = `<svg width="14" height="14" viewBox="0 0 1024 1024" style="margin-right: 4px;">
+  <path d="M854.6 288.6L639.4 73.4c-6-6-14.1-9.4-22.6-9.4H192c-17.7 0-32 14.3-32 32v832c0 17.7 14.3 32 32 32h640c17.7 0 32-14.3 32-32V311.3c0-8.5-3.4-16.7-9.4-22.7zM790.2 326H602V137.8L790.2 326z m1.8 562H232V136h302v216c0 23.2 18.8 42 42 42h216v494z" fill="#555"/>
+  <path d="M429 481.2c-1.9-4.4-6.2-7.2-11-7.2h-35c-6.6 0-12 5.4-12 12v272c0 6.6 5.4 12 12 12h27.1c6.6 0 12-5.4 12-12V582.1l66.8 150.2c1.9 4.3 6.2 7.1 11 7.1H524c4.7 0 9-2.8 11-7.1l66.8-150.6V758c0 6.6 5.4 12 12 12H641c6.6 0 12-5.4 12-12V486c0-6.6-5.4-12-12-12h-34.7c-4.8 0-9.1 2.8-11 7.2l-83.1 191-83.2-191z" fill="#555"/>
+</svg>`;
         }
+
+        return `<div style="display: flex; align-items: center; justify-content: center;">${svgIcon}<span style="color: ${textColor}; font-weight: 600; font-size: 12px; line-height: 1;">Markdown</span></div>`;
     }
 
 
@@ -1266,7 +1333,7 @@ export class MatrixWidget extends Widget {
         container.style.flex = '1 1 auto';
         container.style.overflow = 'auto';
         container.style.height = 'auto';
-        container.style.padding = '16px 8px 4px 8px';
+        container.style.padding = '0px 8px 4px 8px';
 
         // 添加滚动事件监听器来保存滚动位置
         container.addEventListener('scroll', () => {
@@ -1929,7 +1996,7 @@ export class MatrixWidget extends Widget {
             existingTooltip.remove();
             (window as any)._galaxyTooltip = null;
         }
-        
+
         // 创建新的tooltip元素
         const tooltip = document.createElement('div');
         tooltip.id = 'galaxy-tooltip';
@@ -2418,13 +2485,13 @@ export class MatrixWidget extends Widget {
                 `;
                 tempDiv.innerHTML = description;
                 document.body.appendChild(tempDiv);
-                
+
                 const contentFullHeight = tempDiv.offsetHeight;
                 document.body.removeChild(tempDiv);
 
                 // 计算最大可用高度（视窗高度的80%）
                 const maxAvailableHeight = Math.min(contentFullHeight, window.innerHeight * 0.8);
-                
+
                 // 设置最大高度
                 contentDiv.style.maxHeight = maxAvailableHeight + 'px';
 

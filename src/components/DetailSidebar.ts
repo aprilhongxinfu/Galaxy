@@ -1740,7 +1740,24 @@ export class DetailSidebar extends Widget {
         item.addEventListener('click', (e) => {
           e.stopPropagation(); // 阻止事件冒泡
           if (this._allData && this._allData[globalIdx - 1]) { // globalIndex从1开始，所以需要减1
-            this.setNotebookDetail(this._allData[globalIdx - 1], false); // 恢复事件派发，让主程序打开tab
+            // 防止重复点击：禁用按钮一段时间
+            const target = e.target as HTMLElement;
+            if (target && target.closest('tr')) {
+              const row = target.closest('tr') as HTMLElement;
+              if (row.style.pointerEvents === 'none') {
+                return; // 如果已经被禁用，直接返回
+              }
+              row.style.pointerEvents = 'none';
+              setTimeout(() => {
+                row.style.pointerEvents = '';
+              }, 1000); // 1秒后重新启用
+            }
+            
+            // 直接派发事件，让主程序处理tab创建，而不是通过setNotebookDetail
+            const notebookObj = { ...this._allData[globalIdx - 1], index: this._allData[globalIdx - 1].globalIndex };
+            window.dispatchEvent(new CustomEvent('galaxy-notebook-selected', {
+              detail: { notebook: notebookObj }
+            }));
           }
         });
 

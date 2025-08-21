@@ -912,6 +912,8 @@ function activate(
         notebookSelectedListenerRegistered = false;
         handleNotebookSelected = null;
         handleSimpleNotebookSelected = null;
+        // 清除防重复状态
+        (window as any)._lastProcessedNotebookEvent = null;
 
         // 检查是否选中了JSON文件
         if (
@@ -1154,9 +1156,25 @@ function activate(
           }
         });
 
-        // 只注册一次 notebook 详情切换监听器
-        if (!notebookSelectedListenerRegistered) {
+        // 定义 notebook 详情切换处理函数（只定义一次）
+        if (!handleNotebookSelected) {
           handleNotebookSelected = function (e: any) {
+            // 防止重复处理相同的事件（在短时间内）
+            const notebookId = e.detail.notebook.kernelVersionId || e.detail.notebook.index;
+            const now = Date.now();
+            const lastProcessed = (window as any)._lastProcessedNotebookEvent;
+            
+            if (lastProcessed && 
+                lastProcessed.notebookId === notebookId && 
+                now - lastProcessed.timestamp < 1000) { // 1秒内的重复事件
+              return; // 跳过重复事件
+            }
+            
+            (window as any)._lastProcessedNotebookEvent = {
+              notebookId: notebookId,
+              timestamp: now
+            };
+            
             // 新建并显示 notebook 详情，深拷贝 notebook 数据
             const nb = JSON.parse(JSON.stringify(e.detail.notebook));
             const nbDetailWidget = new NotebookDetailWidget(nb);
@@ -1335,8 +1353,8 @@ function activate(
             window.addEventListener('galaxy-notebook-detail-back', handleBack);
           };
           // 只注册一次 notebook 详情切换监听器
-          if (!notebookSelectedListenerRegistered) {
-            window.addEventListener('galaxy-notebook-selected', handleNotebookSelected!);
+          if (!notebookSelectedListenerRegistered && handleNotebookSelected) {
+            window.addEventListener('galaxy-notebook-selected', handleNotebookSelected);
             notebookSelectedListenerRegistered = true;
           }
 
@@ -1456,6 +1474,8 @@ function activate(
         notebookSelectedListenerRegistered = false;
         handleNotebookSelected = null;
         handleSimpleNotebookSelected = null;
+        // 清除防重复状态
+        (window as any)._lastProcessedNotebookEvent = null;
 
         // 检查是否选中了JSON文件
         if (
