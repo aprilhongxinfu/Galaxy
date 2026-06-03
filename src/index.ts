@@ -27,6 +27,9 @@ import { PostHogAnalytics } from './analytics/posthog-config';
 // Get analytics instance
 const analytics = PostHogAnalytics.getInstance();
 
+function dataPath(baseDir: string, relativePath: string): string {
+  return baseDir === '.' ? relativePath : `${baseDir}/${relativePath}`;
+}
 
 // 从JSON文件名中提取competition编号
 function extractCompetitionId(jsonPath: string): string | null {
@@ -45,7 +48,7 @@ async function loadCompetitionsData(baseDir?: string): Promise<{ [key: string]: 
 
     // 如果有baseDir，从指定目录加载
     if (baseDir) {
-      const competitionPath = `${baseDir}/competition_data/competitions.json`;
+      const competitionPath = dataPath(baseDir, 'competition_data/competitions.json');
       try {
         const model = await contentsManager.get(competitionPath, { type: 'file', format: 'text', content: true });
         const competitionsData = JSON.parse(model.content as string);
@@ -150,7 +153,7 @@ function extractBaseDir(jsonPath: string): string | null {
   // 移除文件名，获取目录路径
   const lastSlashIndex = jsonPath.lastIndexOf('/');
   if (lastSlashIndex === -1) {
-    return null; // 没有目录分隔符，说明是根目录
+    return '.'; // 没有目录分隔符，说明JSON在Jupyter根目录
   }
   return jsonPath.substring(0, lastSlashIndex);
 }
@@ -162,7 +165,7 @@ async function loadTocData(competitionId: string, baseDir: string): Promise<any[
               return [];
     }
 
-    const tocPath = `${baseDir}/toc_data/${competitionId}_toc.json`;
+    const tocPath = dataPath(baseDir, `toc_data/${competitionId}_toc.json`);
         const contentsManager = app?.serviceManager?.contents;
 
         if (!contentsManager) {
@@ -191,7 +194,7 @@ async function loadSummaryData(competitionId: string, baseDir: string): Promise<
               return null;
     }
 
-    const summaryPath = `${baseDir}/summary_data/${competitionId}_summarized.json`;
+    const summaryPath = dataPath(baseDir, `summary_data/${competitionId}_summarized.json`);
         const contentsManager = app?.serviceManager?.contents;
 
         if (!contentsManager) {
@@ -239,7 +242,7 @@ async function createKernelTitleMap(competitionId: string, baseDir: string): Pro
     }
 
     // 动态加载CSV文件
-    const csvPath = `${baseDir}/kernel_data/competition_${competitionId}.csv`;
+    const csvPath = dataPath(baseDir, `kernel_data/competition_${competitionId}.csv`);
     const contentsManager = app?.serviceManager?.contents;
 
     if (!contentsManager) {
@@ -967,7 +970,7 @@ function activate(
 
             // 读取对应的 CSV 文件（如果存在）
             try {
-              const csvPath = `${baseDir}/cluster_data/${competitionId}_sorted.csv`;
+              const csvPath = dataPath(baseDir, `cluster_data/${competitionId}_sorted.csv`);
               const csvModel = await contentsManager.get(csvPath, { type: 'file', format: 'text', content: true });
               similarityGroups = csvParse(csvModel.content as string);
             } catch (e) {
@@ -976,7 +979,7 @@ function activate(
 
             // 读取投票数据（如果存在）
             try {
-              const votePath = `${baseDir}/cluster_data/${competitionId}_sorted.csv`;
+              const votePath = dataPath(baseDir, `cluster_data/${competitionId}_sorted.csv`);
               const voteModel = await contentsManager.get(votePath, { type: 'file', format: 'text', content: true });
               voteData = csvParse(voteModel.content as string);
             } catch (e) {
@@ -1527,7 +1530,7 @@ function activate(
 
             // 读取投票数据（如果存在）
             try {
-              const votePath = `${baseDir}/cluster_data/${competitionId}_sorted.csv`;
+              const votePath = dataPath(baseDir, `cluster_data/${competitionId}_sorted.csv`);
               const voteModel = await contentsManager.get(votePath, { type: 'file', format: 'text', content: true });
               voteData = csvParse(voteModel.content as string);
             } catch (e) {
